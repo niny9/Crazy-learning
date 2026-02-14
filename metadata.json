@@ -1,0 +1,8 @@
+{
+  "name": "LinguaFlow AI Coach",
+  "description": "A personalized English learning platform combining exam prep, daily news with AI narration, and scenario-based conversational practice using vision and voice capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
