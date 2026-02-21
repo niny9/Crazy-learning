@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DailyContent, WritingFeedback, VideoContent, ChatMessage } from "../types";
 
@@ -6,10 +7,10 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 export const analyzeUploadedFile = async (base64: string, mimeType: string, language: string): Promise<VideoContent> => {
   try {
     const prompt = `
-      Analyze this ${mimeType.startsWith('video') ? 'video' : 'audio'} file for a student learning ${language}.
-      1. Provide a transcript in ${language}.
-      2. Summarize the main message in ${language}.
-      3. Identify 5 advanced vocabulary words or phrases and define them for a native Chinese speaker.
+      Analyze this ${mimeType.startsWith('video') ? 'video' : 'audio'} file for an advanced student learning ${language}.
+      1. Provide a verbatim transcript in ${language}.
+      2. Summarize the pedagogical value and main points.
+      3. Extract 5 complex idioms or phrases and explain them for a native Chinese speaker.
       Return JSON.
     `;
     const response = await ai.models.generateContent({
@@ -34,11 +35,11 @@ export const analyzeUploadedFile = async (base64: string, mimeType: string, lang
 
 export const getDailyListeningContent = async (language: string, seenTitles: string[] = []): Promise<DailyContent> => {
   try {
-    const prompt = `Search for a high-quality ${language} podcast excerpt or TED Talk transcript for learners.
-    Target language: ${language}. 
-    Exclude these: [${seenTitles.join(", ")}].
-    Return JSON with title, summary, url, and a 300-word transcript content in ${language}.
-    IMPORTANT: The 'content' field must be in ${language}.
+    const prompt = `Find an educational, news, or TED Talk style content in ${language} suitable for intermediate-advanced learners. 
+    Language: ${language}. 
+    Exclude previously seen topics like: [${seenTitles.join(", ")}].
+    Target interest: Global culture, technology, or personal growth.
+    Return JSON with title, summary, url, and the full transcript text (approx 400 words) in 'content' field.
     `;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -46,16 +47,22 @@ export const getDailyListeningContent = async (language: string, seenTitles: str
       config: { tools: [{ googleSearch: {} }], responseMimeType: "application/json" }
     });
     const data = JSON.parse(response.text || "{}");
-    return { title: data.title, summary: data.summary, url: data.url, content: data.content, source: 'TED / Web' };
+    return { 
+      title: data.title || "Daily Inspiration", 
+      summary: data.summary || "A curated piece of content for your daily practice.", 
+      url: data.url || "#", 
+      content: data.content || "Content synchronizing...", 
+      source: data.source || 'Global Web' 
+    };
   } catch (e) {
-    return { title: "Language Learning Tips", summary: "A default guide to learning.", url: "#", content: `Consistency is the key to mastering ${language}.`, source: 'LinguaFlow' };
+    return { title: "The Art of Learning", summary: "Tips on linguistic mastery.", url: "#", content: `Continuous immersion is the path to native-level fluency in ${language}. Try to spend 15 minutes today listening to natural speech.`, source: 'LinguaFlow' };
   }
 };
 
 export const getReadingSuggestions = async (level: string, language: string): Promise<DailyContent[]> => {
   try {
-    const prompt = `Find a high-quality short story or article in ${language} (Level: ${level}).
-    Return a JSON array where 'content' is approximately 250 words in ${language}.`;
+    const prompt = `Find a high-quality short article or essay in ${language} (Academic/Literary Level: ${level}). 
+    Return a JSON array with one object containing 'title', 'source', and 'content' (approx 300 words).`;
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -68,18 +75,19 @@ export const getReadingSuggestions = async (level: string, language: string): Pr
 export const generateWritingTopic = async (language: string): Promise<string> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Suggest a creative writing prompt for a ${language} learner. The prompt itself should be in English but the topic should be relevant for ${language} culture.`,
+    contents: `Give me a creative, thought-provoking writing prompt for an advanced student learning ${language}. The topic should be something that requires critical thinking or cultural reflection.`,
   });
-  return response.text?.trim() || "What are your dreams for the future?";
+  return response.text?.trim() || "Describe a cultural misunderstanding you've experienced and what it taught you.";
 };
 
 export const analyzeWriting = async (text: string, language: string): Promise<WritingFeedback> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
-    contents: `Analyze this ${language} text: "${text}". 
-    1. Corrected version (natural but simple).
-    2. Pro version (advanced vocabulary in ${language}).
-    3. A model essay on the same topic in ${language}.
+    contents: `Review this student's ${language} writing: "${text}". 
+    Provide:
+    1. A 'corrected' version that sounds natural.
+    2. An 'upgraded' version with sophisticated vocabulary.
+    3. A brief 'modelEssay' on the same topic for reference.
     Return JSON.`,
     config: {
       responseMimeType: "application/json",
@@ -99,7 +107,11 @@ export const analyzeWriting = async (text: string, language: string): Promise<Wr
 export const generateVocabContext = async (word: string, language: string): Promise<{definition: string, chineseDefinition: string, sentence: string}> => {
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Define "${word}" (${language}). Provide definition (in English), Chinese definition, and a natural context sentence in ${language}. JSON format.`,
+    contents: `Define "${word}" in the context of learning ${language}. Provide:
+    - English definition
+    - Accurate Chinese definition
+    - A natural, high-level context sentence in ${language}.
+    Format: JSON.`,
     config: { responseMimeType: "application/json" }
   });
   return JSON.parse(response.text || "{}");

@@ -36,7 +36,7 @@ export interface DailyContent {
   summary: string;
   url: string;
   content: string; 
-  source: string; // Changed from union type to string to support various website names
+  source: string;
 }
 
 export interface VideoContent {
@@ -65,6 +65,14 @@ export interface WritingEntry {
   topic: string;
   original: string;
   feedback: WritingFeedback;
+}
+
+export interface SpeakingScenario {
+  id: string;
+  title: string;
+  description: string;
+  icon: any;
+  prompt: string;
 }
 
 export interface SpeakingReport {

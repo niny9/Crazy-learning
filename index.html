@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinguaFlow AI Coach</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -11,25 +13,26 @@
           extend: {
             colors: {
               kitty: {
-                50: '#fff0f5',   // Lavender Blush
-                100: '#ffe4e1',  // Misty Rose
-                200: '#ffc0cb',  // Pink
-                300: '#ffb6c1',  // Light Pink
-                400: '#ff69b4',  // Hot Pink
-                500: '#ff1493',  // Deep Pink
-                600: '#db7093',  // Pale Violet Red
-                700: '#c71585',  // Medium Violet Red
-                900: '#8b008b',  // Dark Magenta
+                50: '#fff9fb',   
+                100: '#ffeef4',  
+                200: '#ffdae9',  
+                300: '#ffb7d5',  
+                400: '#ff85b8',  
+                500: '#ff4d9c',  
+                600: '#f02d84',  
+                700: '#d11a6d',  
+                800: '#ad145a',  
+                900: '#8f154e',  
               }
             },
             animation: {
-              'bounce-slow': 'bounce 3s infinite',
-              'wiggle': 'wiggle 1s ease-in-out infinite',
+              'pulse-soft': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
             },
             keyframes: {
-              wiggle: {
-                '0%, 100%': { transform: 'rotate(-3deg)' },
-                '50%': { transform: 'rotate(3deg)' },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-10px)' },
               }
             }
           }
@@ -40,9 +43,17 @@
       @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
       body {
         font-family: 'Quicksand', sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .glass {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
     </style>
     <script type="importmap">
 {
@@ -57,9 +68,11 @@
   }
 }
 </script>
-  </head>
+  <link rel="stylesheet" href="/index.css">
+</head>
   <body class="bg-kitty-50 text-slate-900 h-screen overflow-hidden">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>
