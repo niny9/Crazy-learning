@@ -6,13 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "1.30.0",
+    "@tailwindcss/vite": "^4.2.0",
+    "lucide-react": "0.474.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "@google/genai": "1.30.0",
-    "lucide-react": "0.474.0"
+    "tailwindcss": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

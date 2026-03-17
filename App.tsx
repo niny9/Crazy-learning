@@ -22,6 +22,7 @@ const SPEAKING_SCENARIOS: SpeakingScenario[] = [
   { id: 'interview', title: 'Job Interview', description: 'Practice for your dream job with professional questions.', icon: FileText, prompt: 'You are an interviewer for a global tech company. Conduct a professional job interview in the target language.' },
   { id: 'coffee', title: 'Ordering Coffee', description: 'Roleplay a busy morning at a Starbucks-like café.', icon: ShoppingBag, prompt: 'You are a barista at a busy coffee shop. The user is a customer. Take their order and handle small talk.' },
   { id: 'travel', title: 'Airport Check-in', description: 'Navigate the complexities of international travel.', icon: Globe, prompt: 'You are a check-in agent at an international airport. Assist the user with their flight and luggage.' },
+  { id: 'immersive', title: 'Scene Explorer', description: 'AI identifies your surroundings and roleplays in your world.', icon: Camera, prompt: 'You are an immersive language coach. Use the camera to see the user\'s environment. 1. Identify 2-3 interesting objects in the scene and tell the user their English names. 2. Based on the environment, assume a fitting role (e.g., if they are in a kitchen, you are a master chef; if in a park, you are a local guide). 3. Start a conversation in that role, referencing the objects you identified.' },
 ];
 
 const UI_LABELS: Record<string, any> = {
@@ -157,7 +158,7 @@ const App = () => {
     if (!dailyContent || !dailyContent.content) return;
     setIsTTSLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: `Narration for the student learning ${language}: ${dailyContent.content}` }] }],
@@ -203,11 +204,15 @@ const App = () => {
     setIsConnecting(true);
     setErrorMsg(null);
     
+    // Automatically enable camera for immersive mode
+    const cameraRequired = scenario.id === 'immersive' || isCameraOn;
+    if (scenario.id === 'immersive') setIsCameraOn(true);
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: isCameraOn });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: cameraRequired });
       mediaStreamRef.current = stream;
       
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       audioContextRef.current = audioCtx;
       
@@ -288,7 +293,14 @@ const App = () => {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-          systemInstruction: `You are a patient ${language} coach. Focus on making the user feel confident. ${scenario.prompt} Keep your responses natural and concise. If the user makes a mistake, gently correct it after their turn.`
+          systemInstruction: `You are a patient ${language} coach. ${scenario.prompt} 
+          
+          IMPORTANT: 
+          - If you see the environment, use it to drive the conversation.
+          - Identify objects and teach their English names naturally.
+          - Maintain the persona you've chosen based on the scene.
+          - Keep responses concise and encourage the user to speak.
+          - If the user makes a mistake, gently correct it after their turn.`
         }
       });
       liveSessionRef.current = await sessionPromise;

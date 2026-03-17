@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+
+  --color-kitty-50: #fff9fb;
+  --color-kitty-100: #ffeef4;
+  --color-kitty-200: #ffdae9;
+  --color-kitty-300: #ffb7d5;
+  --color-kitty-400: #ff85b8;
+  --color-kitty-500: #ff4d9c;
+  --color-kitty-600: #f02d84;
+  --color-kitty-700: #d11a6d;
+  --color-kitty-800: #ad145a;
+  --color-kitty-900: #8f154e;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@layer base {
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+}
