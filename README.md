@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# LinguaFlow on Vercel
 
-# Run and deploy your AI Studio app
+This app is now set up to deploy on Vercel with Zhipu AI on the server side.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/0fa7776f-fb06-4873-be46-c88e5c0f3296
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Local development
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Create `.env.local` from `.env.example`
+3. Start the app:
    `npm run dev`
+
+## Environment variables
+
+- `ZHIPU_API_KEY`: your Zhipu AI API key
+- `ZHIPU_MODEL`: optional, defaults to `glm-4-flash`
+
+## Deploy to Vercel
+
+1. Import this repo into Vercel
+2. Set `ZHIPU_API_KEY` in the Vercel project environment variables
+3. Run a production deploy
+
+## Notes
+
+- The browser no longer receives the model API key directly.
+- AI requests now go through the Vercel serverless route at `/api/ai`.
+- Reading, writing, vocabulary, and AI dialogue use Zhipu.
+- Text narration uses the browser's built-in speech synthesis for a simpler cross-browser fallback.

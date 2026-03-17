@@ -10,7 +10,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "1.30.0",
     "@tailwindcss/vite": "^4.2.0",
     "lucide-react": "0.474.0",
     "react": "^19.2.4",
