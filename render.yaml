@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: crazy-learning
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: ZHIPU_MODEL
+        value: glm-4-flash
+      - key: ZHIPU_API_KEY
+        sync: false
