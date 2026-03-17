@@ -1,4 +1,12 @@
-import { DailyContent, WritingFeedback, VocabItem, ChatMessage } from "../types";
+import {
+  DailyContent,
+  WritingFeedback,
+  VocabItem,
+  ChatMessage,
+  SceneContext,
+  SceneHint,
+  SpeakingTurnPayload,
+} from "../types";
 
 type AiAction =
   | "dailyListening"
@@ -6,8 +14,8 @@ type AiAction =
   | "writingTopic"
   | "analyzeWriting"
   | "vocabContext"
-  | "scenarioOpening"
-  | "scenarioReply";
+  | "sceneAnalyze"
+  | "speakingTurn";
 
 async function callAI<T>(action: AiAction, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch("/api/ai", {
@@ -76,26 +84,37 @@ export const generateVocabContext = async (
   );
 };
 
-export const startScenarioConversation = async (
+export const analyzeSceneContext = async (
   language: string,
-  scenarioPrompt: string,
-  scenarioTitle: string
-): Promise<{ reply: string }> => {
-  return callAI<{ reply: string }>("scenarioOpening", {
-    language,
-    scenarioPrompt,
-    scenarioTitle,
-  });
+  imageBase64: string | null,
+  firstUtterance: string,
+  currentContext?: SceneContext
+): Promise<{ context: SceneContext; hint: SceneHint; opener: string; words: SpeakingTurnPayload["words"] }> => {
+  return callAI<{ context: SceneContext; hint: SceneHint; opener: string; words: SpeakingTurnPayload["words"] }>(
+    "sceneAnalyze",
+    {
+      language,
+      imageBase64,
+      firstUtterance,
+      currentContext,
+    }
+  );
 };
 
-export const continueScenarioConversation = async (
+export const sendSpeakingTurn = async (
   language: string,
-  scenarioPrompt: string,
-  history: ChatMessage[]
-): Promise<{ reply: string }> => {
-  return callAI<{ reply: string }>("scenarioReply", {
+  mode: "words" | "sentences",
+  context: SceneContext,
+  hint: SceneHint,
+  history: ChatMessage[],
+  userUtterance: string
+): Promise<SpeakingTurnPayload> => {
+  return callAI<SpeakingTurnPayload>("speakingTurn", {
     language,
-    scenarioPrompt,
+    mode,
+    context,
+    hint,
     history,
+    userUtterance,
   });
 };

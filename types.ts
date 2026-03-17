@@ -50,6 +50,7 @@ export interface ChatMessage {
   text: string;
   image?: string;
   isCorrection?: boolean;
+  feedback?: SpeakingFeedback;
 }
 
 export interface WritingFeedback {
@@ -73,6 +74,45 @@ export interface SpeakingScenario {
   description: string;
   icon: any;
   prompt: string;
+}
+
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
+
+export interface SceneContext {
+  objects: string[];
+  environmentTag: string;
+  intentTag?: string;
+  timeOfDay?: TimeOfDay;
+  persona?: string;
+}
+
+export interface SceneHint {
+  title: string;
+  suggestions: string[];
+}
+
+export interface SpeakingFeedback {
+  summary: string;
+  suggestedSentence?: string;
+  tags?: ('fluency' | 'accuracy' | 'vocabulary')[];
+  level?: 'easy' | 'medium' | 'hard';
+}
+
+export interface SceneWord {
+  word: string;
+  meaning: string;
+  chineseHint?: string;
+  example: string;
+}
+
+export interface SpeakingTurnPayload {
+  context: SceneContext;
+  hint: SceneHint;
+  reply: string;
+  feedback: SpeakingFeedback;
+  words?: SceneWord[];
+  nextPrompt?: string;
+  intentUpdated?: string;
 }
 
 export interface SpeakingReport {

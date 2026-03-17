@@ -9,7 +9,6 @@ import {
   Globe,
   GraduationCap,
   Headphones,
-  MessageSquare,
   Mic,
   PenTool,
   Plus,
@@ -23,9 +22,20 @@ import {
   Volume2,
   Wand2,
   X,
-  Zap
+  Zap,
 } from 'lucide-react';
-import { AppMode, ChatMessage, DailyContent, SavedSentence, SpeakingScenario, VocabItem, WritingFeedback } from './types';
+import {
+  AppMode,
+  ChatMessage,
+  DailyContent,
+  SavedSentence,
+  SceneContext,
+  SceneHint,
+  SceneWord,
+  SpeakingFeedback,
+  VocabItem,
+  WritingFeedback,
+} from './types';
 import * as AIService from './services/aiService';
 
 type SpeechRecognitionAlternative = {
@@ -54,19 +64,18 @@ type BrowserSpeechRecognition = {
 };
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+type SpeakingMode = 'words' | 'sentences';
+type SpeakingEvent =
+  | { type: 'session_start'; environmentTag: string }
+  | { type: 'intent_update'; intentTag: string }
+  | { type: 'user_utterance'; lengthMs: number }
+  | { type: 'ai_feedback'; tags: string[] }
+  | { type: 'session_end'; reason: 'user_exit' | 'timeout' };
 
 const SUPPORTED_LANGUAGES = [
   { code: 'English', flag: '🇺🇸', label: 'English' },
   { code: 'French', flag: '🇫🇷', label: 'Français' },
   { code: 'Japanese', flag: '🇯🇵', label: '日本語' },
-];
-
-const SPEAKING_SCENARIOS: SpeakingScenario[] = [
-  { id: 'casual', title: 'Casual Chat', description: 'Just a friendly conversation about your day.', icon: MessageSquare, prompt: 'You are a friendly personal language tutor. Start a casual conversation with the user.' },
-  { id: 'interview', title: 'Job Interview', description: 'Practice for your dream job with professional questions.', icon: FileText, prompt: 'You are an interviewer for a global tech company. Conduct a professional job interview in the target language.' },
-  { id: 'coffee', title: 'Ordering Coffee', description: 'Roleplay a busy morning at a Starbucks-like cafe.', icon: ShoppingBag, prompt: 'You are a barista at a busy coffee shop. The user is a customer. Take their order and handle small talk.' },
-  { id: 'travel', title: 'Airport Check-in', description: 'Navigate the complexities of international travel.', icon: Globe, prompt: 'You are a check-in agent at an international airport. Assist the user with their flight and luggage.' },
-  { id: 'immersive', title: 'Scene Explorer', description: 'Use what the learner describes around them to roleplay naturally.', icon: Camera, prompt: 'You are an immersive language coach. Ask the learner to describe the environment around them, identify useful vocabulary from that description, and roleplay in that setting.' },
 ];
 
 const UI_LABELS: Record<string, any> = {
@@ -84,18 +93,18 @@ const UI_LABELS: Record<string, any> = {
     inspire: 'Inspire Me',
     check: 'Check & Polish',
     narrate: 'Narrate',
-    connecting: 'Connecting to AI...',
-    errorMic: 'AI assistant is temporarily unavailable'
-  }
+    connecting: 'Getting your scene ready...',
+    errorMic: 'Microphone or camera access is needed to start speaking.',
+  },
 };
 
 const EXAM_RESOURCES: Record<string, any[]> = {
   English: [
     { name: 'KMF (考满分)', desc: 'IELTS / TOEFL / GRE Practice', url: 'https://www.kmf.com/', icon: FileText, color: 'blue' },
-    { name: 'Burning Vocab', desc: 'CET-4/6 Questions', url: 'https://zhenti.burningvocabulary.cn/', icon: Zap, color: 'red' }
+    { name: 'Burning Vocab', desc: 'CET-4/6 Questions', url: 'https://zhenti.burningvocabulary.cn/', icon: Zap, color: 'red' },
   ],
   Japanese: [{ name: 'NHK Web Easy', desc: 'Easy Japanese News', url: 'https://www3.nhk.or.jp/news/easy/', icon: Headphones, color: 'orange' }],
-  French: [{ name: 'RFI Savoirs', desc: 'Apprendre le francais', url: 'https://savoirs.rfi.fr/fr', icon: Globe, color: 'blue' }]
+  French: [{ name: 'RFI Savoirs', desc: 'Apprendre le francais', url: 'https://savoirs.rfi.fr/fr', icon: Globe, color: 'blue' }],
 };
 
 const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
@@ -103,6 +112,25 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
   French: 'fr-FR',
   Japanese: 'ja-JP',
 };
+
+const DEFAULT_SCENE_CONTEXT: SceneContext = {
+  objects: ['laptop', 'desk', 'notebook'],
+  environmentTag: 'home_desk',
+  intentTag: 'casual_chat',
+  timeOfDay: 'afternoon',
+  persona: 'friendly study buddy',
+};
+
+const DEFAULT_SCENE_HINT: SceneHint = {
+  title: 'Detected: 🏠 Desk study',
+  suggestions: ['talk about what is on your desk', 'share today’s plan', 'describe how you feel right now'],
+};
+
+const DEFAULT_SCENE_WORDS: SceneWord[] = [
+  { word: 'planner', meaning: 'a tool for organizing tasks', chineseHint: '计划本', example: 'I write my study goals in my planner every morning.' },
+  { word: 'focus', meaning: 'full attention on one task', chineseHint: '专注', example: 'I want to focus on speaking practice for ten minutes.' },
+  { word: 'deadline', meaning: 'the time something must be finished', chineseHint: '截止时间', example: 'I have a deadline for my project this week.' },
+];
 
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -122,28 +150,41 @@ const App = () => {
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedScenario, setSelectedScenario] = useState<SpeakingScenario | null>(null);
+  const [speakingMode, setSpeakingMode] = useState<SpeakingMode>('sentences');
+  const [sceneContext, setSceneContext] = useState<SceneContext>(DEFAULT_SCENE_CONTEXT);
+  const [sceneHint, setSceneHint] = useState<SceneHint>(DEFAULT_SCENE_HINT);
+  const [sceneWords, setSceneWords] = useState<SceneWord[]>(DEFAULT_SCENE_WORDS);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [lastFeedback, setLastFeedback] = useState<SpeakingFeedback | null>(null);
+  const [lastNextPrompt, setLastNextPrompt] = useState('');
+  const [sessionSummary, setSessionSummary] = useState('');
   const [isTTSLoading, setIsTTSLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
   const [selectedText, setSelectedText] = useState('');
-  const speakingListRef = useRef<HTMLDivElement | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const transcriptBufferRef = useRef('');
+  const utteranceStartRef = useRef<number | null>(null);
+  const sceneRefreshIntervalRef = useRef<number | null>(null);
+  const speakingEventsRef = useRef<SpeakingEvent[]>([]);
+  const speakingListRef = useRef<HTMLDivElement | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdTriggeredRef = useRef(false);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
-  const stopVoiceInput = () => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setIsListening(false);
-    setSpeechDraft('');
+  const logSpeakingEvent = (event: SpeakingEvent) => {
+    speakingEventsRef.current = [...speakingEventsRef.current.slice(-19), event];
   };
 
   const addToVocab = async (word: string, context: string = '') => {
@@ -154,7 +195,7 @@ const App = () => {
       chineseDefinition: '获取中...',
       contextSentence: context,
       dateAdded: new Date().toISOString(),
-      language
+      language,
     };
     setVocabList((prev) => [newItem, ...prev]);
     setSidebarOpen(true);
@@ -174,7 +215,7 @@ const App = () => {
       text,
       source: dailyContent?.title || 'Manual',
       dateAdded: new Date().toISOString(),
-      language
+      language,
     };
     setSentenceList((prev) => [newSentence, ...prev]);
     setSidebarOpen(true);
@@ -215,16 +256,13 @@ const App = () => {
   };
 
   const handleTTS = async () => {
-    if (!dailyContent?.content) {
-      return;
-    }
+    if (!dailyContent?.content) return;
 
     setIsTTSLoading(true);
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(dailyContent.content);
-      utterance.lang =
-        language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
+      utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
       utterance.rate = 0.95;
       utterance.onend = () => setIsTTSLoading(false);
       utterance.onerror = () => setIsTTSLoading(false);
@@ -236,10 +274,7 @@ const App = () => {
   };
 
   const handleWritingSubmit = async () => {
-    if (!writingInput.trim()) {
-      return;
-    }
-
+    if (!writingInput.trim()) return;
     setIsWritingLoading(true);
     try {
       const feedback = await AIService.analyzeWriting(writingInput, language);
@@ -249,18 +284,97 @@ const App = () => {
     }
   };
 
-  const startSpeakingSession = async (scenario: SpeakingScenario) => {
-    setSelectedScenario(scenario);
+  const getSpeechRecognitionApi = () => {
+    return (
+      (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).SpeechRecognition ||
+      (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).webkitSpeechRecognition
+    );
+  };
+
+  const stopMediaStream = () => {
+    if (sceneRefreshIntervalRef.current) {
+      clearInterval(sceneRefreshIntervalRef.current);
+      sceneRefreshIntervalRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+  };
+
+  const captureCurrentFrame = async (): Promise<string | null> => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
+      return null;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.72);
+  };
+
+  const applySceneAnalysis = async (firstUtterance = '') => {
+    try {
+      const imageBase64 = await captureCurrentFrame();
+      const result = await AIService.analyzeSceneContext(language, imageBase64, firstUtterance, sceneContext);
+      setSceneContext(result.context);
+      setSceneHint(result.hint);
+      if (result.words?.length) setSceneWords(result.words);
+      if (result.context.intentTag && result.context.intentTag !== sceneContext.intentTag) {
+        logSpeakingEvent({ type: 'intent_update', intentTag: result.context.intentTag });
+      }
+      if (!chatMessages.length) {
+        setChatMessages([{ role: 'model', text: result.opener }]);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const endSpeakingSession = (reason: 'user_exit' | 'timeout') => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    stopMediaStream();
+    setIsListening(false);
+    setSpeechDraft('');
+    setChatInput('');
+    setIsChatLoading(false);
+    setIsSpeaking(false);
+    setIsConnecting(false);
+    setLastFeedback(null);
+    setLastNextPrompt('');
+    setSessionSummary('');
+    logSpeakingEvent({ type: 'session_end', reason });
+  };
+
+  const enterSpeakingMode = async () => {
+    setMode(AppMode.SPEAKING);
     setIsConnecting(true);
     setErrorMsg(null);
     setChatMessages([]);
-    setChatInput('');
-    setSpeechDraft('');
+    setSceneContext(DEFAULT_SCENE_CONTEXT);
+    setSceneHint(DEFAULT_SCENE_HINT);
+    setSceneWords(DEFAULT_SCENE_WORDS);
+    setLastFeedback(null);
+    setLastNextPrompt('');
+    setSessionSummary('');
+    speakingEventsRef.current = [];
 
     try {
-      const result = await AIService.startScenarioConversation(language, scenario.prompt, scenario.title);
-      setChatMessages([{ role: 'model', text: result.reply }]);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
+      mediaStreamRef.current = stream;
       setIsSpeaking(true);
+      logSpeakingEvent({ type: 'session_start', environmentTag: DEFAULT_SCENE_CONTEXT.environmentTag });
+      window.setTimeout(() => {
+        void applySceneAnalysis('');
+      }, 1200);
+      sceneRefreshIntervalRef.current = window.setInterval(() => {
+        void applySceneAnalysis('');
+      }, 22000);
     } catch (error) {
       console.error(error);
       setErrorMsg(labels.errorMic);
@@ -269,41 +383,75 @@ const App = () => {
     }
   };
 
-  const stopSpeakingSession = () => {
-    stopVoiceInput();
-    setIsSpeaking(false);
-    setIsConnecting(false);
-    setSelectedScenario(null);
-    setChatMessages([]);
+  const submitUtterance = async (utterance: string) => {
+    if (!utterance.trim() || isChatLoading) return;
+
+    const duration = utteranceStartRef.current ? Date.now() - utteranceStartRef.current : 0;
+    logSpeakingEvent({ type: 'user_utterance', lengthMs: duration });
+    utteranceStartRef.current = null;
+
+    const userMessage: ChatMessage = { role: 'user', text: utterance.trim() };
+    const history = [...chatMessages, userMessage].slice(-10);
+    setChatMessages(history);
     setChatInput('');
-    setIsChatLoading(false);
+    setSpeechDraft('');
+    setIsChatLoading(true);
+
+    try {
+      const imageBase64 = await captureCurrentFrame();
+      const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
+      const turn = await AIService.sendSpeakingTurn(language, speakingMode, sceneResult.context, sceneResult.hint, history, utterance);
+
+      setSceneContext(turn.context);
+      setSceneHint(turn.hint);
+      if (turn.words?.length) setSceneWords(turn.words);
+      if (turn.intentUpdated && turn.intentUpdated !== sceneContext.intentTag) {
+        logSpeakingEvent({ type: 'intent_update', intentTag: turn.intentUpdated });
+      }
+      if (turn.feedback?.tags?.length) {
+        logSpeakingEvent({ type: 'ai_feedback', tags: turn.feedback.tags });
+      }
+
+      setLastFeedback(turn.feedback);
+      setLastNextPrompt(turn.nextPrompt || '');
+      setSessionSummary(turn.feedback?.summary || '');
+      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: turn.reply, feedback: turn.feedback }]);
+    } catch (error) {
+      console.error(error);
+      setErrorMsg('The speaking coach hit a small glitch. Try again in a moment.');
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const stopVoiceInput = async () => {
+    const finalText = transcriptBufferRef.current.trim() || chatInput.trim();
+    holdTriggeredRef.current = false;
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsListening(false);
+    setSpeechDraft('');
+    if (finalText) {
+      setChatInput(finalText);
+      transcriptBufferRef.current = '';
+      await submitUtterance(finalText);
+    }
   };
 
   const startVoiceInput = () => {
-    const SpeechRecognitionApi = (
-      window as Window & {
-        SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-        webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-      }
-    ).SpeechRecognition || (
-      window as Window & {
-        SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-        webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-      }
-    ).webkitSpeechRecognition;
-
+    const SpeechRecognitionApi = getSpeechRecognitionApi();
     if (!SpeechRecognitionApi) {
       setErrorMsg('This browser does not support voice input. Please type instead.');
-      setSpeechSupported(false);
       return;
     }
-
-    stopVoiceInput();
+    if (isListening) return;
 
     const recognition = new SpeechRecognitionApi();
     recognition.lang = SPEECH_RECOGNITION_LOCALE[language] || 'en-US';
     recognition.continuous = true;
     recognition.interimResults = true;
+    transcriptBufferRef.current = '';
+    utteranceStartRef.current = Date.now();
 
     recognition.onresult = (event) => {
       let finalTranscript = '';
@@ -318,13 +466,16 @@ const App = () => {
         }
       }
 
-      setSpeechDraft(interimTranscript.trim());
       if (finalTranscript.trim()) {
-        setChatInput((prev) => `${prev} ${finalTranscript.trim()}`.trim());
+        transcriptBufferRef.current = `${transcriptBufferRef.current} ${finalTranscript.trim()}`.trim();
+        setChatInput(transcriptBufferRef.current);
       }
+      setSpeechDraft(interimTranscript.trim());
     };
 
     recognition.onerror = (event) => {
+      console.error(event.error);
+      recognitionRef.current = null;
       setIsListening(false);
       setSpeechDraft('');
       if (event.error !== 'aborted') {
@@ -344,56 +495,45 @@ const App = () => {
     recognition.start();
   };
 
-  const sendChatMessage = async () => {
-    if (!selectedScenario || !chatInput.trim() || isChatLoading) {
-      return;
+  useEffect(() => {
+    if (videoRef.current && mediaStreamRef.current) {
+      videoRef.current.srcObject = mediaStreamRef.current;
+      videoRef.current.play().catch(() => {});
     }
-
-    const userMessage: ChatMessage = {
-      role: 'user',
-      text: chatInput.trim()
-    };
-
-    const nextHistory = [...chatMessages, userMessage];
-    setChatMessages(nextHistory);
-    setChatInput('');
-    setIsChatLoading(true);
-
-    try {
-      const result = await AIService.continueScenarioConversation(language, selectedScenario.prompt, nextHistory);
-      setChatMessages((prev) => [...prev, { role: 'model', text: result.reply }]);
-    } catch (error) {
-      console.error(error);
-      setErrorMsg('Message failed to send. Please try again.');
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
+  }, [isSpeaking, mode]);
 
   useEffect(() => {
     if (speakingListRef.current) {
       speakingListRef.current.scrollTop = speakingListRef.current.scrollHeight;
     }
-  }, [chatMessages, isChatLoading]);
+  }, [chatMessages, isChatLoading, lastFeedback]);
 
   useEffect(() => {
-    const SpeechRecognitionApi = (
-      window as Window & {
-        SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-        webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-      }
-    ).SpeechRecognition || (
-      window as Window & {
-        SpeechRecognition?: BrowserSpeechRecognitionConstructor;
-        webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
-      }
-    ).webkitSpeechRecognition;
-    setSpeechSupported(Boolean(SpeechRecognitionApi));
+    setSpeechSupported(Boolean(getSpeechRecognitionApi()));
   }, []);
 
+  useEffect(() => {
+    if (mode !== AppMode.SPEAKING) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      stopMediaStream();
+      setIsListening(false);
+    }
+  }, [mode]);
+
   useEffect(() => () => {
-    stopVoiceInput();
+    recognitionRef.current?.stop();
+    stopMediaStream();
   }, []);
+
+  const feedbackPill = (tag: 'fluency' | 'accuracy' | 'vocabulary') => {
+    const styles: Record<string, string> = {
+      fluency: 'bg-emerald-50 text-emerald-600',
+      accuracy: 'bg-blue-50 text-blue-600',
+      vocabulary: 'bg-orange-50 text-orange-600',
+    };
+    return styles[tag];
+  };
 
   return (
     <div className="h-screen w-screen bg-kitty-50 flex overflow-hidden relative">
@@ -477,7 +617,7 @@ const App = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {[
-                  { m: AppMode.SPEAKING, icon: Mic, color: 'emerald', label: labels.speaking, tag: 'Dialogue' },
+                  { m: AppMode.SPEAKING, icon: Mic, color: 'emerald', label: labels.speaking, tag: 'Scene Explorer' },
                   { m: AppMode.LISTENING, icon: Headphones, color: 'indigo', label: labels.listening, tag: 'Media' },
                   { m: AppMode.WRITING, icon: PenTool, color: 'pink', label: labels.writing, tag: 'Analysis' },
                   { m: AppMode.READING, icon: BookOpen, color: 'orange', label: labels.reading, tag: 'Library' },
@@ -485,7 +625,16 @@ const App = () => {
                 ].map((card, index) => (
                   <div
                     key={card.m}
-                    onClick={() => { setMode(card.m); if (card.m === AppMode.READING || card.m === AppMode.LISTENING) loadDailyContent(card.m === AppMode.READING ? 'reading' : 'listening'); }}
+                    onClick={() => {
+                      if (card.m === AppMode.SPEAKING) {
+                        void enterSpeakingMode();
+                        return;
+                      }
+                      setMode(card.m);
+                      if (card.m === AppMode.READING || card.m === AppMode.LISTENING) {
+                        void loadDailyContent(card.m === AppMode.READING ? 'reading' : 'listening');
+                      }
+                    }}
                     className="group bg-white p-10 rounded-[3rem] cursor-pointer shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all border border-slate-100 hover:border-kitty-200 flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
@@ -497,7 +646,11 @@ const App = () => {
                         <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{card.label}</h3>
                         <span className={`text-[10px] font-black px-3 py-1 rounded-full bg-${card.color}-100 text-${card.color}-600 uppercase`}>{card.tag}</span>
                       </div>
-                      <p className="text-slate-400 font-medium leading-relaxed">Level up your {language} skills with adaptive AI-powered sessions.</p>
+                      <p className="text-slate-400 font-medium leading-relaxed">
+                        {card.m === AppMode.SPEAKING
+                          ? 'Tap once and speak inside your real environment.'
+                          : `Level up your ${language} skills with adaptive AI-powered sessions.`}
+                      </p>
                     </div>
                     <div className="mt-8 flex justify-end">
                       <div className="p-4 bg-slate-50 rounded-full group-hover:bg-kitty-500 group-hover:text-white transition-all"><ArrowRight /></div>
@@ -509,109 +662,256 @@ const App = () => {
           )}
 
           {mode === AppMode.SPEAKING && (
-            <div className="h-full flex flex-col items-center justify-center p-8">
-              {!isSpeaking && !isConnecting ? (
-                <div className="w-full max-w-6xl animate-in fade-in zoom-in-95 duration-500">
-                  <div className="text-center mb-16">
-                    <h2 className="text-5xl font-black text-slate-900 mb-4">Choose a Scenario</h2>
-                    <p className="text-slate-400 text-xl font-medium">Practice with a scenario-based AI assistant powered by Zhipu.</p>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {SPEAKING_SCENARIOS.map((scenario) => (
-                      <button key={scenario.id} onClick={() => startSpeakingSession(scenario)} className="bg-white p-10 rounded-[3rem] shadow-sm hover:shadow-xl transition-all border border-slate-100 flex flex-col items-center group">
-                        <div className="p-6 bg-emerald-50 text-emerald-500 rounded-[2rem] mb-6 group-hover:scale-110 transition-transform">
-                          <scenario.icon size={48} />
-                        </div>
-                        <h4 className="text-2xl font-black text-slate-800 mb-2">{scenario.title}</h4>
-                        <p className="text-slate-400 text-sm font-medium text-center">{scenario.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                  {errorMsg && <p className="mt-10 text-red-500 font-bold text-center">{errorMsg}</p>}
-                </div>
-              ) : (
-                <div className="w-full max-w-5xl bg-white rounded-[5rem] p-10 md:p-16 shadow-2xl border border-kitty-100 relative overflow-hidden flex flex-col h-[82vh]">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-emerald-50 text-emerald-500 p-4 rounded-3xl">
-                        {selectedScenario?.icon && React.createElement(selectedScenario.icon, { size: 24 })}
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-black text-slate-800 leading-none">{selectedScenario?.title}</h3>
-                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-1">AI Dialogue Session</p>
-                      </div>
+            <div className="h-full relative bg-slate-950 overflow-hidden">
+              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+              <canvas ref={canvasRef} className="hidden" />
+              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
+
+              <div className="relative z-10 h-full p-6 md:p-10 flex flex-col">
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div className="max-w-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-md p-6 shadow-2xl border border-white/60">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-600">
+                        <Camera size={14} /> Scene Explorer
+                      </span>
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneContext.persona || 'Study buddy mode'}</span>
                     </div>
-                    <button onClick={stopSpeakingSession} className="px-6 py-3 bg-red-50 text-red-500 rounded-full font-black hover:bg-red-100 transition-all flex items-center gap-3 border border-red-100">
-                      <Square size={18} /> End Session
-                    </button>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{sceneHint.title}</h2>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {sceneHint.suggestions.map((suggestion, index) => (
+                        <span key={`${suggestion}-${index}`} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
+                          {suggestion}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium">
+                      Objects in view: {sceneContext.objects.join(' · ')} {sceneContext.intentTag ? `· Intent: ${sceneContext.intentTag.replace(/_/g, ' ')}` : ''}
+                    </p>
                   </div>
 
-                  {isConnecting ? (
-                    <div className="flex-1 flex flex-col items-center justify-center animate-pulse">
-                      <RefreshCw size={64} className="text-kitty-300 animate-spin mb-8" />
-                      <p className="text-2xl font-black text-slate-400">{labels.connecting}</p>
-                    </div>
-                  ) : (
-                    <>
-                      <div ref={speakingListRef} className="flex-1 overflow-y-auto pr-2 space-y-4 no-scrollbar">
-                        {chatMessages.map((message, index) => (
-                          <div key={`${message.role}-${index}`} className={`max-w-[85%] rounded-[2rem] px-6 py-5 text-lg leading-relaxed shadow-sm ${message.role === 'user' ? 'ml-auto bg-kitty-500 text-white' : 'bg-slate-50 text-slate-700 border border-slate-100'}`}>
+                  <button onClick={() => endSpeakingSession('user_exit')} className="rounded-full bg-white/90 px-6 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
+                    <Square size={16} /> End
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 mb-5">
+                  {(['words', 'sentences'] as SpeakingMode[]).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setSpeakingMode(tab)}
+                      className={`px-5 py-3 rounded-full text-sm font-black transition-all ${speakingMode === tab ? 'bg-white text-kitty-600 shadow-lg' : 'bg-white/15 text-white border border-white/20 backdrop-blur-md'}`}
+                    >
+                      {tab === 'words' ? labels.words : labels.sentences}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-6 flex-1 min-h-0">
+                  <div className="rounded-[2.75rem] bg-white/12 backdrop-blur-md border border-white/15 shadow-2xl p-5 md:p-7 flex flex-col min-h-0">
+                    <div ref={speakingListRef} className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-2">
+                      {isConnecting && (
+                        <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90 flex items-center gap-3">
+                          <RefreshCw className="animate-spin" size={18} /> {labels.connecting}
+                        </div>
+                      )}
+
+                      {chatMessages.map((message, index) => (
+                        <div key={`${message.role}-${index}`} className={`max-w-[88%] ${message.role === 'user' ? 'ml-auto' : ''}`}>
+                          <div className={`rounded-[2rem] px-6 py-5 text-lg leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-kitty-500 text-white' : 'bg-white/92 text-slate-700'}`}>
                             {message.text}
                           </div>
-                        ))}
-                        {isChatLoading && (
-                          <div className="max-w-[85%] rounded-[2rem] px-6 py-5 text-lg bg-slate-50 text-slate-400 border border-slate-100">
-                            AI is thinking...
-                          </div>
-                        )}
-                      </div>
+                          {message.feedback && (
+                            <div className="mt-3 rounded-[1.5rem] bg-white/85 px-5 py-4 shadow-sm">
+                              <p className="text-sm font-bold text-slate-700">{message.feedback.summary}</p>
+                              {message.feedback.suggestedSentence && (
+                                <div className="mt-3 rounded-2xl bg-kitty-50 px-4 py-3 text-sm text-kitty-700 font-medium">
+                                  Try this: {message.feedback.suggestedSentence}
+                                </div>
+                              )}
+                              {message.feedback.tags?.length ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {message.feedback.tags.map((tag) => (
+                                    <span key={tag} className={`px-3 py-1 rounded-full text-xs font-black ${feedbackPill(tag)}`}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      ))}
 
-                      <div className="mt-8 border-t border-slate-100 pt-6">
-                        <p className="text-sm text-slate-400 mb-4">
-                          Tip: use the target language directly. The assistant will roleplay and gently correct your mistakes.
-                        </p>
-                        {speechSupported && (
-                          <div className="mb-4 flex items-center gap-3">
-                            <button
-                              onClick={isListening ? stopVoiceInput : startVoiceInput}
-                              disabled={isChatLoading}
-                              className={`px-5 py-3 rounded-full font-black text-sm border transition-all flex items-center gap-3 ${isListening ? 'bg-red-50 text-red-500 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} disabled:opacity-50`}
-                            >
-                              <Mic size={16} />
-                              {isListening ? 'Stop Voice Input' : 'Start Voice Input'}
-                            </button>
-                            <span className="text-sm text-slate-400">
-                              {isListening ? 'Listening... speak naturally and we will transcribe into the text box.' : 'Use your microphone to fill the reply box.'}
-                            </span>
-                          </div>
-                        )}
-                        {speechDraft && (
-                          <div className="mb-4 rounded-[1.5rem] bg-emerald-50 border border-emerald-100 px-5 py-4 text-sm text-emerald-700">
-                            Live transcript: {speechDraft}
-                          </div>
-                        )}
-                        <div className="flex gap-4">
+                      {isChatLoading && (
+                        <div className="max-w-[88%] rounded-[2rem] px-6 py-5 text-lg bg-white/80 text-slate-500">
+                          Your scene buddy is thinking...
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-5">
+                      {speechDraft && (
+                        <div className="mb-3 rounded-[1.5rem] bg-emerald-50/95 px-5 py-4 text-sm font-semibold text-emerald-700">
+                          Live transcript: {speechDraft}
+                        </div>
+                      )}
+                      {lastNextPrompt && (
+                        <div className="mb-3 rounded-[1.5rem] bg-white/80 px-5 py-4 text-sm font-semibold text-slate-600">
+                          Next idea: {lastNextPrompt}
+                        </div>
+                      )}
+                      {errorMsg && (
+                        <div className="mb-3 rounded-[1.5rem] bg-red-50/95 px-5 py-4 text-sm font-semibold text-red-600">
+                          {errorMsg}
+                        </div>
+                      )}
+                      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-end">
+                        <div className="flex-1 rounded-[2rem] bg-white/90 px-5 py-4">
                           <textarea
                             value={chatInput}
                             onChange={(event) => setChatInput(event.target.value)}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' && !event.shiftKey) {
                                 event.preventDefault();
-                                void sendChatMessage();
+                                void submitUtterance(chatInput);
                               }
                             }}
-                            placeholder="Type your reply here..."
-                            className="flex-1 min-h-24 resize-none rounded-[2rem] border border-slate-200 px-6 py-4 text-lg outline-none focus:border-kitty-400"
+                            placeholder={speakingMode === 'words' ? 'Repeat a word, describe an object, or ask what something means...' : 'Say what you see, what you need, or just start talking...'}
+                            className="w-full min-h-24 resize-none outline-none bg-transparent text-lg text-slate-700 placeholder:text-slate-300"
                           />
-                          <button onClick={() => void sendChatMessage()} disabled={!chatInput.trim() || isChatLoading} className="self-end px-8 py-4 bg-kitty-500 text-white rounded-2xl font-black disabled:opacity-50 flex items-center gap-3 shadow-lg">
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => {
+                              if (!speechSupported) return;
+                              if (holdTriggeredRef.current) {
+                                holdTriggeredRef.current = false;
+                                return;
+                              }
+                              if (isListening) {
+                                void stopVoiceInput();
+                              } else {
+                                startVoiceInput();
+                              }
+                            }}
+                            onPointerDown={() => {
+                              if (!speechSupported || isListening) return;
+                              holdTimerRef.current = window.setTimeout(() => {
+                                holdTriggeredRef.current = true;
+                                startVoiceInput();
+                              }, 180);
+                            }}
+                            onPointerUp={() => {
+                              if (holdTimerRef.current) {
+                                clearTimeout(holdTimerRef.current);
+                                holdTimerRef.current = null;
+                              }
+                              if (holdTriggeredRef.current) {
+                                void stopVoiceInput();
+                              }
+                            }}
+                            onPointerLeave={() => {
+                              if (holdTimerRef.current) {
+                                clearTimeout(holdTimerRef.current);
+                                holdTimerRef.current = null;
+                              }
+                              if (holdTriggeredRef.current) {
+                                void stopVoiceInput();
+                              }
+                            }}
+                            disabled={!speechSupported || isConnecting}
+                            className={`min-w-[170px] md:min-w-[200px] rounded-[2rem] px-7 py-6 text-white font-black shadow-2xl transition-all ${isListening ? 'bg-red-500' : 'bg-kitty-500 hover:bg-kitty-600'} disabled:opacity-50`}
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <Mic size={24} />
+                              <span>{isListening ? 'Release to send' : 'Press & hold / Tap to speak'}</span>
+                            </div>
+                          </button>
+                          <button onClick={() => void submitUtterance(chatInput)} disabled={!chatInput.trim() || isChatLoading} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
                             <Send size={18} /> Send
                           </button>
                         </div>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-5 min-h-0">
+                    <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-black text-slate-800">{speakingMode === 'words' ? 'Scene Words' : 'Session Mood'}</h3>
+                        {speakingMode === 'words' && (
+                          <button onClick={() => void applySceneAnalysis(chatInput)} className="text-sm font-black text-kitty-600">
+                            Show more words
+                          </button>
+                        )}
+                      </div>
+                      {speakingMode === 'words' ? (
+                        <div className="space-y-3">
+                          {sceneWords.slice(0, 5).map((word) => (
+                            <div key={word.word} className="rounded-[1.75rem] border border-slate-100 bg-white px-5 py-4 shadow-sm">
+                              <div className="flex items-center justify-between gap-3 mb-1">
+                                <span className="text-lg font-black text-slate-800">{word.word}</span>
+                                {word.chineseHint && <span className="text-xs font-black text-kitty-500">{word.chineseHint}</span>}
+                              </div>
+                              <p className="text-sm text-slate-500 font-semibold">{word.meaning}</p>
+                              <p className="mt-2 text-sm text-slate-700">{word.example}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
+                            <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Persona</p>
+                            <p className="text-lg font-black text-slate-800">{sceneContext.persona || 'Friendly study buddy'}</p>
+                          </div>
+                          <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Current Focus</p>
+                            <p className="text-sm text-slate-700 font-semibold">{sceneContext.intentTag ? sceneContext.intentTag.replace(/_/g, ' ') : 'casual scene talk'}</p>
+                          </div>
+                          {sessionSummary && (
+                            <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
+                              <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Mini Win</p>
+                              <p className="text-sm text-emerald-700 font-semibold">{sessionSummary}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-black text-slate-800">Friendly Feedback</h3>
+                        <button onClick={() => void applySceneAnalysis(chatInput)} className="text-sm font-black text-kitty-600">
+                          Refresh scene
+                        </button>
+                      </div>
+                      {lastFeedback ? (
+                        <div>
+                          <p className="text-sm text-slate-600 font-semibold">{lastFeedback.summary}</p>
+                          {lastFeedback.suggestedSentence && (
+                            <div className="mt-4 rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm text-slate-700">
+                              Try this: {lastFeedback.suggestedSentence}
+                            </div>
+                          )}
+                          {lastFeedback.tags?.length ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {lastFeedback.tags.map((tag) => (
+                                <span key={tag} className={`px-3 py-1 rounded-full text-xs font-black ${feedbackPill(tag)}`}>
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 font-semibold">
+                          Keep it light. Say one sentence about your environment and the coach will help you sound more natural.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -629,7 +929,7 @@ const App = () => {
                     <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
                       {isTTSLoading ? <RefreshCw className="animate-spin" /> : <Volume2 />}
                     </button>
-                    <button onClick={() => loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
+                    <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
                       <RefreshCw />
                     </button>
                   </div>
@@ -662,7 +962,7 @@ const App = () => {
                     {[
                       { label: 'Corrected', text: writingResult.corrected, color: 'emerald' },
                       { label: 'Pro Upgrade', text: writingResult.upgraded, color: 'indigo' },
-                      { label: 'Model Essay', text: writingResult.modelEssay, color: 'slate' }
+                      { label: 'Model Essay', text: writingResult.modelEssay, color: 'slate' },
                     ].map((result, index) => (
                       <div key={index} className={`bg-${result.color}-50 p-10 rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
                         <div className="flex items-center gap-3 mb-4">
