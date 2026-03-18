@@ -68,6 +68,16 @@ export interface WritingEntry {
   feedback: WritingFeedback;
 }
 
+export interface DiaryEntry {
+  id: string;
+  date: string;
+  topic: string;
+  title: string;
+  content: string;
+  sourceLabel: 'Corrected' | 'Pro Upgrade' | 'Model Essay';
+  language?: string;
+}
+
 export interface SpeakingScenario {
   id: string;
   title: string;

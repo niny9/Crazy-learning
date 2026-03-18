@@ -28,6 +28,7 @@ import {
   AppMode,
   ChatMessage,
   DailyContent,
+  DiaryEntry,
   SavedSentence,
   SceneContext,
   SceneHint,
@@ -134,15 +135,19 @@ const DEFAULT_SCENE_WORDS: SceneWord[] = [
 ];
 
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
+const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
+const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
+const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
 
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
   const [language, setLanguage] = useState('English');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'vocab' | 'sentences'>('vocab');
+  const [activeTab, setActiveTab] = useState<'vocab' | 'sentences' | 'diary'>('vocab');
 
   const [vocabList, setVocabList] = useState<VocabItem[]>([]);
   const [sentenceList, setSentenceList] = useState<SavedSentence[]>([]);
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [dailyContent, setDailyContent] = useState<DailyContent | null>(null);
   const [seenTitles, setSeenTitles] = useState<string[]>([]);
 
@@ -255,6 +260,26 @@ const App = () => {
 
     setWritingEntries((prev) => [entry, ...prev].slice(0, 20));
     setWritingSavedNotice('Today’s diary is saved.');
+    window.setTimeout(() => setWritingSavedNotice(''), 2200);
+  };
+
+  const saveDiaryVariant = (sourceLabel: 'Corrected' | 'Pro Upgrade' | 'Model Essay', content: string) => {
+    if (!content.trim()) return;
+
+    const entry: DiaryEntry = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      topic: writingTopic || 'Free writing',
+      title: `${sourceLabel} · ${writingTopic || 'Free writing'}`,
+      content,
+      sourceLabel,
+      language,
+    };
+
+    setDiaryEntries((prev) => [entry, ...prev].slice(0, 50));
+    setSidebarOpen(true);
+    setActiveTab('diary');
+    setWritingSavedNotice(`${sourceLabel} saved to Diary.`);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
   };
 
@@ -628,22 +653,37 @@ const App = () => {
 
   useEffect(() => {
     try {
+      const storedVocab = window.localStorage.getItem(VOCAB_STORAGE_KEY);
+      const storedSentences = window.localStorage.getItem(SENTENCE_STORAGE_KEY);
       const stored = window.localStorage.getItem(WRITING_STORAGE_KEY);
+      const storedDiaries = window.localStorage.getItem(DIARY_STORAGE_KEY);
+      if (storedVocab) {
+        setVocabList(JSON.parse(storedVocab) as VocabItem[]);
+      }
+      if (storedSentences) {
+        setSentenceList(JSON.parse(storedSentences) as SavedSentence[]);
+      }
       if (stored) {
         setWritingEntries(JSON.parse(stored) as WritingEntry[]);
       }
+      if (storedDiaries) {
+        setDiaryEntries(JSON.parse(storedDiaries) as DiaryEntry[]);
+      }
     } catch (error) {
-      console.error('Failed to load writing entries', error);
+      console.error('Failed to load notebook entries', error);
     }
   }, []);
 
   useEffect(() => {
     try {
+      window.localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(vocabList));
+      window.localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceList));
       window.localStorage.setItem(WRITING_STORAGE_KEY, JSON.stringify(writingEntries));
+      window.localStorage.setItem(DIARY_STORAGE_KEY, JSON.stringify(diaryEntries));
     } catch (error) {
-      console.error('Failed to save writing entries', error);
+      console.error('Failed to save notebook entries', error);
     }
-  }, [writingEntries]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries]);
 
   useEffect(() => {
     if (mode !== AppMode.SPEAKING) {
@@ -693,23 +733,54 @@ const App = () => {
             <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-kitty-50 rounded-full transition-all text-slate-400"><X /></button>
           </div>
           <div className="flex bg-kitty-100/50 p-1.5 rounded-2xl border border-kitty-100">
-            {['vocab', 'sentences'].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-400'}`}>
-                {tab === 'vocab' ? labels.words : labels.sentences}
+            {['vocab', 'sentences', 'diary'].map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-400'}`}>
+                {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : 'Diary'}
               </button>
             ))}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-          {(activeTab === 'vocab' ? vocabList : sentenceList).filter((item) => item.language === language).map((item) => (
+          {(activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item.language === language).map((item) => (
             <div key={item.id} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
               <div className="flex justify-between items-start mb-2">
-                <span className="font-black text-slate-800 text-xl tracking-tight">{(item as VocabItem).word || `${(item as SavedSentence).text.substring(0, 30)}...`}</span>
-                <button onClick={() => activeTab === 'vocab' ? setVocabList((prev) => prev.filter((entry) => entry.id !== item.id)) : setSentenceList((prev) => prev.filter((entry) => entry.id !== item.id))} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"><Trash2 size={16} /></button>
+                <span className="font-black text-slate-800 text-xl tracking-tight">
+                  {activeTab === 'vocab'
+                    ? (item as VocabItem).word
+                    : activeTab === 'sentences'
+                      ? `${(item as SavedSentence).text.substring(0, 30)}...`
+                      : (item as DiaryEntry).title}
+                </span>
+                <button
+                  onClick={() =>
+                    activeTab === 'vocab'
+                      ? setVocabList((prev) => prev.filter((entry) => entry.id !== item.id))
+                      : activeTab === 'sentences'
+                        ? setSentenceList((prev) => prev.filter((entry) => entry.id !== item.id))
+                        : setDiaryEntries((prev) => prev.filter((entry) => entry.id !== item.id))
+                  }
+                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
-              <p className="text-sm text-kitty-500 mb-3 font-bold">{(item as VocabItem).chineseDefinition || 'Language Clip'}</p>
-              <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">"{(item as VocabItem).contextSentence || (item as SavedSentence).text}"</div>
+              <p className="text-sm text-kitty-500 mb-3 font-bold">
+                {activeTab === 'vocab'
+                  ? (item as VocabItem).chineseDefinition || 'Language Clip'
+                  : activeTab === 'sentences'
+                    ? 'Saved sentence'
+                    : `${(item as DiaryEntry).sourceLabel} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
+              </p>
+              <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
+                "
+                {activeTab === 'vocab'
+                  ? (item as VocabItem).contextSentence
+                  : activeTab === 'sentences'
+                    ? (item as SavedSentence).text
+                    : (item as DiaryEntry).content}
+                "
+              </div>
             </div>
           ))}
         </div>
@@ -1132,8 +1203,11 @@ const App = () => {
                       { label: 'Model Essay', text: writingResult.modelEssay, color: 'slate' },
                     ].map((result, index) => (
                       <div key={index} className={`bg-${result.color}-50 p-10 rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
-                        <div className="flex items-center gap-3 mb-4">
+                        <div className="flex items-center justify-between gap-3 mb-4">
                           <span className={`text-[10px] font-black uppercase tracking-widest text-${result.color}-600`}>{result.label}</span>
+                          <button onClick={() => saveDiaryVariant(result.label as 'Corrected' | 'Pro Upgrade' | 'Model Essay', result.text)} className="text-xs font-black text-kitty-600 hover:text-kitty-700">
+                            Save to Diary
+                          </button>
                         </div>
                         <p className="text-slate-800 text-lg leading-relaxed font-bold">{result.text}</p>
                       </div>

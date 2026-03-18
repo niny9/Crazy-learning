@@ -15,6 +15,92 @@ const MODEL_NAME = process.env.ZHIPU_MODEL || 'glm-4-flash';
 const DASHSCOPE_WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
 const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-zhide-v1';
 
+const CURATED_READING_RESOURCES = [
+  {
+    title: 'How to Build a New Habit: This is Your Strategy Guide',
+    source: 'James Clear',
+    url: 'https://jamesclear.com/habit-guide',
+    summary: 'A practical guide to habit design, ideal for reading about systems thinking, identity-based change, and consistent improvement.',
+    content:
+      'Reading preview:\n\nJames Clear explains habits as repeated decisions that shape identity over time. This piece is useful if you want natural English around productivity, routines, and self-improvement. As you read, notice how he moves from a simple definition to actionable steps. Pay attention to phrases like “start small,” “make it obvious,” and “build systems, not just goals.” After reading, try summarizing one idea in your own words and connect it to your current study routine.',
+  },
+  {
+    title: 'Product Discovery',
+    source: 'SVPG',
+    url: 'https://www.svpg.com/product-discovery/',
+    summary: 'A classic Marty Cagan article on how product teams discover solutions before building them.',
+    content:
+      'Reading preview:\n\nThis SVPG article walks through the logic of product discovery: understanding a real problem, interviewing users, prototyping quickly, and testing before shipping. It is especially useful if you care about product management vocabulary like opportunity, prototype, requirement, and user testing. While reading, track how the article builds a process from uncertainty to evidence. Then try explaining the four-week discovery cycle in simple English.',
+  },
+  {
+    title: 'All of our Product articles',
+    source: 'First Round Review',
+    url: 'https://review.firstround.com/articles/product',
+    summary: 'A curated page of product essays about PMF, decision-making, storytelling, and product leadership.',
+    content:
+      'Reading preview:\n\nThis First Round Review page is a strong entry point if you want real startup and product language. The page links to essays about product-market fit, founder judgment, organizational design, and product craft. It is useful for skimming headlines, choosing one article, and building topic vocabulary such as scale, taste, roadmap, and strategy. Start by scanning titles and choosing the one that best matches your current interest.',
+  },
+  {
+    title: 'The Proven, Reasonable and Totally Unsexy Secret to Success',
+    source: 'James Clear',
+    url: 'https://jamesclear.com/habit-creep',
+    summary: 'A readable article about continuous improvement and “habit creep,” with natural, modern nonfiction English.',
+    content:
+      'Reading preview:\n\nJames Clear uses the idea of “lifestyle creep” to introduce “habit creep,” a gentle form of continuous improvement. This article is good for learners who want accessible but polished English. Look at how the writer uses analogy to explain a mindset shift. Try collecting expressions related to progress, repetition, and long-term change, then write two sentences about your own learning habits.',
+  },
+  {
+    title: 'Product managers',
+    source: 'First Round Review',
+    url: 'https://review.firstround.com/articles/product-managers/',
+    summary: 'A hub page that gathers practical essays for PMs, from hiring and scaling to product judgment.',
+    content:
+      'Reading preview:\n\nThis page gathers product-management articles across hiring, org design, scaling, and decision-making. It is ideal if you want real workplace English used by startup operators. Skim the summaries, choose one subtopic, and practice explaining why it matters. You can also compare how different headlines frame product problems in concise business English.',
+  },
+];
+
+const CURATED_LISTENING_RESOURCES = [
+  {
+    title: 'Do things that don’t scale',
+    source: 'Masters of Scale',
+    url: 'https://mastersofscale.com/episode/brian-chesky/',
+    summary: 'Brian Chesky reflects on early Airbnb lessons and why handcrafted experiences can lead to scalable companies.',
+    content:
+      'Listening guide:\n\nIn this episode, you will hear startup language around product experience, scale, and customer obsession. Focus on expressions like “perfect experience,” “design backward,” and “what users really want.” First, listen for the big idea. Second, replay one short section and shadow the speaker’s rhythm. Finally, summarize what “doing things that do not scale” means in your own words.',
+  },
+  {
+    title: 'Build your culture like a product',
+    source: 'Masters of Scale',
+    url: 'https://mastersofscale.com/build-your-culture-like-a-product-dharmesh-shah/',
+    summary: 'Dharmesh Shah explains how culture can be intentionally designed and iterated, just like a product.',
+    content:
+      'Listening guide:\n\nThis episode is rich in workplace English: culture, transparency, buy-in, and team design. Use it if you want to get more comfortable with thoughtful business conversation rather than fast casual chat. Try listening once for structure, then once more to capture 3 key phrases you might reuse in an interview or team discussion.',
+  },
+  {
+    title: 'How Founders Hire a VP of Product',
+    source: 'a16z Podcast',
+    url: 'https://a16z.com/podcast/a16z-podcast-how-founders-hire-a-vp-of-product/',
+    summary: 'A practical discussion about hiring product leadership and defining what the role really means.',
+    content:
+      'Listening guide:\n\nThis conversation is useful if you care about startup hiring, leadership, and product orgs. Listen for phrases about ownership, integration, role definition, and common hiring mistakes. After listening, try answering: what qualities make a strong product leader, and how would you explain them in English?',
+  },
+  {
+    title: 'Building Products for Power Users',
+    source: 'a16z Podcast',
+    url: 'https://a16z.com/podcast/a16z-podcast-building-products-for-power-users/',
+    summary: 'A discussion on delighting advanced users while keeping software learnable and valuable.',
+    content:
+      'Listening guide:\n\nYou will hear language about premium products, onboarding, usability, and power-user workflows. This is a good step up from slower educational audio because it combines clear structure with native-speed product discussion. Listen for how the speakers define “power users” and how they balance delight with simplicity.',
+  },
+  {
+    title: 'Engineering a Revolution at Work',
+    source: 'a16z Podcast',
+    url: 'https://a16z.com/podcast/a16z-podcast-engineering-a-revolution-at-work/',
+    summary: 'A conversation about how workplace tools reshape managers, teams, and productivity.',
+    content:
+      'Listening guide:\n\nThis episode fits your product, tech, and workplace interests. The speakers discuss productivity tools, management, and how work changes with technology. Try listening for contrast words like “but,” “however,” and “instead,” because they often signal the most important insights in native interviews.',
+  },
+];
+
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(data));
@@ -163,6 +249,12 @@ function parseJson(value) {
 function getHistory(payload) {
   const history = payload.history;
   return Array.isArray(history) ? history : [];
+}
+
+function chooseCuratedItem(items, seenTitles = []) {
+  const unseen = items.filter((item) => !seenTitles.includes(item.title));
+  const pool = unseen.length ? unseen : items;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function getTimeOfDay() {
@@ -347,6 +439,9 @@ async function handleAiRequest(req, res) {
       case 'dailyListening': {
         const language = String(payload.language || 'English');
         const seenTitles = Array.isArray(payload.seenTitles) ? payload.seenTitles.join(', ') : '';
+        if (language === 'English') {
+          return sendJson(res, 200, chooseCuratedItem(CURATED_LISTENING_RESOURCES, Array.isArray(payload.seenTitles) ? payload.seenTitles : []));
+        }
         const content = await callZhipu(
           [
             {
@@ -365,6 +460,9 @@ async function handleAiRequest(req, res) {
       case 'readingSuggestions': {
         const language = String(payload.language || 'English');
         const level = String(payload.level || 'Intermediate');
+        if (language === 'English') {
+          return sendJson(res, 200, [chooseCuratedItem(CURATED_READING_RESOURCES)]);
+        }
         const content = await callZhipu(
           [
             {
