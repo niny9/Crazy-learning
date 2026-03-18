@@ -34,6 +34,7 @@ import {
   SceneWord,
   SpeakingFeedback,
   VocabItem,
+  WritingEntry,
   WritingFeedback,
 } from './types';
 import * as AIService from './services/aiService';
@@ -132,6 +133,8 @@ const DEFAULT_SCENE_WORDS: SceneWord[] = [
   { word: 'deadline', meaning: 'the time something must be finished', chineseHint: '截止时间', example: 'I have a deadline for my project this week.' },
 ];
 
+const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
+
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
   const [language, setLanguage] = useState('English');
@@ -147,6 +150,8 @@ const App = () => {
   const [writingTopic, setWritingTopic] = useState('');
   const [isWritingLoading, setIsWritingLoading] = useState(false);
   const [writingResult, setWritingResult] = useState<WritingFeedback | null>(null);
+  const [writingEntries, setWritingEntries] = useState<WritingEntry[]>([]);
+  const [writingSavedNotice, setWritingSavedNotice] = useState('');
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -192,6 +197,16 @@ const App = () => {
     speakingEventsRef.current = [...speakingEventsRef.current.slice(-19), event];
   };
 
+  const isSentenceSelection = (text: string) => text.trim().split(/\s+/).filter(Boolean).length > 2;
+
+  const addSelectionToNotebook = (text: string) => {
+    if (isSentenceSelection(text)) {
+      saveSentence(text);
+    } else {
+      void addToVocab(text);
+    }
+  };
+
   const addToVocab = async (word: string, context: string = '') => {
     const newItem: VocabItem = {
       id: Date.now().toString(),
@@ -225,6 +240,22 @@ const App = () => {
     setSentenceList((prev) => [newSentence, ...prev]);
     setSidebarOpen(true);
     setActiveTab('sentences');
+  };
+
+  const saveWritingEntry = () => {
+    if (!writingResult || !writingInput.trim()) return;
+
+    const entry: WritingEntry = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      topic: writingTopic || 'Free writing',
+      original: writingInput,
+      feedback: writingResult,
+    };
+
+    setWritingEntries((prev) => [entry, ...prev].slice(0, 20));
+    setWritingSavedNotice('Today’s diary is saved.');
+    window.setTimeout(() => setWritingSavedNotice(''), 2200);
   };
 
   const handleTextSelection = () => {
@@ -329,6 +360,13 @@ const App = () => {
       await audio.play();
     } catch (error) {
       console.error('Voice playback failed', error);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
+      }
     }
   };
 
@@ -363,6 +401,14 @@ const App = () => {
       }
     } catch (error) {
       console.error(error);
+      if (!chatMessages.length) {
+        setChatMessages([
+          {
+            role: 'model',
+            text: 'I am here with you. Tell me what you can see around you, and we will start with a simple real-life conversation.',
+          },
+        ]);
+      }
     }
   };
 
@@ -437,8 +483,18 @@ const App = () => {
 
     try {
       const imageBase64 = await captureCurrentFrame();
-      const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
-      const turn = await AIService.sendSpeakingTurn(language, speakingMode, sceneResult.context, sceneResult.hint, history, utterance);
+      let nextContext = sceneContext;
+      let nextHint = sceneHint;
+
+      try {
+        const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
+        nextContext = sceneResult.context;
+        nextHint = sceneResult.hint;
+      } catch (sceneError) {
+        console.error('Scene analysis failed', sceneError);
+      }
+
+      const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance);
 
       setSceneContext(turn.context);
       setSceneHint(turn.hint);
@@ -457,7 +513,25 @@ const App = () => {
       await playGeneratedSpeech(turn.reply);
     } catch (error) {
       console.error(error);
-      setErrorMsg('The speaking coach hit a small glitch. Try again in a moment.');
+      const fallbackReply =
+        speakingMode === 'words'
+          ? 'Nice try. Pick one thing you can see and describe it with one short sentence, and I will help you polish it.'
+          : 'Let’s keep it simple. Tell me one thing about your current scene, and I will reply like a real conversation partner.';
+      const fallbackFeedback: SpeakingFeedback = {
+        summary: 'Your input came through. Let’s keep the flow going with one shorter sentence.',
+        suggestedSentence:
+          speakingMode === 'words'
+            ? 'This is my laptop, and I use it for studying English.'
+            : 'I am at my desk now, and I want to practice speaking for a few minutes.',
+        tags: ['fluency'],
+        level: 'easy',
+      };
+      setLastFeedback(fallbackFeedback);
+      setLastNextPrompt('Try one short sentence about what you see right now.');
+      setSessionSummary(fallbackFeedback.summary);
+      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: fallbackReply, feedback: fallbackFeedback }]);
+      await playGeneratedSpeech(fallbackReply);
+      setErrorMsg('Speaking stayed available, but the AI scene coach had a temporary network hiccup.');
     } finally {
       setIsChatLoading(false);
     }
@@ -553,6 +627,25 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(WRITING_STORAGE_KEY);
+      if (stored) {
+        setWritingEntries(JSON.parse(stored) as WritingEntry[]);
+      }
+    } catch (error) {
+      console.error('Failed to load writing entries', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(WRITING_STORAGE_KEY, JSON.stringify(writingEntries));
+    } catch (error) {
+      console.error('Failed to save writing entries', error);
+    }
+  }, [writingEntries]);
+
+  useEffect(() => {
     if (mode !== AppMode.SPEAKING) {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
@@ -584,8 +677,8 @@ const App = () => {
           style={{ top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 100 }}
           className="fixed z-[100] bg-slate-900 text-white p-2.5 rounded-3xl shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200"
         >
-          <button onClick={() => { addToVocab(selectedText); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
-            <Plus size={16} /> Word
+          <button onClick={() => { addSelectionToNotebook(selectedText); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
+            <Plus size={16} /> {isSentenceSelection(selectedText) ? 'Sentence' : 'Word'}
           </button>
           <button onClick={() => { saveSentence(selectedText); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
             <Bookmark size={16} /> Save
@@ -987,6 +1080,11 @@ const App = () => {
                       {dailyContent?.source || 'Curated Content'}
                     </div>
                     <h2 className="text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
+                    {dailyContent?.url && dailyContent.url !== '#' && (
+                      <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
+                        Open original source <ArrowRight size={16} />
+                      </a>
+                    )}
                   </div>
                   <div className="flex gap-4">
                     <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
@@ -1009,10 +1107,16 @@ const App = () => {
               <div className="flex-1 flex flex-col bg-white rounded-[4rem] p-12 shadow-2xl border border-pink-100 relative overflow-hidden">
                 <div className="flex justify-between items-center mb-10">
                   <h2 className="text-3xl font-black text-slate-800">Writing Studio</h2>
-                  <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-8 py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
-                    <Wand2 size={20} /> {labels.inspire}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-8 py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
+                      <Wand2 size={20} /> {labels.inspire}
+                    </button>
+                    <button onClick={saveWritingEntry} disabled={!writingResult || !writingInput.trim()} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-8 py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
+                      <Bookmark size={18} /> Save Diary
+                    </button>
+                  </div>
                 </div>
+                {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
                 {writingTopic && <div className="mb-10 p-8 bg-pink-50/30 rounded-[2.5rem] border border-pink-100 text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
                 <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="Type your story, essay or journal here..." className="flex-1 w-full resize-none outline-none text-2xl text-slate-600 bg-transparent placeholder:text-slate-200 font-medium leading-relaxed no-scrollbar" />
                 <button onClick={handleWritingSubmit} disabled={isWritingLoading || !writingInput.trim()} className="mt-10 w-full py-6 bg-kitty-500 text-white rounded-3xl font-black text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
@@ -1021,7 +1125,7 @@ const App = () => {
               </div>
               <div className="w-[480px] space-y-8 overflow-y-auto no-scrollbar">
                 {writingResult ? (
-                  <div className="space-y-6 animate-in slide-in-from-right-8 duration-500">
+                  <div className="space-y-6 animate-in slide-in-from-right-8 duration-500" onMouseUp={handleTextSelection}>
                     {[
                       { label: 'Corrected', text: writingResult.corrected, color: 'emerald' },
                       { label: 'Pro Upgrade', text: writingResult.upgraded, color: 'indigo' },
@@ -1039,6 +1143,19 @@ const App = () => {
                   <div className="h-full flex flex-col items-center justify-center text-center p-16 glass rounded-[4rem] border-2 border-dashed border-slate-200">
                     <PenTool size={64} className="text-slate-200 mb-6" />
                     <p className="text-lg text-slate-400 font-black">AI feedback will appear here once you submit.</p>
+                  </div>
+                )}
+                {writingEntries.length > 0 && (
+                  <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm">
+                    <h3 className="text-xl font-black text-slate-800 mb-5">Saved Diaries</h3>
+                    <div className="space-y-4">
+                      {writingEntries.slice(0, 3).map((entry) => (
+                        <div key={entry.id} className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{entry.topic}</p>
+                          <p className="text-sm font-semibold text-slate-600 max-h-16 overflow-hidden">{entry.original}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
