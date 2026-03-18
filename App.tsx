@@ -39,33 +39,6 @@ import {
   WritingFeedback,
 } from './types';
 import * as AIService from './services/aiService';
-
-type SpeechRecognitionAlternative = {
-  transcript: string;
-};
-
-type SpeechRecognitionResult = {
-  isFinal: boolean;
-  0: SpeechRecognitionAlternative;
-};
-
-type SpeechRecognitionEvent = {
-  resultIndex: number;
-  results: ArrayLike<SpeechRecognitionResult>;
-};
-
-type BrowserSpeechRecognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type SpeakingMode = 'words' | 'sentences';
 type SpeakingEvent =
   | { type: 'session_start'; environmentTag: string }
@@ -73,6 +46,12 @@ type SpeakingEvent =
   | { type: 'user_utterance'; lengthMs: number }
   | { type: 'ai_feedback'; tags: string[] }
   | { type: 'session_end'; reason: 'user_exit' | 'timeout' };
+type RecorderNodes = {
+  audioContext: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  processor: ScriptProcessorNode;
+  zeroGain: GainNode;
+};
 
 const SUPPORTED_LANGUAGES = [
   { code: 'English', flag: '🇺🇸', label: 'English' },
@@ -138,6 +117,7 @@ const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
+const WAV_MIME_TYPE = 'audio/wav';
 
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -185,7 +165,6 @@ const App = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const transcriptBufferRef = useRef('');
   const utteranceStartRef = useRef<number | null>(null);
   const sceneRefreshIntervalRef = useRef<number | null>(null);
@@ -195,6 +174,9 @@ const App = () => {
   const holdTriggeredRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioUrlRef = useRef<string | null>(null);
+  const recorderRef = useRef<RecorderNodes | null>(null);
+  const recordedChunksRef = useRef<Float32Array[]>([]);
+  const recordingSampleRateRef = useRef(16000);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -340,12 +322,7 @@ const App = () => {
     }
   };
 
-  const getSpeechRecognitionApi = () => {
-    return (
-      (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).SpeechRecognition ||
-      (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).webkitSpeechRecognition
-    );
-  };
+  const isAudioCaptureSupported = () => typeof window !== 'undefined' && 'AudioContext' in window && !!navigator.mediaDevices?.getUserMedia;
 
   const stopMediaStream = () => {
     if (sceneRefreshIntervalRef.current) {
@@ -367,6 +344,68 @@ const App = () => {
       URL.revokeObjectURL(currentAudioUrlRef.current);
       currentAudioUrlRef.current = null;
     }
+  };
+
+  const stopRecorder = async () => {
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    if (!recorder) return;
+
+    recorder.processor.onaudioprocess = null;
+    recorder.source.disconnect();
+    recorder.processor.disconnect();
+    recorder.zeroGain.disconnect();
+    await recorder.audioContext.close();
+  };
+
+  const encodeWavBase64 = (samples: Float32Array, sampleRate: number) => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, value: string) => {
+      for (let index = 0; index < value.length; index += 1) {
+        view.setUint8(offset + index, value.charCodeAt(index));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let index = 0; index < samples.length; index += 1) {
+      const sample = Math.max(-1, Math.min(1, samples[index]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
+
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let index = 0; index < bytes.length; index += 1) {
+      binary += String.fromCharCode(bytes[index]);
+    }
+    return btoa(binary);
+  };
+
+  const getRecordedAudioBase64 = () => {
+    const totalLength = recordedChunksRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
+    const combined = new Float32Array(totalLength);
+    let offset = 0;
+    recordedChunksRef.current.forEach((chunk) => {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return encodeWavBase64(combined, recordingSampleRateRef.current);
   };
 
   const playGeneratedSpeech = async (text: string) => {
@@ -438,8 +477,7 @@ const App = () => {
   };
 
   const endSpeakingSession = (reason: 'user_exit' | 'timeout') => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
+    void stopRecorder();
     stopMediaStream();
     stopCurrentSpeechPlayback();
     setIsListening(false);
@@ -563,74 +601,73 @@ const App = () => {
   };
 
   const stopVoiceInput = async () => {
-    const finalText = transcriptBufferRef.current.trim() || chatInput.trim();
+    const hasRecording = recordedChunksRef.current.length > 0;
     holdTriggeredRef.current = false;
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
     setIsListening(false);
-    setSpeechDraft('');
-    if (finalText) {
-      setChatInput(finalText);
-      transcriptBufferRef.current = '';
-      await submitUtterance(finalText);
+    setSpeechDraft(hasRecording ? 'Transcribing your speech...' : '');
+
+    await stopRecorder();
+
+    if (!hasRecording) {
+      setSpeechDraft('');
+      return;
+    }
+
+    try {
+      const audioBase64 = getRecordedAudioBase64();
+      const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, language);
+      const finalText = transcript.trim() || chatInput.trim();
+      setSpeechDraft('');
+      recordedChunksRef.current = [];
+      if (finalText) {
+        setChatInput(finalText);
+        transcriptBufferRef.current = '';
+        await submitUtterance(finalText);
+      }
+    } catch (error) {
+      console.error(error);
+      recordedChunksRef.current = [];
+      setSpeechDraft('');
+      setErrorMsg('Voice input is temporarily unavailable. Please try again or type your reply below.');
     }
   };
 
   const startVoiceInput = () => {
-    const SpeechRecognitionApi = getSpeechRecognitionApi();
-    if (!SpeechRecognitionApi) {
+    if (!isAudioCaptureSupported()) {
       setErrorMsg('This browser does not support voice input. Please type instead.');
       return;
     }
-    if (isListening) return;
+    if (isListening || !mediaStreamRef.current) return;
 
-    const recognition = new SpeechRecognitionApi();
-    recognition.lang = SPEECH_RECOGNITION_LOCALE[language] || 'en-US';
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    const AudioContextApi = window.AudioContext;
+    const audioContext = new AudioContextApi();
+    const source = audioContext.createMediaStreamSource(mediaStreamRef.current);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    const zeroGain = audioContext.createGain();
+    zeroGain.gain.value = 0;
+
+    recordedChunksRef.current = [];
     transcriptBufferRef.current = '';
     utteranceStartRef.current = Date.now();
-
-    recognition.onresult = (event) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript;
-        } else {
-          interimTranscript += result[0].transcript;
-        }
-      }
-
-      if (finalTranscript.trim()) {
-        transcriptBufferRef.current = `${transcriptBufferRef.current} ${finalTranscript.trim()}`.trim();
-        setChatInput(transcriptBufferRef.current);
-      }
-      setSpeechDraft(interimTranscript.trim());
+    recordingSampleRateRef.current = audioContext.sampleRate;
+    processor.onaudioprocess = (event) => {
+      const channelData = event.inputBuffer.getChannelData(0);
+      recordedChunksRef.current.push(new Float32Array(channelData));
     };
 
-    recognition.onerror = (event) => {
-      console.error(event.error);
-      recognitionRef.current = null;
-      setIsListening(false);
-      setSpeechDraft('');
-      if (event.error !== 'aborted') {
-        setErrorMsg(`Voice input error: ${event.error}`);
-      }
-    };
+    source.connect(processor);
+    processor.connect(zeroGain);
+    zeroGain.connect(audioContext.destination);
 
-    recognition.onend = () => {
-      recognitionRef.current = null;
-      setIsListening(false);
-      setSpeechDraft('');
+    recorderRef.current = {
+      audioContext,
+      source,
+      processor,
+      zeroGain,
     };
-
-    recognitionRef.current = recognition;
     setErrorMsg(null);
     setIsListening(true);
-    recognition.start();
+    setSpeechDraft('Listening...');
   };
 
   useEffect(() => {
@@ -648,7 +685,7 @@ const App = () => {
   }, [chatMessages, isChatLoading, lastFeedback]);
 
   useEffect(() => {
-    setSpeechSupported(Boolean(getSpeechRecognitionApi()));
+    setSpeechSupported(isAudioCaptureSupported());
   }, []);
 
   useEffect(() => {
@@ -687,8 +724,7 @@ const App = () => {
 
   useEffect(() => {
     if (mode !== AppMode.SPEAKING) {
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
+      void stopRecorder();
       stopMediaStream();
       setIsListening(false);
       stopCurrentSpeechPlayback();
@@ -696,7 +732,7 @@ const App = () => {
   }, [mode]);
 
   useEffect(() => () => {
-    recognitionRef.current?.stop();
+    void stopRecorder();
     stopMediaStream();
     stopCurrentSpeechPlayback();
   }, []);

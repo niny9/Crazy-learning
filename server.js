@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import os from 'node:os';
+import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +16,9 @@ const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const MODEL_NAME = process.env.ZHIPU_MODEL || 'glm-4-flash';
 const DASHSCOPE_WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
 const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-zhide-v1';
+const ASR_MODEL_NAME = process.env.ASR_MODEL || 'paraformer-v2';
+const DASHSCOPE_ASR_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription';
+const uploadDir = path.join(os.tmpdir(), 'linguaflow-audio');
 
 const CURATED_READING_RESOURCES = [
   {
@@ -240,6 +245,138 @@ async function synthesizeDashscopeSpeech(text, voice = TTS_MODEL_NAME) {
       }
     });
   });
+}
+
+function getDashscopeApiKey() {
+  const apiKey = process.env.DASHSCOPE_API_KEY || process.env.TTS_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing DASHSCOPE_API_KEY');
+  }
+  return apiKey;
+}
+
+function buildPublicOrigin(req) {
+  const host = req.headers.host;
+  if (!host) {
+    throw new Error('Missing host header for ASR upload URL');
+  }
+
+  if (host.includes('localhost') || host.startsWith('127.0.0.1')) {
+    throw new Error('Voice input requires a public deployment because Alibaba ASR only accepts public audio URLs.');
+  }
+
+  const protocol = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  return `${protocol}://${host}`;
+}
+
+function getLanguageHint(language) {
+  const hints = {
+    English: 'en',
+    French: 'fr',
+    Japanese: 'ja',
+    Chinese: 'zh',
+  };
+
+  return hints[language] || 'en';
+}
+
+async function saveUploadedAudio(audioBuffer) {
+  await mkdir(uploadDir, { recursive: true });
+  const fileName = `${Date.now()}-${randomUUID()}.wav`;
+  const filePath = path.join(uploadDir, fileName);
+  await writeFile(filePath, audioBuffer);
+  return { fileName, filePath };
+}
+
+async function submitDashscopeAsrTask(fileUrl, languageHint) {
+  const response = await fetch(DASHSCOPE_ASR_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${getDashscopeApiKey()}`,
+      'Content-Type': 'application/json',
+      'X-DashScope-Async': 'enable',
+    },
+    body: JSON.stringify({
+      model: ASR_MODEL_NAME,
+      input: {
+        file_urls: [fileUrl],
+      },
+      parameters: {
+        channel_id: [0],
+        language_hints: [languageHint],
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`DashScope ASR submit failed: ${response.status} ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  const taskId = data?.output?.task_id;
+  if (!taskId) {
+    throw new Error('DashScope ASR did not return a task_id');
+  }
+  return taskId;
+}
+
+async function pollDashscopeAsrResult(taskId) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await fetch(`https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${getDashscopeApiKey()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`DashScope ASR query failed: ${response.status} ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    const output = data?.output;
+    const taskStatus = output?.task_status;
+
+    if (taskStatus === 'SUCCEEDED') {
+      const result = output?.results?.find((item) => item?.subtask_status === 'SUCCEEDED');
+      const transcriptionUrl = result?.transcription_url;
+      if (!transcriptionUrl) {
+        throw new Error('DashScope ASR finished without a transcription_url');
+      }
+      return transcriptionUrl;
+    }
+
+    if (taskStatus === 'FAILED' || taskStatus === 'CANCELED') {
+      throw new Error(output?.message || `DashScope ASR task failed with status ${taskStatus}`);
+    }
+
+    await delay(1200);
+  }
+
+  throw new Error('DashScope ASR timed out while waiting for the transcript');
+}
+
+async function fetchDashscopeTranscript(transcriptionUrl) {
+  const response = await fetch(transcriptionUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ASR transcript JSON: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const transcript = Array.isArray(data?.transcripts)
+    ? data.transcripts
+        .map((item) => (typeof item?.text === 'string' ? item.text.trim() : ''))
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+    : '';
+
+  if (!transcript) {
+    throw new Error('ASR transcript was empty');
+  }
+
+  return transcript;
 }
 
 function parseJson(value) {
@@ -596,6 +733,43 @@ async function handleTtsRequest(req, res) {
   }
 }
 
+async function handleAsrRequest(req, res) {
+  let filePath = '';
+
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    const audioBase64 = String(body.audioBase64 || '').trim();
+    const language = String(body.language || 'English');
+
+    if (!audioBase64) {
+      return sendJson(res, 400, { error: 'Missing audioBase64 for ASR' });
+    }
+
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    const upload = await saveUploadedAudio(audioBuffer);
+    filePath = upload.filePath;
+
+    const fileUrl = `${buildPublicOrigin(req)}/uploads/${upload.fileName}`;
+    const taskId = await submitDashscopeAsrTask(fileUrl, getLanguageHint(language));
+    const transcriptionUrl = await pollDashscopeAsrResult(taskId);
+    const transcript = await fetchDashscopeTranscript(transcriptionUrl);
+
+    return sendJson(res, 200, { transcript });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown ASR error';
+    return sendJson(res, 500, { error: message });
+  } finally {
+    if (filePath) {
+      unlink(filePath).catch(() => {});
+    }
+  }
+}
+
 function getContentType(filePath) {
   if (filePath.endsWith('.js')) return 'application/javascript; charset=utf-8';
   if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
@@ -617,6 +791,18 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/tts' && req.method === 'POST') {
     return handleTtsRequest(req, res);
+  }
+
+  if (pathname === '/api/asr' && req.method === 'POST') {
+    return handleAsrRequest(req, res);
+  }
+
+  if (pathname.startsWith('/uploads/')) {
+    const filePath = path.join(uploadDir, path.basename(pathname));
+    if (!filePath.startsWith(uploadDir) || !existsSync(filePath)) {
+      return sendJson(res, 404, { error: 'Audio upload not found' });
+    }
+    return sendFile(res, filePath, 'audio/wav');
   }
 
   if (!existsSync(distDir)) {

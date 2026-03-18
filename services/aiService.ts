@@ -37,6 +37,27 @@ export const synthesizeSpeech = async (
   return response.json() as Promise<{ audioBase64: string; mimeType: string }>;
 };
 
+export const transcribeSpeech = async (
+  audioBase64: string,
+  sampleRate: number,
+  language: string
+): Promise<{ transcript: string }> => {
+  const response = await fetch("/api/asr", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ audioBase64, sampleRate, language }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "ASR request failed");
+  }
+
+  return response.json() as Promise<{ transcript: string }>;
+};
+
 async function callAI<T>(action: AiAction, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch("/api/ai", {
     method: "POST",
