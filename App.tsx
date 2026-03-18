@@ -39,6 +39,17 @@ import {
   WritingFeedback,
 } from './types';
 import * as AIService from './services/aiService';
+import {
+  ensureSupabaseUser,
+  fetchLearningItems,
+  getSupabaseUser,
+  isSupabaseConfigured,
+  replaceLearningItems,
+  sendMagicLink,
+  signOutSupabase,
+  subscribeToAuthChanges,
+  trackUsageEvent as persistUsageEvent,
+} from './services/supabaseService';
 type SpeakingMode = 'words' | 'sentences';
 type SpeakingEvent =
   | { type: 'session_start'; environmentTag: string }
@@ -51,6 +62,11 @@ type RecorderNodes = {
   source: MediaStreamAudioSourceNode;
   processor: ScriptProcessorNode;
   zeroGain: GainNode;
+};
+type CloudSyncStatus = 'local' | 'connecting' | 'syncing' | 'synced' | 'error';
+type UsageEventPayload = {
+  eventType: string;
+  payload: Record<string, unknown>;
 };
 
 const SUPPORTED_LANGUAGES = [
@@ -118,6 +134,17 @@ const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
 const WAV_MIME_TYPE = 'audio/wav';
+const safeTrim = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const mergeById = <T extends { id: string }>(localItems: T[], remoteItems: T[]) => {
+  const merged = new Map<string, T>();
+  remoteItems.forEach((item) => merged.set(item.id, item));
+  localItems.forEach((item) => merged.set(item.id, item));
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftDate = 'dateAdded' in left ? String(left.dateAdded || '') : 'date' in left ? String(left.date || '') : '';
+    const rightDate = 'dateAdded' in right ? String(right.dateAdded || '') : 'date' in right ? String(right.date || '') : '';
+    return rightDate.localeCompare(leftDate);
+  });
+};
 
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -138,6 +165,14 @@ const App = () => {
   const [writingEntries, setWritingEntries] = useState<WritingEntry[]>([]);
   const [writingSavedNotice, setWritingSavedNotice] = useState('');
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
+  const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [isEmailUser, setIsEmailUser] = useState(false);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -177,14 +212,124 @@ const App = () => {
   const recorderRef = useRef<RecorderNodes | null>(null);
   const recordedChunksRef = useRef<Float32Array[]>([]);
   const recordingSampleRateRef = useRef(16000);
+  const cloudUserIdRef = useRef<string | null>(null);
+  const hasBootstrappedCloudRef = useRef(false);
+  const isApplyingCloudSnapshotRef = useRef(false);
+  const syncTimerRef = useRef<number | null>(null);
+  const usageQueueRef = useRef<UsageEventPayload[]>([]);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
   const logSpeakingEvent = (event: SpeakingEvent) => {
     speakingEventsRef.current = [...speakingEventsRef.current.slice(-19), event];
+    queueUsageEvent(event.type, { ...event, language });
   };
 
-  const isSentenceSelection = (text: string) => text.trim().split(/\s+/).filter(Boolean).length > 2;
+  const applyCloudSnapshot = async (userId: string) => {
+    const storedVocab = JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]') as VocabItem[];
+    const storedSentences = JSON.parse(window.localStorage.getItem(SENTENCE_STORAGE_KEY) || '[]') as SavedSentence[];
+    const storedWritingEntries = JSON.parse(window.localStorage.getItem(WRITING_STORAGE_KEY) || '[]') as WritingEntry[];
+    const storedDiaries = JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]') as DiaryEntry[];
+
+    const remoteData = await fetchLearningItems(userId);
+    const mergedVocab = mergeById(storedVocab, remoteData.vocab);
+    const mergedSentences = mergeById(storedSentences, remoteData.sentences);
+    const mergedWritingEntries = mergeById(storedWritingEntries, remoteData.writingEntries);
+    const mergedDiaries = mergeById(storedDiaries, remoteData.diaries);
+
+    isApplyingCloudSnapshotRef.current = true;
+    setVocabList(mergedVocab);
+    setSentenceList(mergedSentences);
+    setWritingEntries(mergedWritingEntries);
+    setDiaryEntries(mergedDiaries);
+
+    await Promise.all([
+      replaceLearningItems(userId, 'vocab', mergedVocab),
+      replaceLearningItems(userId, 'sentence', mergedSentences),
+      replaceLearningItems(userId, 'writing_entry', mergedWritingEntries),
+      replaceLearningItems(userId, 'diary', mergedDiaries),
+    ]);
+    isApplyingCloudSnapshotRef.current = false;
+  };
+
+  const queueUsageEvent = (eventType: string, payload: Record<string, unknown> = {}) => {
+    if (!isSupabaseConfigured()) return;
+
+    const event = {
+      eventType,
+      payload: {
+        ...payload,
+        language,
+        clientAt: new Date().toISOString(),
+      },
+    };
+
+    if (!cloudUserIdRef.current) {
+      usageQueueRef.current = [...usageQueueRef.current.slice(-49), event];
+      return;
+    }
+
+    void persistUsageEvent(cloudUserIdRef.current, event).catch((error) => {
+      console.error('Failed to track usage event', error);
+    });
+  };
+
+  const flushUsageQueue = async () => {
+    if (!cloudUserIdRef.current || !usageQueueRef.current.length) return;
+
+    const queued = [...usageQueueRef.current];
+    usageQueueRef.current = [];
+
+    for (const event of queued) {
+      try {
+        await persistUsageEvent(cloudUserIdRef.current, event);
+      } catch (error) {
+        console.error('Failed to flush usage queue', error);
+      }
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    const email = safeTrim(authEmail);
+    if (!email) return;
+
+    setIsAuthLoading(true);
+    setAuthMessage('');
+
+    try {
+      await sendMagicLink(email);
+      setAuthMessage('Magic link sent. Open your email and tap the sign-in link on this same device.');
+    } catch (error) {
+      console.error(error);
+      setAuthMessage(error instanceof Error ? error.message : 'Failed to send login link');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setIsAuthLoading(true);
+    setAuthMessage('');
+
+    try {
+      await signOutSupabase();
+      setCurrentUserEmail(null);
+      setIsEmailUser(false);
+      const guestUser = await ensureSupabaseUser();
+      if (guestUser) {
+        cloudUserIdRef.current = guestUser.id;
+        setCloudSyncStatus('synced');
+        setCloudSyncMessage('Guest cloud synced');
+      }
+    } catch (error) {
+      console.error(error);
+      setAuthMessage(error instanceof Error ? error.message : 'Failed to sign out');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const isSentenceSelection = (text: string) => safeTrim(text).split(/\s+/).filter(Boolean).length > 2;
 
   const addSelectionToNotebook = (text: string) => {
     if (isSentenceSelection(text)) {
@@ -207,6 +352,7 @@ const App = () => {
     setVocabList((prev) => [newItem, ...prev]);
     setSidebarOpen(true);
     setActiveTab('vocab');
+    queueUsageEvent('save_vocab', { word, context, source: 'selection_or_manual' });
 
     try {
       const details = await AIService.generateVocabContext(word, language);
@@ -227,10 +373,11 @@ const App = () => {
     setSentenceList((prev) => [newSentence, ...prev]);
     setSidebarOpen(true);
     setActiveTab('sentences');
+    queueUsageEvent('save_sentence', { text, source: dailyContent?.title || 'Manual' });
   };
 
   const saveWritingEntry = () => {
-    if (!writingResult || !writingInput.trim()) return;
+    if (!writingResult || !safeTrim(writingInput)) return;
 
     const entry: WritingEntry = {
       id: Date.now().toString(),
@@ -238,15 +385,17 @@ const App = () => {
       topic: writingTopic || 'Free writing',
       original: writingInput,
       feedback: writingResult,
+      language,
     };
 
     setWritingEntries((prev) => [entry, ...prev].slice(0, 20));
     setWritingSavedNotice('Today’s diary is saved.');
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
+    queueUsageEvent('save_writing_entry', { topic: entry.topic });
   };
 
   const saveDiaryVariant = (sourceLabel: 'Corrected' | 'Pro Upgrade' | 'Model Essay', content: string) => {
-    if (!content.trim()) return;
+    if (!safeTrim(content)) return;
 
     const entry: DiaryEntry = {
       id: Date.now().toString(),
@@ -263,6 +412,7 @@ const App = () => {
     setActiveTab('diary');
     setWritingSavedNotice(`${sourceLabel} saved to Diary.`);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
+    queueUsageEvent('save_diary_variant', { sourceLabel, topic: entry.topic });
   };
 
   const handleTextSelection = () => {
@@ -272,7 +422,7 @@ const App = () => {
       return;
     }
 
-    const text = selection.toString().trim();
+    const text = safeTrim(selection.toString());
     if (text.length > 0 && text.length < 150) {
       const rect = selection.getRangeAt(0).getBoundingClientRect();
       setSelectionRect(rect);
@@ -288,10 +438,12 @@ const App = () => {
       if (type === 'reading') {
         const data = await AIService.getReadingSuggestions('Intermediate', language);
         setDailyContent(data[0]);
+        if (data[0]) queueUsageEvent('open_reading_content', { title: data[0].title, source: data[0].source });
       } else {
         const data = await AIService.getDailyListeningContent(language, seenTitles);
         setDailyContent(data);
         setSeenTitles((prev) => [...prev, data.title]);
+        queueUsageEvent('open_listening_content', { title: data.title, source: data.source });
       }
     } catch (error) {
       console.error(error);
@@ -302,6 +454,7 @@ const App = () => {
     if (!dailyContent?.content) return;
 
     setIsTTSLoading(true);
+    queueUsageEvent('play_tts', { title: dailyContent.title, source: dailyContent.source });
     try {
       await playGeneratedSpeech(dailyContent.content);
     } catch (error) {
@@ -312,11 +465,12 @@ const App = () => {
   };
 
   const handleWritingSubmit = async () => {
-    if (!writingInput.trim()) return;
+    if (!safeTrim(writingInput)) return;
     setIsWritingLoading(true);
     try {
       const feedback = await AIService.analyzeWriting(writingInput, language);
       setWritingResult(feedback);
+      queueUsageEvent('writing_feedback', { topic: writingTopic || 'Free writing' });
     } finally {
       setIsWritingLoading(false);
     }
@@ -409,7 +563,7 @@ const App = () => {
   };
 
   const playGeneratedSpeech = async (text: string) => {
-    if (!isVoiceOutputEnabled || !text.trim()) return;
+    if (!isVoiceOutputEnabled || !safeTrim(text)) return;
 
     try {
       stopCurrentSpeechPlayback();
@@ -531,13 +685,13 @@ const App = () => {
   };
 
   const submitUtterance = async (utterance: string) => {
-    if (!utterance.trim() || isChatLoading) return;
+    if (!safeTrim(utterance) || isChatLoading) return;
 
     const duration = utteranceStartRef.current ? Date.now() - utteranceStartRef.current : 0;
     logSpeakingEvent({ type: 'user_utterance', lengthMs: duration });
     utteranceStartRef.current = null;
 
-    const userMessage: ChatMessage = { role: 'user', text: utterance.trim() };
+    const userMessage: ChatMessage = { role: 'user', text: safeTrim(utterance) };
     const history = [...chatMessages, userMessage].slice(-10);
     setChatMessages(history);
     setChatInput('');
@@ -616,7 +770,7 @@ const App = () => {
     try {
       const audioBase64 = getRecordedAudioBase64();
       const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, language);
-      const finalText = transcript.trim() || chatInput.trim();
+      const finalText = safeTrim(transcript) || safeTrim(chatInput);
       setSpeechDraft('');
       recordedChunksRef.current = [];
       if (finalText) {
@@ -720,6 +874,129 @@ const App = () => {
     } catch (error) {
       console.error('Failed to save notebook entries', error);
     }
+  }, [vocabList, sentenceList, writingEntries, diaryEntries]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setCloudSyncStatus('local');
+      setCloudSyncMessage('Local notebook');
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrapCloud = async () => {
+      setCloudSyncStatus('connecting');
+      setCloudSyncMessage('Connecting cloud notebook...');
+
+      try {
+        const existingUser = await getSupabaseUser();
+        const user = existingUser ?? await ensureSupabaseUser();
+        if (!user || cancelled) return;
+
+        cloudUserIdRef.current = user.id;
+        setCurrentUserEmail(user.email ?? null);
+        setIsEmailUser(Boolean(user.email));
+
+        await applyCloudSnapshot(user.id);
+
+        hasBootstrappedCloudRef.current = true;
+        await flushUsageQueue();
+        if (!cancelled) {
+          setCloudSyncStatus('synced');
+          setCloudSyncMessage(user.email ? 'Signed in and synced' : 'Guest cloud synced');
+        }
+      } catch (error) {
+        console.error('Supabase bootstrap failed', error);
+        if (!cancelled) {
+          setCloudSyncStatus('error');
+          setCloudSyncMessage('Cloud sync unavailable');
+        }
+      }
+    };
+
+    void bootstrapCloud();
+
+    const subscription = subscribeToAuthChanges((event, session) => {
+      const user = session?.user ?? null;
+      setCurrentUserEmail(user?.email ?? null);
+      setIsEmailUser(Boolean(user?.email));
+
+      if (event === 'SIGNED_IN' && user) {
+        cloudUserIdRef.current = user.id;
+        setCloudSyncStatus('connecting');
+        setCloudSyncMessage(user.email ? 'Linking your notebook...' : 'Connecting cloud notebook...');
+        void applyCloudSnapshot(user.id)
+          .then(() => flushUsageQueue())
+          .then(() => {
+            hasBootstrappedCloudRef.current = true;
+            setCloudSyncStatus('synced');
+            setCloudSyncMessage(user.email ? 'Signed in and synced' : 'Guest cloud synced');
+            setAuthMessage(user.email ? `Signed in as ${user.email}` : '');
+            setIsAuthModalOpen(false);
+          })
+          .catch((error) => {
+            console.error('Auth sync failed', error);
+            setCloudSyncStatus('error');
+            setCloudSyncMessage('Cloud sync unavailable');
+            setAuthMessage(error instanceof Error ? error.message : 'Failed to sync after sign-in');
+          });
+      }
+
+      if (event === 'SIGNED_OUT') {
+        cloudUserIdRef.current = null;
+        hasBootstrappedCloudRef.current = false;
+        setCurrentUserEmail(null);
+        setIsEmailUser(false);
+        setCloudSyncStatus('local');
+        setCloudSyncMessage('Local notebook');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cloudUserIdRef.current || !hasBootstrappedCloudRef.current || isApplyingCloudSnapshotRef.current) {
+      return;
+    }
+
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+    }
+
+    syncTimerRef.current = window.setTimeout(() => {
+      if (!cloudUserIdRef.current) return;
+
+      setCloudSyncStatus('syncing');
+      setCloudSyncMessage('Syncing...');
+
+      Promise.all([
+        replaceLearningItems(cloudUserIdRef.current, 'vocab', vocabList),
+        replaceLearningItems(cloudUserIdRef.current, 'sentence', sentenceList),
+        replaceLearningItems(cloudUserIdRef.current, 'writing_entry', writingEntries),
+        replaceLearningItems(cloudUserIdRef.current, 'diary', diaryEntries),
+      ])
+        .then(() => {
+          setCloudSyncStatus('synced');
+          setCloudSyncMessage('Cloud synced');
+        })
+        .catch((error) => {
+          console.error('Cloud sync failed', error);
+          setCloudSyncStatus('error');
+          setCloudSyncMessage('Cloud sync unavailable');
+        });
+    }, 500);
+
+    return () => {
+      if (syncTimerRef.current) {
+        clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+    };
   }, [vocabList, sentenceList, writingEntries, diaryEntries]);
 
   useEffect(() => {
@@ -841,6 +1118,34 @@ const App = () => {
                 </button>
               ))}
             </div>
+            <div className={`hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
+              cloudSyncStatus === 'synced'
+                ? 'bg-emerald-50 text-emerald-600'
+                : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
+                  ? 'bg-amber-50 text-amber-600'
+                  : cloudSyncStatus === 'error'
+                    ? 'bg-red-50 text-red-600'
+                    : 'bg-slate-100 text-slate-500'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${
+                cloudSyncStatus === 'synced'
+                  ? 'bg-emerald-500'
+                  : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
+                    ? 'bg-amber-500'
+                    : cloudSyncStatus === 'error'
+                      ? 'bg-red-500'
+                      : 'bg-slate-400'
+              }`} />
+              {cloudSyncMessage}
+            </div>
+            {isSupabaseConfigured() && (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="hidden md:flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 border border-kitty-100 shadow-sm hover:border-kitty-200"
+              >
+                {isEmailUser ? `Signed in · ${currentUserEmail}` : 'Email login'}
+              </button>
+            )}
             <button onClick={() => setSidebarOpen(true)} className="relative p-3.5 bg-white rounded-2xl shadow-sm text-kitty-500 hover:scale-105 border border-kitty-100 transition-all">
               <ShoppingBag size={24} />
               {(vocabList.length + sentenceList.length) > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">!</span>}
@@ -849,6 +1154,65 @@ const App = () => {
         </div>
 
         <main className="flex-1 overflow-hidden relative">
+          {isAuthModalOpen && (
+            <div className="absolute inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center px-6">
+              <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">Cloud Account</p>
+                    <h3 className="text-3xl font-black text-slate-900">Sign in with email</h3>
+                    <p className="mt-2 text-sm text-slate-500 font-medium">
+                      We will send a magic link. Once you sign in, Notebook, Diary, and usage history will sync to your account.
+                    </p>
+                  </div>
+                  <button onClick={() => setIsAuthModalOpen(false)} className="p-2 rounded-full hover:bg-kitty-50 text-slate-400">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {isEmailUser ? (
+                  <div className="space-y-4">
+                    <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
+                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Current account</p>
+                      <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
+                    </div>
+                    <button
+                      onClick={() => void handleSignOut()}
+                      disabled={isAuthLoading}
+                      className="w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                    >
+                      {isAuthLoading ? 'Signing out...' : 'Sign out'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                      <input
+                        type="email"
+                        value={authEmail}
+                        onChange={(event) => setAuthEmail(event.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <button
+                      onClick={() => void handleEmailLogin()}
+                      disabled={isAuthLoading || !safeTrim(authEmail)}
+                      className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                    >
+                      {isAuthLoading ? 'Sending magic link...' : 'Send magic link'}
+                    </button>
+                  </div>
+                )}
+
+                {authMessage && (
+                  <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700">
+                    {authMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {isLaunchingSpeaking && (
             <div className="absolute inset-0 z-[60] bg-slate-950/92 backdrop-blur-sm flex items-center justify-center">
               <div className="rounded-[2.5rem] bg-white px-8 py-7 shadow-2xl text-center">
@@ -1090,7 +1454,7 @@ const App = () => {
                               <span>{isListening ? 'Release to send' : 'Press & hold / Tap to speak'}</span>
                             </div>
                           </button>
-                          <button onClick={() => void submitUtterance(chatInput)} disabled={!chatInput.trim() || isChatLoading} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
+                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
                             <Send size={18} /> Send
                           </button>
                         </div>
@@ -1218,7 +1582,7 @@ const App = () => {
                     <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-8 py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
                     </button>
-                    <button onClick={saveWritingEntry} disabled={!writingResult || !writingInput.trim()} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-8 py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
+                    <button onClick={saveWritingEntry} disabled={!writingResult || !safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-8 py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
                       <Bookmark size={18} /> Save Diary
                     </button>
                   </div>
@@ -1226,7 +1590,7 @@ const App = () => {
                 {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
                 {writingTopic && <div className="mb-10 p-8 bg-pink-50/30 rounded-[2.5rem] border border-pink-100 text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
                 <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="Type your story, essay or journal here..." className="flex-1 w-full resize-none outline-none text-2xl text-slate-600 bg-transparent placeholder:text-slate-200 font-medium leading-relaxed no-scrollbar" />
-                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !writingInput.trim()} className="mt-10 w-full py-6 bg-kitty-500 text-white rounded-3xl font-black text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
+                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-10 w-full py-6 bg-kitty-500 text-white rounded-3xl font-black text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
                   {isWritingLoading ? <RefreshCw className="animate-spin" /> : <><CheckCircle size={28} /> {labels.check}</>}
                 </button>
               </div>

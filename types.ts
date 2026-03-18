@@ -66,6 +66,7 @@ export interface WritingEntry {
   topic: string;
   original: string;
   feedback: WritingFeedback;
+  language?: string;
 }
 
 export interface DiaryEntry {

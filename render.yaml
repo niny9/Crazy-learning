@@ -19,3 +19,7 @@ services:
         value: paraformer-v2
       - key: DASHSCOPE_API_KEY
         sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
