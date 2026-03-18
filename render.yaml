@@ -13,3 +13,7 @@ services:
         value: glm-4-flash
       - key: ZHIPU_API_KEY
         sync: false
+      - key: TTS_MODEL
+        value: sambert-zhide-v1
+      - key: DASHSCOPE_API_KEY
+        sync: false

@@ -147,9 +147,11 @@ const App = () => {
   const [writingTopic, setWritingTopic] = useState('');
   const [isWritingLoading, setIsWritingLoading] = useState(false);
   const [writingResult, setWritingResult] = useState<WritingFeedback | null>(null);
+  const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [speakingMode, setSpeakingMode] = useState<SpeakingMode>('sentences');
   const [sceneContext, setSceneContext] = useState<SceneContext>(DEFAULT_SCENE_CONTEXT);
   const [sceneHint, setSceneHint] = useState<SceneHint>(DEFAULT_SCENE_HINT);
@@ -160,6 +162,7 @@ const App = () => {
   const [isListening, setIsListening] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [isVoiceOutputEnabled, setIsVoiceOutputEnabled] = useState(true);
   const [lastFeedback, setLastFeedback] = useState<SpeakingFeedback | null>(null);
   const [lastNextPrompt, setLastNextPrompt] = useState('');
   const [sessionSummary, setSessionSummary] = useState('');
@@ -180,6 +183,8 @@ const App = () => {
   const speakingListRef = useRef<HTMLDivElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const holdTriggeredRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentAudioUrlRef = useRef<string | null>(null);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -260,15 +265,10 @@ const App = () => {
 
     setIsTTSLoading(true);
     try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(dailyContent.content);
-      utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
-      utterance.rate = 0.95;
-      utterance.onend = () => setIsTTSLoading(false);
-      utterance.onerror = () => setIsTTSLoading(false);
-      window.speechSynthesis.speak(utterance);
+      await playGeneratedSpeech(dailyContent.content);
     } catch (error) {
       console.error('TTS failed', error);
+    } finally {
       setIsTTSLoading(false);
     }
   };
@@ -302,6 +302,36 @@ const App = () => {
     }
   };
 
+  const stopCurrentSpeechPlayback = () => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    if (currentAudioUrlRef.current) {
+      URL.revokeObjectURL(currentAudioUrlRef.current);
+      currentAudioUrlRef.current = null;
+    }
+  };
+
+  const playGeneratedSpeech = async (text: string) => {
+    if (!isVoiceOutputEnabled || !text.trim()) return;
+
+    try {
+      stopCurrentSpeechPlayback();
+      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text);
+      const binary = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
+      const blob = new Blob([binary], { type: mimeType || 'audio/mpeg' });
+      const objectUrl = URL.createObjectURL(blob);
+      const audio = new Audio(objectUrl);
+      currentAudioRef.current = audio;
+      currentAudioUrlRef.current = objectUrl;
+      audio.onended = () => stopCurrentSpeechPlayback();
+      await audio.play();
+    } catch (error) {
+      console.error('Voice playback failed', error);
+    }
+  };
+
   const captureCurrentFrame = async (): Promise<string | null> => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -329,6 +359,7 @@ const App = () => {
       }
       if (!chatMessages.length) {
         setChatMessages([{ role: 'model', text: result.opener }]);
+        void playGeneratedSpeech(result.opener);
       }
     } catch (error) {
       console.error(error);
@@ -339,12 +370,14 @@ const App = () => {
     recognitionRef.current?.stop();
     recognitionRef.current = null;
     stopMediaStream();
+    stopCurrentSpeechPlayback();
     setIsListening(false);
     setSpeechDraft('');
     setChatInput('');
     setIsChatLoading(false);
     setIsSpeaking(false);
     setIsConnecting(false);
+    setIsCameraReady(false);
     setLastFeedback(null);
     setLastNextPrompt('');
     setSessionSummary('');
@@ -352,7 +385,7 @@ const App = () => {
   };
 
   const enterSpeakingMode = async () => {
-    setMode(AppMode.SPEAKING);
+    setIsLaunchingSpeaking(true);
     setIsConnecting(true);
     setErrorMsg(null);
     setChatMessages([]);
@@ -363,11 +396,14 @@ const App = () => {
     setLastNextPrompt('');
     setSessionSummary('');
     speakingEventsRef.current = [];
+    stopCurrentSpeechPlayback();
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
       mediaStreamRef.current = stream;
+      setMode(AppMode.SPEAKING);
       setIsSpeaking(true);
+      setIsCameraReady(false);
       logSpeakingEvent({ type: 'session_start', environmentTag: DEFAULT_SCENE_CONTEXT.environmentTag });
       window.setTimeout(() => {
         void applySceneAnalysis('');
@@ -378,8 +414,10 @@ const App = () => {
     } catch (error) {
       console.error(error);
       setErrorMsg(labels.errorMic);
+      setMode(AppMode.DASHBOARD);
     } finally {
       setIsConnecting(false);
+      setIsLaunchingSpeaking(false);
     }
   };
 
@@ -416,6 +454,7 @@ const App = () => {
       setLastNextPrompt(turn.nextPrompt || '');
       setSessionSummary(turn.feedback?.summary || '');
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: turn.reply, feedback: turn.feedback }]);
+      await playGeneratedSpeech(turn.reply);
     } catch (error) {
       console.error(error);
       setErrorMsg('The speaking coach hit a small glitch. Try again in a moment.');
@@ -498,6 +537,7 @@ const App = () => {
   useEffect(() => {
     if (videoRef.current && mediaStreamRef.current) {
       videoRef.current.srcObject = mediaStreamRef.current;
+      videoRef.current.onloadedmetadata = () => setIsCameraReady(true);
       videoRef.current.play().catch(() => {});
     }
   }, [isSpeaking, mode]);
@@ -518,12 +558,14 @@ const App = () => {
       recognitionRef.current = null;
       stopMediaStream();
       setIsListening(false);
+      stopCurrentSpeechPlayback();
     }
   }, [mode]);
 
   useEffect(() => () => {
     recognitionRef.current?.stop();
     stopMediaStream();
+    stopCurrentSpeechPlayback();
   }, []);
 
   const feedbackPill = (tag: 'fluency' | 'accuracy' | 'vocabulary') => {
@@ -607,6 +649,16 @@ const App = () => {
         </div>
 
         <main className="flex-1 overflow-hidden relative">
+          {isLaunchingSpeaking && (
+            <div className="absolute inset-0 z-[60] bg-slate-950/92 backdrop-blur-sm flex items-center justify-center">
+              <div className="rounded-[2.5rem] bg-white px-8 py-7 shadow-2xl text-center">
+                <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 font-black mb-4">
+                  <RefreshCw className="animate-spin" size={18} /> Opening camera...
+                </div>
+                <p className="text-slate-500 font-semibold">We are getting your scene ready for a low-pressure speaking session.</p>
+              </div>
+            </div>
+          )}
           {mode === AppMode.DASHBOARD && (
             <div className="h-full p-12 max-w-7xl mx-auto overflow-y-auto no-scrollbar pb-32">
               <header className="mb-20 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
@@ -666,6 +718,9 @@ const App = () => {
               <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
               <canvas ref={canvasRef} className="hidden" />
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
+              {!isCameraReady && (
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_50%),linear-gradient(180deg,#0f172a,#111827)]" />
+              )}
 
               <div className="relative z-10 h-full p-6 md:p-10 flex flex-col">
                 <div className="flex items-start justify-between gap-4 mb-6">
@@ -675,6 +730,9 @@ const App = () => {
                         <Camera size={14} /> Scene Explorer
                       </span>
                       <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneContext.persona || 'Study buddy mode'}</span>
+                      <button onClick={() => setIsVoiceOutputEnabled((prev) => !prev)} className="ml-auto rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
+                        {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
+                      </button>
                     </div>
                     <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{sceneHint.title}</h2>
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -712,6 +770,11 @@ const App = () => {
                       {isConnecting && (
                         <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90 flex items-center gap-3">
                           <RefreshCw className="animate-spin" size={18} /> {labels.connecting}
+                        </div>
+                      )}
+                      {!isCameraReady && !isConnecting && (
+                        <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90">
+                          Camera is warming up. You can already start speaking if you want.
                         </div>
                       )}
 

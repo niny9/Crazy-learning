@@ -17,6 +17,26 @@ type AiAction =
   | "sceneAnalyze"
   | "speakingTurn";
 
+export const synthesizeSpeech = async (
+  text: string,
+  voice = "sambert-zhide-v1"
+): Promise<{ audioBase64: string; mimeType: string }> => {
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text, voice }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "TTS request failed");
+  }
+
+  return response.json() as Promise<{ audioBase64: string; mimeType: string }>;
+};
+
 async function callAI<T>(action: AiAction, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch("/api/ai", {
     method: "POST",

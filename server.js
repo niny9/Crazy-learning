@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import WebSocket from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +12,8 @@ const distDir = path.join(__dirname, 'dist');
 
 const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const MODEL_NAME = process.env.ZHIPU_MODEL || 'glm-4-flash';
+const DASHSCOPE_WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
+const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-zhide-v1';
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -53,6 +57,103 @@ async function callZhipu(messages, wantsJson = false) {
   }
 
   return content;
+}
+
+function parseBinaryFrame(data) {
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data);
+  }
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  return Buffer.alloc(0);
+}
+
+async function synthesizeDashscopeSpeech(text, voice = TTS_MODEL_NAME) {
+  const apiKey = process.env.DASHSCOPE_API_KEY || process.env.TTS_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing DASHSCOPE_API_KEY');
+  }
+
+  return new Promise((resolve, reject) => {
+    const taskId = `linguaflow-${randomUUID()}`;
+    const chunks = [];
+    let settled = false;
+
+    const ws = new WebSocket(DASHSCOPE_WS_URL, {
+      headers: {
+        Authorization: `bearer ${apiKey}`,
+        'X-DashScope-DataInspection': 'disable',
+      },
+    });
+
+    const finish = (handler, value) => {
+      if (settled) return;
+      settled = true;
+      try {
+        ws.close();
+      } catch {
+        // noop
+      }
+      handler(value);
+    };
+
+    ws.on('open', () => {
+      ws.send(
+        JSON.stringify({
+          header: {
+            action: 'run-task',
+            task_id: taskId,
+            streaming: 'duplex',
+          },
+          payload: {
+            task_group: 'audio',
+            task: 'tts',
+            function: 'SpeechSynthesizer',
+            model: voice,
+            parameters: {
+              text,
+              format: 'mp3',
+              sample_rate: 48000,
+            },
+          },
+        })
+      );
+    });
+
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) {
+        const buffer = parseBinaryFrame(data);
+        if (buffer.length) chunks.push(buffer);
+        return;
+      }
+
+      try {
+        const message = JSON.parse(String(data));
+        if (message.header?.event === 'task-failed') {
+          finish(reject, new Error(message.header?.error_message || 'DashScope TTS failed'));
+          return;
+        }
+        if (message.header?.event === 'task-finished') {
+          finish(resolve, Buffer.concat(chunks));
+        }
+      } catch (error) {
+        finish(reject, error);
+      }
+    });
+
+    ws.on('error', (error) => finish(reject, error));
+    ws.on('close', () => {
+      if (!settled && chunks.length) {
+        finish(resolve, Buffer.concat(chunks));
+      } else if (!settled) {
+        finish(reject, new Error('DashScope TTS connection closed unexpectedly'));
+      }
+    });
+  });
 }
 
 function parseJson(value) {
@@ -371,6 +472,32 @@ async function handleAiRequest(req, res) {
   }
 }
 
+async function handleTtsRequest(req, res) {
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    const text = String(body.text || '').trim();
+    const voice = String(body.voice || TTS_MODEL_NAME).trim();
+
+    if (!text) {
+      return sendJson(res, 400, { error: 'Missing text for TTS' });
+    }
+
+    const audioBuffer = await synthesizeDashscopeSpeech(text, voice);
+    return sendJson(res, 200, {
+      audioBase64: audioBuffer.toString('base64'),
+      mimeType: 'audio/mpeg',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown TTS error';
+    return sendJson(res, 500, { error: message });
+  }
+}
+
 function getContentType(filePath) {
   if (filePath.endsWith('.js')) return 'application/javascript; charset=utf-8';
   if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
@@ -388,6 +515,10 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/ai' && req.method === 'POST') {
     return handleAiRequest(req, res);
+  }
+
+  if (pathname === '/api/tts' && req.method === 'POST') {
+    return handleTtsRequest(req, res);
   }
 
   if (!existsSync(distDir)) {
