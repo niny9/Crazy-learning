@@ -70,9 +70,9 @@ type UsageEventPayload = {
   eventType: string;
   payload: Record<string, unknown>;
 };
-type SpeechPlaybackOptions = {
-  preferNativeEnglishFemale?: boolean;
-  aliVoice?: string;
+type NotebookDateGroup<T extends { id: string }> = {
+  title: string;
+  items: T[];
 };
 
 const SUPPORTED_LANGUAGES = [
@@ -152,11 +152,44 @@ const mergeById = <T extends { id: string }>(localItems: T[], remoteItems: T[]) 
   });
 };
 
+const formatDateGroupLabel = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown date';
+  const todayKey = new Date().toDateString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === todayKey) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const groupNotebookItemsByDate = <T extends { id: string; date?: string; dateAdded?: string }>(items: T[]): NotebookDateGroup<T>[] => {
+  const groups = new Map<string, T[]>();
+  items.forEach((item) => {
+    const rawDate = item.dateAdded || item.date || '';
+    const key = rawDate ? new Date(rawDate).toDateString() : 'Unknown date';
+    const group = groups.get(key) || [];
+    group.push(item);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.entries())
+    .sort((left, right) => new Date(right[0]).getTime() - new Date(left[0]).getTime())
+    .map(([key, groupedItems]) => ({
+      title: key === 'Unknown date' ? key : formatDateGroupLabel(groupedItems[0]?.dateAdded || groupedItems[0]?.date || key),
+      items: groupedItems,
+    }));
+};
+
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
   const [language, setLanguage] = useState('English');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'vocab' | 'sentences' | 'diary'>('vocab');
+  const [manualVocabInput, setManualVocabInput] = useState('');
+  const [manualSentenceInput, setManualSentenceInput] = useState('');
+  const [manualDiaryTitle, setManualDiaryTitle] = useState('');
+  const [manualDiaryInput, setManualDiaryInput] = useState('');
 
   const [vocabList, setVocabList] = useState<VocabItem[]>([]);
   const [sentenceList, setSentenceList] = useState<SavedSentence[]>([]);
@@ -309,7 +342,7 @@ const App = () => {
     try {
       await sendMagicLink(email);
       setIsOtpStage(true);
-      setAuthMessage('Verification email sent. Enter the 6-digit code from your email here to finish signing in on this device.');
+      setAuthMessage('Verification email sent. Enter the verification code from your email here to finish signing in on this device.');
     } catch (error) {
       console.error(error);
       setAuthMessage(error instanceof Error ? error.message : 'Failed to send login link');
@@ -405,6 +438,28 @@ const App = () => {
     setSidebarOpen(true);
     setActiveTab('sentences');
     queueUsageEvent('save_sentence', { text, source: dailyContent?.title || 'Manual' });
+  };
+
+  const addManualDiary = () => {
+    const content = safeTrim(manualDiaryInput);
+    if (!content) return;
+
+    const entry: DiaryEntry = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      topic: manualDiaryTitle || 'Manual note',
+      title: manualDiaryTitle || 'Manual diary note',
+      content,
+      sourceLabel: 'Model Essay',
+      language,
+    };
+
+    setDiaryEntries((prev) => [entry, ...prev].slice(0, 50));
+    setManualDiaryTitle('');
+    setManualDiaryInput('');
+    setActiveTab('diary');
+    setSidebarOpen(true);
+    queueUsageEvent('save_manual_diary', { title: entry.title });
   };
 
   const saveWritingEntry = () => {
@@ -600,17 +655,6 @@ const App = () => {
     return encodeWavBase64(combined, recordingSampleRateRef.current);
   };
 
-  const getPreferredFemaleVoice = () => {
-    if (!('speechSynthesis' in window)) return null;
-    const voices = window.speechSynthesis.getVoices();
-    const candidates = voices.filter((voice) => voice.lang.toLowerCase().startsWith('en'));
-    const preferredNames = ['Samantha', 'Ava', 'Jenny', 'Google US English', 'Microsoft Aria', 'Female'];
-
-    return preferredNames
-      .map((name) => candidates.find((voice) => voice.name.includes(name)))
-      .find(Boolean) || candidates.find((voice) => /female|woman|zira|aria|samantha|ava|jenny/i.test(voice.name)) || candidates[0] || null;
-  };
-
   const playNativeSpeech = (text: string) =>
     new Promise<void>((resolve, reject) => {
       if (!('speechSynthesis' in window)) {
@@ -620,29 +664,19 @@ const App = () => {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
-      utterance.rate = language === 'English' ? 0.9 : 0.95;
-      utterance.pitch = language === 'English' ? 1.05 : 1;
-      const preferredVoice = language === 'English' ? getPreferredFemaleVoice() : null;
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
+      utterance.rate = 0.95;
       utterance.onend = () => resolve();
       utterance.onerror = () => reject(new Error('Native speech playback failed'));
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     });
 
-  const playGeneratedSpeech = async (text: string, options: SpeechPlaybackOptions = {}) => {
+  const playGeneratedSpeech = async (text: string) => {
     if (!isVoiceOutputEnabled || !safeTrim(text)) return;
 
     try {
       stopCurrentSpeechPlayback();
-      if (options.preferNativeEnglishFemale && language === 'English') {
-        await playNativeSpeech(text);
-        return;
-      }
-
-      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text, options.aliVoice || 'sambert-eva-v1');
+      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text, 'sambert-zhide-v1');
       const binary = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
       const blob = new Blob([binary], { type: mimeType || 'audio/mpeg' });
       const objectUrl = URL.createObjectURL(blob);
@@ -686,7 +720,7 @@ const App = () => {
       }
       if (!chatMessages.length) {
         setChatMessages([{ role: 'model', text: result.opener }]);
-        void playGeneratedSpeech(result.opener, { preferNativeEnglishFemale: true });
+        void playGeneratedSpeech(result.opener);
       }
     } catch (error) {
       console.error(error);
@@ -698,7 +732,7 @@ const App = () => {
             text: fallbackOpener,
           },
         ]);
-        void playGeneratedSpeech(fallbackOpener, { preferNativeEnglishFemale: true });
+        void playGeneratedSpeech(fallbackOpener);
       }
     }
   };
@@ -801,7 +835,7 @@ const App = () => {
       setLastNextPrompt(turn.nextPrompt || '');
       setSessionSummary(turn.feedback?.summary || '');
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: turn.reply, feedback: turn.feedback }]);
-      await playGeneratedSpeech(turn.reply, { preferNativeEnglishFemale: true });
+      await playGeneratedSpeech(turn.reply);
     } catch (error) {
       console.error(error);
       const fallbackReply =
@@ -821,7 +855,7 @@ const App = () => {
       setLastNextPrompt('Try one short sentence about what you see right now.');
       setSessionSummary(fallbackFeedback.summary);
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: fallbackReply, feedback: fallbackFeedback }]);
-      await playGeneratedSpeech(fallbackReply, { preferNativeEnglishFemale: true });
+      await playGeneratedSpeech(fallbackReply);
       setErrorMsg('Speaking stayed available, but the AI scene coach had a temporary network hiccup.');
     } finally {
       setIsChatLoading(false);
@@ -856,7 +890,12 @@ const App = () => {
       console.error(error);
       recordedChunksRef.current = [];
       setSpeechDraft('');
-      setErrorMsg(error instanceof Error ? `Voice input issue: ${error.message}` : 'Voice input is temporarily unavailable. Please try again or type your reply below.');
+      const message = error instanceof Error ? error.message : 'Voice input is temporarily unavailable. Please try again or type your reply below.';
+      if (/arrearage|access denied|overdue-payment/i.test(message)) {
+        setErrorMsg('Voice input is temporarily unavailable because the current Alibaba ASR account is not available. You can still type your reply below and continue the conversation.');
+      } else {
+        setErrorMsg(`Voice input issue: ${message}`);
+      }
     }
   };
 
@@ -1167,46 +1206,122 @@ const App = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-          {(activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item.language === language).map((item) => (
-            <div key={item.id} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
-              <div className="flex justify-between items-start mb-2">
-                <span className="font-black text-slate-800 text-xl tracking-tight">
-                  {activeTab === 'vocab'
-                    ? (item as VocabItem).word
-                    : activeTab === 'sentences'
-                      ? `${(item as SavedSentence).text.substring(0, 30)}...`
-                      : (item as DiaryEntry).title}
-                </span>
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+          <div className="rounded-[2rem] bg-kitty-50/70 border border-kitty-100 p-4">
+            {activeTab === 'vocab' && (
+              <div className="flex gap-3">
+                <input
+                  value={manualVocabInput}
+                  onChange={(event) => setManualVocabInput(event.target.value)}
+                  placeholder="Add a new word manually..."
+                  className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                />
                 <button
-                  onClick={() =>
-                    activeTab === 'vocab'
-                      ? setVocabList((prev) => prev.filter((entry) => entry.id !== item.id))
-                      : activeTab === 'sentences'
-                        ? setSentenceList((prev) => prev.filter((entry) => entry.id !== item.id))
-                        : setDiaryEntries((prev) => prev.filter((entry) => entry.id !== item.id))
-                  }
-                  className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"
+                  onClick={() => {
+                    const value = safeTrim(manualVocabInput);
+                    if (!value) return;
+                    void addToVocab(value);
+                    setManualVocabInput('');
+                  }}
+                  className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
                 >
-                  <Trash2 size={16} />
+                  Add
                 </button>
               </div>
-              <p className="text-sm text-kitty-500 mb-3 font-bold">
-                {activeTab === 'vocab'
-                  ? (item as VocabItem).chineseDefinition || 'Language Clip'
-                  : activeTab === 'sentences'
-                    ? 'Saved sentence'
-                    : `${(item as DiaryEntry).sourceLabel} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
-              </p>
-              <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
-                "
-                {activeTab === 'vocab'
-                  ? (item as VocabItem).contextSentence
-                  : activeTab === 'sentences'
-                    ? (item as SavedSentence).text
-                    : (item as DiaryEntry).content}
-                "
+            )}
+            {activeTab === 'sentences' && (
+              <div className="flex gap-3">
+                <input
+                  value={manualSentenceInput}
+                  onChange={(event) => setManualSentenceInput(event.target.value)}
+                  placeholder="Add a useful sentence manually..."
+                  className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                />
+                <button
+                  onClick={() => {
+                    const value = safeTrim(manualSentenceInput);
+                    if (!value) return;
+                    saveSentence(value);
+                    setManualSentenceInput('');
+                  }}
+                  className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
+                >
+                  Add
+                </button>
               </div>
+            )}
+            {activeTab === 'diary' && (
+              <div className="space-y-3">
+                <input
+                  value={manualDiaryTitle}
+                  onChange={(event) => setManualDiaryTitle(event.target.value)}
+                  placeholder="Diary title..."
+                  className="w-full rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                />
+                <textarea
+                  value={manualDiaryInput}
+                  onChange={(event) => setManualDiaryInput(event.target.value)}
+                  placeholder="Add a diary note manually..."
+                  className="w-full min-h-28 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 resize-none"
+                />
+                <button
+                  onClick={addManualDiary}
+                  className="w-full rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
+                >
+                  Add to Diary
+                </button>
+              </div>
+            )}
+          </div>
+
+          {groupNotebookItemsByDate(
+            (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item.language === language)
+          ).map((group) => (
+            <div key={group.title} className="space-y-4">
+              <div className="inline-flex rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 shadow-sm border border-kitty-100">
+                {group.title}
+              </div>
+              {group.items.map((item) => (
+                <div key={item.id} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-black text-slate-800 text-xl tracking-tight">
+                      {activeTab === 'vocab'
+                        ? (item as VocabItem).word
+                        : activeTab === 'sentences'
+                          ? `${(item as SavedSentence).text.substring(0, 30)}...`
+                          : (item as DiaryEntry).title}
+                    </span>
+                    <button
+                      onClick={() =>
+                        activeTab === 'vocab'
+                          ? setVocabList((prev) => prev.filter((entry) => entry.id !== item.id))
+                          : activeTab === 'sentences'
+                            ? setSentenceList((prev) => prev.filter((entry) => entry.id !== item.id))
+                            : setDiaryEntries((prev) => prev.filter((entry) => entry.id !== item.id))
+                      }
+                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <p className="text-sm text-kitty-500 mb-3 font-bold">
+                    {activeTab === 'vocab'
+                      ? (item as VocabItem).chineseDefinition || 'Language Clip'
+                      : activeTab === 'sentences'
+                        ? 'Saved sentence'
+                        : `${(item as DiaryEntry).sourceLabel} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
+                  </p>
+                  <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
+                    "
+                    {activeTab === 'vocab'
+                      ? (item as VocabItem).contextSentence
+                      : activeTab === 'sentences'
+                        ? (item as SavedSentence).text
+                        : (item as DiaryEntry).content}
+                    "
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
