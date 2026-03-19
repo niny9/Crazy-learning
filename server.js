@@ -444,8 +444,10 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
     },
     opener:
       environmentTag === 'airport'
-        ? 'Welcome to the airport. Tell me where you are flying today, and I will help you check in.'
-        : 'Your desk setup looks ready. Tell me what is on your desk and what you want to get done today.',
+        ? 'Hi there, where are you flying today, and what is the first thing you need help with at the airport?'
+        : intentTag === 'job_interview'
+          ? 'Hi, I am your interviewer for today. What role are you applying for, and why does it excite you?'
+          : 'Hey, I am your study buddy. What are you doing in this space right now, and how is your day going?',
     words:
       environmentTag === 'airport'
         ? [
@@ -484,6 +486,7 @@ async function analyzeSceneWithVision({ language, imageBase64, firstUtterance, c
 - words: Array<{ word: string, meaning: string, chineseHint?: string, example: string }>
 
 Use low-pressure, Gen Z friendly English coaching. Favor practical situations like home desk, cafe, airport, office, kitchen, street.
+The opener must sound like a real person already inside the scene, and it should end with one concrete question that invites the learner to answer immediately.
 First utterance: ${firstUtterance || 'No speech yet'}
 Previous context: ${JSON.stringify(currentContext || {})}`,
           },

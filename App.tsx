@@ -4,6 +4,7 @@ import {
   BookOpen,
   Bookmark,
   Camera,
+  CameraOff,
   CheckCircle,
   FileText,
   Globe,
@@ -67,6 +68,10 @@ type CloudSyncStatus = 'local' | 'connecting' | 'syncing' | 'synced' | 'error';
 type UsageEventPayload = {
   eventType: string;
   payload: Record<string, unknown>;
+};
+type SpeechPlaybackOptions = {
+  preferNativeEnglishFemale?: boolean;
+  aliVoice?: string;
 };
 
 const SUPPORTED_LANGUAGES = [
@@ -173,6 +178,7 @@ const App = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isEmailUser, setIsEmailUser] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(!isSupabaseConfigured());
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -217,6 +223,7 @@ const App = () => {
   const isApplyingCloudSnapshotRef = useRef(false);
   const syncTimerRef = useRef<number | null>(null);
   const usageQueueRef = useRef<UsageEventPayload[]>([]);
+  const listeningAutoplayRef = useRef<string | null>(null);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -487,9 +494,16 @@ const App = () => {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
   };
 
   const stopCurrentSpeechPlayback = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
@@ -562,12 +576,49 @@ const App = () => {
     return encodeWavBase64(combined, recordingSampleRateRef.current);
   };
 
-  const playGeneratedSpeech = async (text: string) => {
+  const getPreferredFemaleVoice = () => {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices();
+    const candidates = voices.filter((voice) => voice.lang.toLowerCase().startsWith('en'));
+    const preferredNames = ['Samantha', 'Ava', 'Jenny', 'Google US English', 'Microsoft Aria', 'Female'];
+
+    return preferredNames
+      .map((name) => candidates.find((voice) => voice.name.includes(name)))
+      .find(Boolean) || candidates.find((voice) => /female|woman|zira|aria|samantha|ava|jenny/i.test(voice.name)) || candidates[0] || null;
+  };
+
+  const playNativeSpeech = (text: string) =>
+    new Promise<void>((resolve, reject) => {
+      if (!('speechSynthesis' in window)) {
+        reject(new Error('Native speech synthesis is unavailable'));
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
+      utterance.rate = language === 'English' ? 0.9 : 0.95;
+      utterance.pitch = language === 'English' ? 1.05 : 1;
+      const preferredVoice = language === 'English' ? getPreferredFemaleVoice() : null;
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      utterance.onend = () => resolve();
+      utterance.onerror = () => reject(new Error('Native speech playback failed'));
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    });
+
+  const playGeneratedSpeech = async (text: string, options: SpeechPlaybackOptions = {}) => {
     if (!isVoiceOutputEnabled || !safeTrim(text)) return;
 
     try {
       stopCurrentSpeechPlayback();
-      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text);
+      if (options.preferNativeEnglishFemale && language === 'English') {
+        await playNativeSpeech(text);
+        return;
+      }
+
+      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text, options.aliVoice || 'sambert-eva-v1');
       const binary = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
       const blob = new Blob([binary], { type: mimeType || 'audio/mpeg' });
       const objectUrl = URL.createObjectURL(blob);
@@ -578,13 +629,9 @@ const App = () => {
       await audio.play();
     } catch (error) {
       console.error('Voice playback failed', error);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
-        utterance.rate = 0.95;
-        window.speechSynthesis.speak(utterance);
-      }
+      await playNativeSpeech(text).catch((nativeError) => {
+        console.error('Native speech playback failed', nativeError);
+      });
     }
   };
 
@@ -615,17 +662,19 @@ const App = () => {
       }
       if (!chatMessages.length) {
         setChatMessages([{ role: 'model', text: result.opener }]);
-        void playGeneratedSpeech(result.opener);
+        void playGeneratedSpeech(result.opener, { preferNativeEnglishFemale: true });
       }
     } catch (error) {
       console.error(error);
       if (!chatMessages.length) {
+        const fallbackOpener = 'Hi, I am your speaking partner. What are you doing in this place right now?';
         setChatMessages([
           {
             role: 'model',
-            text: 'I am here with you. Tell me what you can see around you, and we will start with a simple real-life conversation.',
+            text: fallbackOpener,
           },
         ]);
+        void playGeneratedSpeech(fallbackOpener, { preferNativeEnglishFemale: true });
       }
     }
   };
@@ -644,6 +693,7 @@ const App = () => {
     setLastFeedback(null);
     setLastNextPrompt('');
     setSessionSummary('');
+    setMode(AppMode.DASHBOARD);
     logSpeakingEvent({ type: 'session_end', reason });
   };
 
@@ -727,7 +777,7 @@ const App = () => {
       setLastNextPrompt(turn.nextPrompt || '');
       setSessionSummary(turn.feedback?.summary || '');
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: turn.reply, feedback: turn.feedback }]);
-      await playGeneratedSpeech(turn.reply);
+      await playGeneratedSpeech(turn.reply, { preferNativeEnglishFemale: true });
     } catch (error) {
       console.error(error);
       const fallbackReply =
@@ -747,7 +797,7 @@ const App = () => {
       setLastNextPrompt('Try one short sentence about what you see right now.');
       setSessionSummary(fallbackFeedback.summary);
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: fallbackReply, feedback: fallbackFeedback }]);
-      await playGeneratedSpeech(fallbackReply);
+      await playGeneratedSpeech(fallbackReply, { preferNativeEnglishFemale: true });
       setErrorMsg('Speaking stayed available, but the AI scene coach had a temporary network hiccup.');
     } finally {
       setIsChatLoading(false);
@@ -782,7 +832,7 @@ const App = () => {
       console.error(error);
       recordedChunksRef.current = [];
       setSpeechDraft('');
-      setErrorMsg('Voice input is temporarily unavailable. Please try again or type your reply below.');
+      setErrorMsg(error instanceof Error ? `Voice input issue: ${error.message}` : 'Voice input is temporarily unavailable. Please try again or type your reply below.');
     }
   };
 
@@ -890,13 +940,22 @@ const App = () => {
       setCloudSyncMessage('Connecting cloud notebook...');
 
       try {
-        const existingUser = await getSupabaseUser();
-        const user = existingUser ?? await ensureSupabaseUser();
-        if (!user || cancelled) return;
+        const user = await getSupabaseUser();
+        if (!user?.email) {
+          if (!cancelled) {
+            setCloudSyncStatus('local');
+            setCloudSyncMessage('Sign in to sync');
+            setIsEmailUser(false);
+            setCurrentUserEmail(null);
+            setIsAuthModalOpen(true);
+            setIsAuthChecked(true);
+          }
+          return;
+        }
 
         cloudUserIdRef.current = user.id;
         setCurrentUserEmail(user.email ?? null);
-        setIsEmailUser(Boolean(user.email));
+        setIsEmailUser(true);
 
         await applyCloudSnapshot(user.id);
 
@@ -904,13 +963,16 @@ const App = () => {
         await flushUsageQueue();
         if (!cancelled) {
           setCloudSyncStatus('synced');
-          setCloudSyncMessage(user.email ? 'Signed in and synced' : 'Guest cloud synced');
+          setCloudSyncMessage('Signed in and synced');
+          setIsAuthChecked(true);
+          setAuthMessage(`Signed in as ${user.email}`);
         }
       } catch (error) {
         console.error('Supabase bootstrap failed', error);
         if (!cancelled) {
           setCloudSyncStatus('error');
           setCloudSyncMessage('Cloud sync unavailable');
+          setIsAuthChecked(true);
         }
       }
     };
@@ -922,24 +984,26 @@ const App = () => {
       setCurrentUserEmail(user?.email ?? null);
       setIsEmailUser(Boolean(user?.email));
 
-      if (event === 'SIGNED_IN' && user) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && user?.email) {
         cloudUserIdRef.current = user.id;
         setCloudSyncStatus('connecting');
-        setCloudSyncMessage(user.email ? 'Linking your notebook...' : 'Connecting cloud notebook...');
+        setCloudSyncMessage('Linking your notebook...');
         void applyCloudSnapshot(user.id)
           .then(() => flushUsageQueue())
           .then(() => {
             hasBootstrappedCloudRef.current = true;
             setCloudSyncStatus('synced');
-            setCloudSyncMessage(user.email ? 'Signed in and synced' : 'Guest cloud synced');
-            setAuthMessage(user.email ? `Signed in as ${user.email}` : '');
+            setCloudSyncMessage('Signed in and synced');
+            setAuthMessage(`Signed in as ${user.email}`);
             setIsAuthModalOpen(false);
+            setIsAuthChecked(true);
           })
           .catch((error) => {
             console.error('Auth sync failed', error);
             setCloudSyncStatus('error');
             setCloudSyncMessage('Cloud sync unavailable');
             setAuthMessage(error instanceof Error ? error.message : 'Failed to sync after sign-in');
+            setIsAuthChecked(true);
           });
       }
 
@@ -949,7 +1013,9 @@ const App = () => {
         setCurrentUserEmail(null);
         setIsEmailUser(false);
         setCloudSyncStatus('local');
-        setCloudSyncMessage('Local notebook');
+        setCloudSyncMessage('Sign in to sync');
+        setIsAuthModalOpen(true);
+        setIsAuthChecked(true);
       }
     });
 
@@ -1006,6 +1072,27 @@ const App = () => {
       setIsListening(false);
       stopCurrentSpeechPlayback();
     }
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== dailyContent.title) {
+      listeningAutoplayRef.current = dailyContent.title;
+      void handleTTS();
+    }
+    if (mode === AppMode.READING) {
+      listeningAutoplayRef.current = null;
+    }
+  }, [mode, dailyContent]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && mode === AppMode.SPEAKING) {
+        endSpeakingSession('timeout');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [mode]);
 
   useEffect(() => () => {
@@ -1154,7 +1241,7 @@ const App = () => {
         </div>
 
         <main className="flex-1 overflow-hidden relative">
-          {isAuthModalOpen && (
+          {isSupabaseConfigured() && isAuthChecked && !isEmailUser && (
             <div className="absolute inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center px-6">
               <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
                 <div className="flex items-start justify-between gap-4 mb-6">
@@ -1162,49 +1249,63 @@ const App = () => {
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">Cloud Account</p>
                     <h3 className="text-3xl font-black text-slate-900">Sign in with email</h3>
                     <p className="mt-2 text-sm text-slate-500 font-medium">
-                      We will send a magic link. Once you sign in, Notebook, Diary, and usage history will sync to your account.
+                      Sign in first, then your notebook, diary, and study history will stay attached to your account.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                    <input
+                      type="email"
+                      value={authEmail}
+                      onChange={(event) => setAuthEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
+                    />
+                  </div>
+                  <button
+                    onClick={() => void handleEmailLogin()}
+                    disabled={isAuthLoading || !safeTrim(authEmail)}
+                    className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                  >
+                    {isAuthLoading ? 'Sending magic link...' : 'Send magic link'}
+                  </button>
+                </div>
+
+                {authMessage && (
+                  <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700">
+                    {authMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {isSupabaseConfigured() && isEmailUser && isAuthModalOpen && (
+            <div className="absolute inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center px-6">
+              <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">Cloud Account</p>
+                    <h3 className="text-3xl font-black text-slate-900">Account</h3>
+                    <p className="mt-2 text-sm text-slate-500 font-medium">
+                      Your notebook is now tied to your account and will sync across sessions.
                     </p>
                   </div>
                   <button onClick={() => setIsAuthModalOpen(false)} className="p-2 rounded-full hover:bg-kitty-50 text-slate-400">
                     <X size={18} />
                   </button>
                 </div>
-
-                {isEmailUser ? (
-                  <div className="space-y-4">
-                    <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
-                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Current account</p>
-                      <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
-                    </div>
-                    <button
-                      onClick={() => void handleSignOut()}
-                      disabled={isAuthLoading}
-                      className="w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
-                    >
-                      {isAuthLoading ? 'Signing out...' : 'Sign out'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
-                      <input
-                        type="email"
-                        value={authEmail}
-                        onChange={(event) => setAuthEmail(event.target.value)}
-                        placeholder="you@example.com"
-                        className="w-full bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
-                      />
-                    </div>
-                    <button
-                      onClick={() => void handleEmailLogin()}
-                      disabled={isAuthLoading || !safeTrim(authEmail)}
-                      className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
-                    >
-                      {isAuthLoading ? 'Sending magic link...' : 'Send magic link'}
-                    </button>
-                  </div>
-                )}
-
+                <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
+                  <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Current account</p>
+                  <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
+                </div>
+                <button
+                  onClick={() => void handleSignOut()}
+                  disabled={isAuthLoading}
+                  className="mt-4 w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                >
+                  {isAuthLoading ? 'Signing out...' : 'Sign out'}
+                </button>
                 {authMessage && (
                   <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700">
                     {authMessage}
@@ -1312,7 +1413,7 @@ const App = () => {
                   </div>
 
                   <button onClick={() => endSpeakingSession('user_exit')} className="rounded-full bg-white/90 px-6 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
-                    <Square size={16} /> End
+                    <CameraOff size={16} /> Close camera
                   </button>
                 </div>
 
@@ -1379,7 +1480,7 @@ const App = () => {
                     <div className="mt-5">
                       {speechDraft && (
                         <div className="mb-3 rounded-[1.5rem] bg-emerald-50/95 px-5 py-4 text-sm font-semibold text-emerald-700">
-                          Live transcript: {speechDraft}
+                          {speechDraft}
                         </div>
                       )}
                       {lastNextPrompt && (
