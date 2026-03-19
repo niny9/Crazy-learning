@@ -444,10 +444,10 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
     },
     opener:
       environmentTag === 'airport'
-        ? 'Hi there, where are you flying today, and what is the first thing you need help with at the airport?'
+        ? 'Hi, I can be your airport helper today. Where are you flying, and what do you need to do first?'
         : intentTag === 'job_interview'
-          ? 'Hi, I am your interviewer for today. What role are you applying for, and why does it excite you?'
-          : 'Hey, I am your study buddy. What are you doing in this space right now, and how is your day going?',
+          ? 'Hi, let us do a gentle mock interview. What role are you going for, and what makes it a good fit for you?'
+          : 'Hey, I am here with you. What are you doing in this space right now?',
     words:
       environmentTag === 'airport'
         ? [
@@ -486,7 +486,9 @@ async function analyzeSceneWithVision({ language, imageBase64, firstUtterance, c
 - words: Array<{ word: string, meaning: string, chineseHint?: string, example: string }>
 
 Use low-pressure, Gen Z friendly English coaching. Favor practical situations like home desk, cafe, airport, office, kitchen, street.
-The opener must sound like a real person already inside the scene, and it should end with one concrete question that invites the learner to answer immediately.
+The opener must sound like a warm real person already inside the scene.
+Keep the opener to 1 or 2 short sentences, natural spoken English, no teacher talk, no labels, no explanations.
+End with one concrete question that invites the learner to answer immediately.
 First utterance: ${firstUtterance || 'No speech yet'}
 Previous context: ${JSON.stringify(currentContext || {})}`,
           },
@@ -527,10 +529,15 @@ Rules:
 - Be supportive, low-pressure, and concise.
 - Sound like a person inside the scene, not a generic tutor.
 - Keep each response suitable for 2-3 minute loops.
+- Reply in natural spoken English, usually 1 or 2 short sentences.
+- Do not restate the whole scene every turn.
+- Ask only one follow-up question at a time.
+- If the user sounds hesitant, respond gently and keep it easy.
+- Avoid sounding like a lesson plan, a rubric, or a correction engine.
 - Return strict JSON only.
 - feedback.summary must be 1-2 short sentences.
 - feedback.tags can include fluency, accuracy, vocabulary.
-- suggestedSentence should be friendly and practical.
+- suggestedSentence should be friendly, practical, and easy to say aloud.
 - If the user's utterance suggests a new intent, set intentUpdated.
 `,
       },

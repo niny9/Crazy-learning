@@ -4,7 +4,6 @@ import {
   BookOpen,
   Bookmark,
   Camera,
-  CameraOff,
   CheckCircle,
   FileText,
   Globe,
@@ -97,7 +96,7 @@ const UI_LABELS: Record<string, any> = {
     check: 'Check & Polish',
     narrate: 'Narrate',
     connecting: 'Getting your scene ready...',
-    errorMic: 'Microphone or camera access is needed to start speaking.',
+    errorMic: 'Microphone access is needed to start speaking.',
   },
 };
 
@@ -251,11 +250,13 @@ const App = () => {
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isSceneReady, setIsSceneReady] = useState(false);
   const [speakingMode, setSpeakingMode] = useState<SpeakingMode>('sentences');
   const [sceneContext, setSceneContext] = useState<SceneContext>(DEFAULT_SCENE_CONTEXT);
   const [sceneHint, setSceneHint] = useState<SceneHint>(DEFAULT_SCENE_HINT);
   const [sceneWords, setSceneWords] = useState<SceneWord[]>([]);
+  const [sceneImageDataUrl, setSceneImageDataUrl] = useState<string | null>(null);
+  const [sceneImageName, setSceneImageName] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -272,9 +273,8 @@ const App = () => {
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
   const [selectedText, setSelectedText] = useState('');
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const sceneImageInputRef = useRef<HTMLInputElement | null>(null);
   const transcriptBufferRef = useRef('');
   const utteranceStartRef = useRef<number | null>(null);
   const sceneRefreshIntervalRef = useRef<number | null>(null);
@@ -296,7 +296,6 @@ const App = () => {
   const listeningAutoplayRef = useRef<string | null>(null);
   const [showAllSceneWords, setShowAllSceneWords] = useState(false);
   const cloudRetryTimerRef = useRef<number | null>(null);
-  const speakingInitTriggeredRef = useRef(false);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -607,7 +606,6 @@ const App = () => {
   const isAudioCaptureSupported = () => typeof window !== 'undefined' && 'AudioContext' in window && !!navigator.mediaDevices?.getUserMedia;
 
   const stopMediaStream = () => {
-    speakingInitTriggeredRef.current = false;
     if (sceneBootTimerRef.current) {
       clearTimeout(sceneBootTimerRef.current);
       sceneBootTimerRef.current = null;
@@ -619,10 +617,6 @@ const App = () => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.srcObject = null;
     }
   };
 
@@ -702,6 +696,30 @@ const App = () => {
     return encodeWavBase64(combined, recordingSampleRateRef.current);
   };
 
+  const pickPreferredNativeVoice = () => {
+    if (!('speechSynthesis' in window)) return null;
+
+    const targetLang = language === 'French' ? 'fr' : language === 'Japanese' ? 'ja' : 'en';
+    const voices = window.speechSynthesis
+      .getVoices()
+      .filter((voice) => voice.lang.toLowerCase().startsWith(targetLang));
+
+    if (!voices.length) return null;
+
+    const preferredNames =
+      targetLang === 'en'
+        ? ['Samantha', 'Ava', 'Victoria', 'Karen', 'Allison', 'Google US English', 'Microsoft Aria']
+        : targetLang === 'fr'
+          ? ['Amelie', 'Thomas', 'Google francais']
+          : ['Kyoko', 'Otoya'];
+
+    return (
+      voices.find((voice) => preferredNames.some((name) => voice.name.includes(name))) ||
+      voices.find((voice) => /female|woman|girl/i.test(voice.name)) ||
+      voices[0]
+    );
+  };
+
   const playNativeSpeech = (text: string) =>
     new Promise<void>((resolve, reject) => {
       if (!('speechSynthesis' in window)) {
@@ -711,7 +729,9 @@ const App = () => {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
-      utterance.rate = 0.95;
+      utterance.voice = pickPreferredNativeVoice();
+      utterance.rate = language === 'English' ? 0.97 : 0.95;
+      utterance.pitch = language === 'English' ? 1.08 : 1;
       utterance.onend = () => resolve();
       utterance.onerror = () => reject(new Error('Native speech playback failed'));
       window.speechSynthesis.cancel();
@@ -720,6 +740,13 @@ const App = () => {
 
   const playGeneratedSpeech = async (text: string) => {
     if (!isVoiceOutputEnabled || !safeTrim(text)) return;
+
+    if (language === 'English') {
+      await playNativeSpeech(text).catch((nativeError) => {
+        console.error('Native speech playback failed', nativeError);
+      });
+      return;
+    }
 
     try {
       stopCurrentSpeechPlayback();
@@ -740,29 +767,30 @@ const App = () => {
     }
   };
 
-  const captureCurrentFrame = async (): Promise<string | null> => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
-      return null;
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Failed to read the selected image.'));
+      reader.readAsDataURL(file);
+    });
+
+  const applySceneAnalysis = async (
+    firstUtterance = '',
+    options: { includeWords?: boolean; sourceImage?: string } = {}
+  ) => {
+    const imageSource = options.sourceImage || sceneImageDataUrl;
+    if (!imageSource) {
+      setErrorMsg('Upload one scene photo first, then I can recognize the setting and start the practice.');
+      return;
     }
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.72);
-  };
-
-  const applySceneAnalysis = async (firstUtterance = '', options: { includeWords?: boolean } = {}) => {
     try {
       if (sceneBootTimerRef.current) {
         clearTimeout(sceneBootTimerRef.current);
         sceneBootTimerRef.current = null;
       }
-      const imageBase64 = await captureCurrentFrame();
-      const result = await AIService.analyzeSceneContext(language, imageBase64, firstUtterance, sceneContext);
+      setIsConnecting(true);
+      const result = await AIService.analyzeSceneContext(language, imageSource, firstUtterance, sceneContext);
       const nextContext = normalizeSceneContext(result?.context);
       const nextHint = normalizeSceneHint(result?.hint);
       const nextWords = normalizeSceneWords(result?.words);
@@ -792,6 +820,32 @@ const App = () => {
         ]);
         void playGeneratedSpeech(fallbackOpener);
       }
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleSceneImageSelected = async (file: File) => {
+    setIsConnecting(true);
+    setErrorMsg(null);
+    setChatMessages([]);
+    setLastFeedback(null);
+    setLastNextPrompt('');
+    setSessionSummary('');
+    setSceneWords([]);
+    setShowAllSceneWords(false);
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setSceneImageDataUrl(dataUrl);
+      setSceneImageName(file.name);
+      setIsSceneReady(true);
+      await applySceneAnalysis('', { sourceImage: dataUrl });
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(error instanceof Error ? error.message : 'Failed to load the selected scene image.');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -805,7 +859,9 @@ const App = () => {
     setIsChatLoading(false);
     setIsSpeaking(false);
     setIsConnecting(false);
-    setIsCameraReady(false);
+    setIsSceneReady(false);
+    setSceneImageDataUrl(null);
+    setSceneImageName('');
     setLastFeedback(null);
     setLastNextPrompt('');
     setSessionSummary('');
@@ -815,39 +871,40 @@ const App = () => {
 
   const enterSpeakingMode = async () => {
     setIsLaunchingSpeaking(true);
-    setIsConnecting(true);
     setErrorMsg(null);
     setChatMessages([]);
     setSceneContext(DEFAULT_SCENE_CONTEXT);
     setSceneHint(DEFAULT_SCENE_HINT);
     setSceneWords([]);
+    setSceneImageDataUrl(null);
+    setSceneImageName('');
     setShowAllSceneWords(false);
     setLastFeedback(null);
     setLastNextPrompt('');
     setSessionSummary('');
+    setIsSceneReady(false);
     speakingEventsRef.current = [];
     stopCurrentSpeechPlayback();
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: true });
-      mediaStreamRef.current = stream;
       setMode(AppMode.SPEAKING);
       setIsSpeaking(true);
-      setIsCameraReady(false);
-      speakingInitTriggeredRef.current = false;
       logSpeakingEvent({ type: 'session_start', environmentTag: DEFAULT_SCENE_CONTEXT.environmentTag });
     } catch (error) {
       console.error(error);
-      setErrorMsg(labels.errorMic);
+      setErrorMsg('We could not open the speaking space right now.');
       setMode(AppMode.DASHBOARD);
     } finally {
-      setIsConnecting(false);
       setIsLaunchingSpeaking(false);
     }
   };
 
   const submitUtterance = async (utterance: string) => {
     if (!safeTrim(utterance) || isChatLoading) return;
+    if (!sceneImageDataUrl) {
+      setErrorMsg('Upload one scene photo first, then start the practice.');
+      return;
+    }
     if (sceneBootTimerRef.current) {
       clearTimeout(sceneBootTimerRef.current);
       sceneBootTimerRef.current = null;
@@ -871,8 +928,7 @@ const App = () => {
       const shouldRefreshScene = speakingMode === 'words' && !sceneWords.length;
       if (shouldRefreshScene) {
         try {
-          const imageBase64 = await captureCurrentFrame();
-          const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
+          const sceneResult = await AIService.analyzeSceneContext(language, sceneImageDataUrl, utterance, sceneContext);
           nextContext = normalizeSceneContext(sceneResult?.context);
           nextHint = normalizeSceneHint(sceneResult?.hint);
         } catch (sceneError) {
@@ -885,7 +941,7 @@ const App = () => {
       const resolvedContext = normalizeSceneContext(turn?.context || nextContext);
       const resolvedHint = normalizeSceneHint(turn?.hint || nextHint);
       const resolvedWords = normalizeSceneWords(turn?.words);
-      const resolvedReply = safeTrim(turn?.reply) || 'Tell me one thing about your current scene, and I will keep the conversation going.';
+      const resolvedReply = safeTrim(turn?.reply) || 'Tell me one thing about your current scene, and I will keep this practice going.';
       const resolvedFeedback = turn?.feedback || {
         summary: 'Nice start. Keep your answer short and natural, and I will help you improve it.',
         tags: ['fluency'] as ('fluency' | 'accuracy' | 'vocabulary')[],
@@ -915,7 +971,7 @@ const App = () => {
       const fallbackReply =
         speakingMode === 'words'
           ? 'Nice try. Pick one thing you can see and describe it with one short sentence, and I will help you polish it.'
-          : 'Let’s keep it simple. Tell me one thing about your current scene, and I will reply like a real conversation partner.';
+          : 'Let’s keep it simple. Tell me one thing about your current scene, and I will reply like a supportive speaking coach.';
       const fallbackFeedback: SpeakingFeedback = {
         summary: 'Your input came through. Let’s keep the flow going with one shorter sentence.',
         suggestedSentence:
@@ -966,22 +1022,36 @@ const App = () => {
       setSpeechDraft('');
       const message = error instanceof Error ? error.message : 'Voice input is temporarily unavailable. Please try again or type your reply below.';
       if (/arrearage|access denied|overdue-payment/i.test(message)) {
-        setErrorMsg('Voice input is temporarily unavailable because the current Alibaba ASR account is not available. You can still type your reply below and continue the conversation.');
+        setErrorMsg('Voice input is temporarily unavailable because the current Alibaba ASR account is not available. You can still type your reply below and continue the practice.');
       } else {
         setErrorMsg(`Voice input issue: ${message}`);
       }
     }
   };
 
-  const startVoiceInput = () => {
+  const startVoiceInput = async () => {
     if (!isAudioCaptureSupported()) {
       setErrorMsg('This browser does not support voice input. Please type instead.');
       return;
     }
-    if (isListening || !mediaStreamRef.current) return;
+    if (!sceneImageDataUrl) {
+      setErrorMsg('Upload one scene photo first, then you can use voice input.');
+      return;
+    }
+    if (isListening) return;
     if (sceneBootTimerRef.current) {
       clearTimeout(sceneBootTimerRef.current);
       sceneBootTimerRef.current = null;
+    }
+
+    if (!mediaStreamRef.current) {
+      try {
+        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        console.error(error);
+        setErrorMsg('Microphone access is needed to start voice input.');
+        return;
+      }
     }
 
     const AudioContextApi = window.AudioContext;
@@ -1014,20 +1084,6 @@ const App = () => {
     setIsListening(true);
     setSpeechDraft('Listening...');
   };
-
-  useEffect(() => {
-    if (videoRef.current && mediaStreamRef.current) {
-      videoRef.current.srcObject = mediaStreamRef.current;
-      videoRef.current.onloadedmetadata = () => {
-        setIsCameraReady(true);
-        if (!speakingInitTriggeredRef.current) {
-          speakingInitTriggeredRef.current = true;
-          void applySceneAnalysis('');
-        }
-      };
-      videoRef.current.play().catch(() => {});
-    }
-  }, [isSpeaking, mode]);
 
   useEffect(() => {
     if (speakingListRef.current) {
@@ -1618,9 +1674,9 @@ const App = () => {
             <div className="absolute inset-0 z-[60] bg-slate-950/92 backdrop-blur-sm flex items-center justify-center">
               <div className="rounded-[2.5rem] bg-white px-8 py-7 shadow-2xl text-center">
                 <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 font-black mb-4">
-                  <RefreshCw className="animate-spin" size={18} /> Opening camera...
+                  <RefreshCw className="animate-spin" size={18} /> Opening speaking space...
                 </div>
-                <p className="text-slate-500 font-semibold">We are getting your scene ready for a low-pressure speaking session.</p>
+                <p className="text-slate-500 font-semibold">We are getting your scene upload flow ready for a low-pressure speaking session.</p>
               </div>
             </div>
           )}
@@ -1665,7 +1721,7 @@ const App = () => {
                       </div>
                       <p className="text-slate-400 font-medium leading-relaxed">
                         {card.m === AppMode.SPEAKING
-                          ? 'Tap once and speak inside your real environment.'
+                          ? 'Upload one real-life scene photo, then start a grounded speaking practice.'
                           : `Level up your ${language} skills with adaptive AI-powered sessions.`}
                       </p>
                     </div>
@@ -1680,12 +1736,12 @@ const App = () => {
 
           {mode === AppMode.SPEAKING && (
             <div className="h-full relative bg-slate-950 overflow-hidden">
-              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-              <canvas ref={canvasRef} className="hidden" />
-              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
-              {!isCameraReady && (
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_50%),linear-gradient(180deg,#0f172a,#111827)]" />
+              {sceneImageDataUrl ? (
+                <img src={sceneImageDataUrl} alt="Uploaded scene" className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.18),_transparent_35%),linear-gradient(180deg,#0f172a,#111827)]" />
               )}
+              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
 
               <div className="relative z-10 h-full p-6 md:p-10 flex flex-col">
                 <div className="flex items-start justify-between gap-4 mb-6">
@@ -1695,6 +1751,12 @@ const App = () => {
                         <Camera size={14} /> Scene Explorer
                       </span>
                       <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneContext.persona || 'Study buddy mode'}</span>
+                      {sceneImageName ? (
+                        <span className="hidden md:inline text-xs font-bold text-slate-400 truncate max-w-[180px]">{sceneImageName}</span>
+                      ) : null}
+                      <button onClick={() => sceneImageInputRef.current?.click()} className="rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
+                        {sceneImageDataUrl ? 'Change photo' : 'Upload photo'}
+                      </button>
                       <button onClick={() => setIsVoiceOutputEnabled((prev) => !prev)} className="ml-auto rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
                         {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
                       </button>
@@ -1713,7 +1775,7 @@ const App = () => {
                   </div>
 
                   <button onClick={() => endSpeakingSession('user_exit')} className="rounded-full bg-white/90 px-6 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
-                    <CameraOff size={16} /> Close camera
+                    <X size={16} /> Leave speaking
                   </button>
                 </div>
 
@@ -1737,9 +1799,45 @@ const App = () => {
                           <RefreshCw className="animate-spin" size={18} /> {labels.connecting}
                         </div>
                       )}
-                      {!isCameraReady && !isConnecting && (
+                      {!isSceneReady && !isConnecting && (
                         <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90">
-                          Camera is warming up. You can already start speaking if you want.
+                          Upload one photo of your real environment first. I will recognize the scene and start the speaking practice from that image.
+                        </div>
+                      )}
+
+                      {!isSceneReady && (
+                        <div className="rounded-[2.25rem] bg-white/88 px-6 py-6 shadow-sm">
+                          <div className="flex flex-col gap-4">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Scene snapshot</p>
+                              <h3 className="text-2xl font-black text-slate-900">Upload one image, then start practicing</h3>
+                              <p className="mt-2 text-sm font-medium text-slate-500">
+                                Desk, cafe, street, kitchen, airport, office, or any real place you want to practice with.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <input
+                                ref={sceneImageInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  if (file) {
+                                    void handleSceneImageSelected(file);
+                                  }
+                                  event.currentTarget.value = '';
+                                }}
+                              />
+                              <button
+                                onClick={() => sceneImageInputRef.current?.click()}
+                                className="rounded-[1.5rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white"
+                              >
+                                Upload scene photo
+                              </button>
+                              <span className="text-sm font-semibold text-slate-400">JPG, PNG, or HEIC all work.</span>
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -1785,7 +1883,7 @@ const App = () => {
                       )}
                       {lastNextPrompt && (
                         <div className="mb-3 rounded-[1.5rem] bg-white/80 px-5 py-4 text-sm font-semibold text-slate-600">
-                          Next idea: {lastNextPrompt}
+                          Easy follow-up: {lastNextPrompt}
                         </div>
                       )}
                       {errorMsg && (
@@ -1805,7 +1903,8 @@ const App = () => {
                               }
                             }}
                             placeholder={speakingMode === 'words' ? 'Repeat a word, describe an object, or ask what something means...' : 'Say what you see, what you need, or just start talking...'}
-                            className="w-full min-h-24 resize-none outline-none bg-transparent text-lg text-slate-700 placeholder:text-slate-300"
+                            disabled={!isSceneReady}
+                            className="w-full min-h-24 resize-none outline-none bg-transparent text-lg text-slate-700 placeholder:text-slate-300 disabled:opacity-50"
                           />
                         </div>
                         <div className="flex gap-3">
@@ -1819,14 +1918,14 @@ const App = () => {
                               if (isListening) {
                                 void stopVoiceInput();
                               } else {
-                                startVoiceInput();
+                                void startVoiceInput();
                               }
                             }}
                             onPointerDown={() => {
-                              if (!speechSupported || isListening) return;
+                              if (!speechSupported || isListening || !isSceneReady) return;
                               holdTimerRef.current = window.setTimeout(() => {
                                 holdTriggeredRef.current = true;
-                                startVoiceInput();
+                                void startVoiceInput();
                               }, 180);
                             }}
                             onPointerUp={() => {
@@ -1847,15 +1946,15 @@ const App = () => {
                                 void stopVoiceInput();
                               }
                             }}
-                            disabled={!speechSupported || isConnecting}
+                            disabled={!speechSupported || isConnecting || !isSceneReady}
                             className={`min-w-[170px] md:min-w-[200px] rounded-[2rem] px-7 py-6 text-white font-black shadow-2xl transition-all ${isListening ? 'bg-red-500' : 'bg-kitty-500 hover:bg-kitty-600'} disabled:opacity-50`}
                           >
                             <div className="flex flex-col items-center gap-2">
                               <Mic size={24} />
-                              <span>{isListening ? 'Release to send' : 'Press & hold / Tap to speak'}</span>
+                              <span>{isListening ? 'Release to send' : 'Hold to speak'}</span>
                             </div>
                           </button>
-                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
+                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading || !isSceneReady} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
                             <Send size={18} /> Send
                           </button>
                         </div>
@@ -1866,7 +1965,7 @@ const App = () => {
                   <div className="flex flex-col gap-5 min-h-0">
                     <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
                       <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
-                        <h3 className="text-xl font-black text-slate-800">{speakingMode === 'words' ? 'Scene Words' : 'Session Mood'}</h3>
+                        <h3 className="text-xl font-black text-slate-800">{speakingMode === 'words' ? 'Useful Words' : 'Coach Cues'}</h3>
                         {speakingMode === 'words' && (
                           <div className="flex items-center gap-3">
                             <button
@@ -1875,8 +1974,11 @@ const App = () => {
                             >
                               {showAllSceneWords ? 'Collapse' : 'Expand'}
                             </button>
-                            <button onClick={() => void applySceneAnalysis(chatInput, { includeWords: true })} className="text-sm font-black text-kitty-600">
+                            <button onClick={() => void applySceneAnalysis(chatInput, { includeWords: true })} disabled={!isSceneReady} className="text-sm font-black text-kitty-600 disabled:opacity-50">
                               Generate words
+                            </button>
+                            <button onClick={() => sceneImageInputRef.current?.click()} className="text-sm font-black text-slate-500">
+                              Change photo
                             </button>
                           </div>
                         )}
@@ -1921,9 +2023,9 @@ const App = () => {
 
                     <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-black text-slate-800">Friendly Feedback</h3>
-                        <button onClick={() => void applySceneAnalysis(chatInput)} className="text-sm font-black text-kitty-600">
-                          Refresh scene
+                        <h3 className="text-xl font-black text-slate-800">Coach Note</h3>
+                        <button onClick={() => void applySceneAnalysis(chatInput)} disabled={!isSceneReady} className="text-sm font-black text-kitty-600 disabled:opacity-50">
+                          Re-read photo
                         </button>
                       </div>
                       {lastFeedback ? (
