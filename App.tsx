@@ -49,6 +49,7 @@ import {
   sendMagicLink,
   signOutSupabase,
   subscribeToAuthChanges,
+  verifyEmailOtp,
   trackUsageEvent as persistUsageEvent,
 } from './services/supabaseService';
 type SpeakingMode = 'words' | 'sentences';
@@ -173,12 +174,14 @@ const App = () => {
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
   const [authEmail, setAuthEmail] = useState('');
+  const [authOtp, setAuthOtp] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [isEmailUser, setIsEmailUser] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(!isSupabaseConfigured());
+  const [isOtpStage, setIsOtpStage] = useState(false);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -305,10 +308,31 @@ const App = () => {
 
     try {
       await sendMagicLink(email);
-      setAuthMessage('Magic link sent. Open your email and tap the sign-in link on this same device.');
+      setIsOtpStage(true);
+      setAuthMessage('Verification email sent. Enter the 6-digit code from your email here to finish signing in on this device.');
     } catch (error) {
       console.error(error);
       setAuthMessage(error instanceof Error ? error.message : 'Failed to send login link');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleOtpVerify = async () => {
+    const email = safeTrim(authEmail);
+    const token = safeTrim(authOtp);
+    if (!email || !token) return;
+
+    setIsAuthLoading(true);
+    setAuthMessage('');
+
+    try {
+      await verifyEmailOtp(email, token);
+      setAuthMessage(`Signed in as ${email}`);
+      setAuthOtp('');
+    } catch (error) {
+      console.error(error);
+      setAuthMessage(error instanceof Error ? error.message : 'Failed to verify email code');
     } finally {
       setIsAuthLoading(false);
     }
@@ -1016,6 +1040,8 @@ const App = () => {
         setCloudSyncMessage('Sign in to sync');
         setIsAuthModalOpen(true);
         setIsAuthChecked(true);
+        setIsOtpStage(false);
+        setAuthOtp('');
       }
     });
 
@@ -1263,13 +1289,48 @@ const App = () => {
                       className="w-full bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
                     />
                   </div>
-                  <button
-                    onClick={() => void handleEmailLogin()}
-                    disabled={isAuthLoading || !safeTrim(authEmail)}
-                    className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
-                  >
-                    {isAuthLoading ? 'Sending magic link...' : 'Send magic link'}
-                  </button>
+                  {isOtpStage && (
+                    <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={authOtp}
+                        onChange={(event) => setAuthOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="6-digit code"
+                        className="w-full bg-transparent outline-none text-lg tracking-[0.35em] text-slate-700 placeholder:text-slate-300"
+                      />
+                    </div>
+                  )}
+                  {!isOtpStage ? (
+                    <button
+                      onClick={() => void handleEmailLogin()}
+                      disabled={isAuthLoading || !safeTrim(authEmail)}
+                      className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                    >
+                      {isAuthLoading ? 'Sending code...' : 'Send verification code'}
+                    </button>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => {
+                          setIsOtpStage(false);
+                          setAuthOtp('');
+                          setAuthMessage('');
+                        }}
+                        disabled={isAuthLoading}
+                        className="rounded-[1.75rem] bg-slate-100 px-6 py-4 text-slate-600 font-black disabled:opacity-50"
+                      >
+                        Change email
+                      </button>
+                      <button
+                        onClick={() => void handleOtpVerify()}
+                        disabled={isAuthLoading || safeTrim(authOtp).length < 6}
+                        className="rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                      >
+                        {isAuthLoading ? 'Verifying...' : 'Verify code'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {authMessage && (

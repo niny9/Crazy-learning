@@ -95,6 +95,23 @@ export const sendMagicLink = async (email: string) => {
   }
 };
 
+export const verifyEmailOtp = async (email: string, token: string) => {
+  const client = getClient();
+  if (!client) {
+    throw new Error('Supabase is not configured');
+  }
+
+  const { error } = await client.auth.verifyOtp({
+    email,
+    token,
+    type: 'email',
+  });
+
+  if (error) {
+    throw error;
+  }
+};
+
 export const signOutSupabase = async () => {
   const client = getClient();
   if (!client) return;
