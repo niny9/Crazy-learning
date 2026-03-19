@@ -181,6 +181,34 @@ const groupNotebookItemsByDate = <T extends { id: string; date?: string; dateAdd
     }));
 };
 
+const normalizeSceneContext = (value: Partial<SceneContext> | null | undefined): SceneContext => ({
+  objects: Array.isArray(value?.objects) && value?.objects.length ? value.objects.filter(Boolean) : DEFAULT_SCENE_CONTEXT.objects,
+  environmentTag: safeTrim(value?.environmentTag) || DEFAULT_SCENE_CONTEXT.environmentTag,
+  intentTag: safeTrim(value?.intentTag) || DEFAULT_SCENE_CONTEXT.intentTag,
+  timeOfDay: value?.timeOfDay || DEFAULT_SCENE_CONTEXT.timeOfDay,
+  persona: safeTrim(value?.persona) || DEFAULT_SCENE_CONTEXT.persona,
+});
+
+const normalizeSceneHint = (value: Partial<SceneHint> | null | undefined): SceneHint => ({
+  title: safeTrim(value?.title) || DEFAULT_SCENE_HINT.title,
+  suggestions:
+    Array.isArray(value?.suggestions) && value?.suggestions.length
+      ? value.suggestions.map((item) => safeTrim(item)).filter(Boolean)
+      : DEFAULT_SCENE_HINT.suggestions,
+});
+
+const normalizeSceneWords = (value: SceneWord[] | null | undefined): SceneWord[] =>
+  Array.isArray(value) && value.length
+    ? value
+        .filter(Boolean)
+        .map((word) => ({
+          word: safeTrim(word?.word) || 'scene item',
+          meaning: safeTrim(word?.meaning) || 'a useful word from your current scene',
+          chineseHint: safeTrim(word?.chineseHint) || undefined,
+          example: safeTrim(word?.example) || 'This is a useful word for describing your scene.',
+        }))
+    : DEFAULT_SCENE_WORDS;
+
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
   const [language, setLanguage] = useState('English');
@@ -717,15 +745,19 @@ const App = () => {
     try {
       const imageBase64 = await captureCurrentFrame();
       const result = await AIService.analyzeSceneContext(language, imageBase64, firstUtterance, sceneContext);
-      setSceneContext(result.context);
-      setSceneHint(result.hint);
-      if (result.words?.length) setSceneWords(result.words);
-      if (result.context.intentTag && result.context.intentTag !== sceneContext.intentTag) {
-        logSpeakingEvent({ type: 'intent_update', intentTag: result.context.intentTag });
+      const nextContext = normalizeSceneContext(result?.context);
+      const nextHint = normalizeSceneHint(result?.hint);
+      const nextWords = normalizeSceneWords(result?.words);
+      setSceneContext(nextContext);
+      setSceneHint(nextHint);
+      setSceneWords(nextWords);
+      if (nextContext.intentTag && nextContext.intentTag !== sceneContext.intentTag) {
+        logSpeakingEvent({ type: 'intent_update', intentTag: nextContext.intentTag });
       }
       if (!chatMessages.length) {
-        setChatMessages([{ role: 'model', text: result.opener }]);
-        void playGeneratedSpeech(result.opener);
+        const opener = safeTrim(result?.opener) || 'Hi, I am your speaking partner. What are you doing in this place right now?';
+        setChatMessages([{ role: 'model', text: opener }]);
+        void playGeneratedSpeech(opener);
       }
     } catch (error) {
       console.error(error);
@@ -818,29 +850,39 @@ const App = () => {
 
       try {
         const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
-        nextContext = sceneResult.context;
-        nextHint = sceneResult.hint;
+        nextContext = normalizeSceneContext(sceneResult?.context);
+        nextHint = normalizeSceneHint(sceneResult?.hint);
       } catch (sceneError) {
         console.error('Scene analysis failed', sceneError);
       }
 
       const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance);
 
-      setSceneContext(turn.context);
-      setSceneHint(turn.hint);
-      if (turn.words?.length) setSceneWords(turn.words);
-      if (turn.intentUpdated && turn.intentUpdated !== sceneContext.intentTag) {
+      const resolvedContext = normalizeSceneContext(turn?.context || nextContext);
+      const resolvedHint = normalizeSceneHint(turn?.hint || nextHint);
+      const resolvedWords = normalizeSceneWords(turn?.words);
+      const resolvedReply = safeTrim(turn?.reply) || 'Tell me one thing about your current scene, and I will keep the conversation going.';
+      const resolvedFeedback = turn?.feedback || {
+        summary: 'Nice start. Keep your answer short and natural, and I will help you improve it.',
+        tags: ['fluency'] as ('fluency' | 'accuracy' | 'vocabulary')[],
+        level: 'easy' as const,
+      };
+
+      setSceneContext(resolvedContext);
+      setSceneHint(resolvedHint);
+      setSceneWords(resolvedWords);
+      if (safeTrim(turn?.intentUpdated) && turn.intentUpdated !== sceneContext.intentTag) {
         logSpeakingEvent({ type: 'intent_update', intentTag: turn.intentUpdated });
       }
-      if (turn.feedback?.tags?.length) {
-        logSpeakingEvent({ type: 'ai_feedback', tags: turn.feedback.tags });
+      if (resolvedFeedback.tags?.length) {
+        logSpeakingEvent({ type: 'ai_feedback', tags: resolvedFeedback.tags });
       }
 
-      setLastFeedback(turn.feedback);
-      setLastNextPrompt(turn.nextPrompt || '');
-      setSessionSummary(turn.feedback?.summary || '');
-      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: turn.reply, feedback: turn.feedback }]);
-      await playGeneratedSpeech(turn.reply);
+      setLastFeedback(resolvedFeedback);
+      setLastNextPrompt(safeTrim(turn?.nextPrompt));
+      setSessionSummary(safeTrim(resolvedFeedback.summary));
+      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: resolvedReply, feedback: resolvedFeedback }]);
+      await playGeneratedSpeech(resolvedReply);
     } catch (error) {
       console.error(error);
       const fallbackReply =
@@ -1580,16 +1622,16 @@ const App = () => {
                         {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
                       </button>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{sceneHint.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{sceneHint?.title || DEFAULT_SCENE_HINT.title}</h2>
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {sceneHint.suggestions.map((suggestion, index) => (
+                      {(sceneHint?.suggestions?.length ? sceneHint.suggestions : DEFAULT_SCENE_HINT.suggestions).map((suggestion, index) => (
                         <span key={`${suggestion}-${index}`} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
                           {suggestion}
                         </span>
                       ))}
                     </div>
                     <p className="text-sm text-slate-500 font-medium">
-                      Objects in view: {sceneContext.objects.join(' · ')} {sceneContext.intentTag ? `· Intent: ${sceneContext.intentTag.replace(/_/g, ' ')}` : ''}
+                      Objects in view: {(sceneContext?.objects?.length ? sceneContext.objects : DEFAULT_SCENE_CONTEXT.objects).join(' · ')} {sceneContext?.intentTag ? `· Intent: ${sceneContext.intentTag.replace(/_/g, ' ')}` : ''}
                     </p>
                   </div>
 
@@ -1771,11 +1813,11 @@ const App = () => {
                         <div className="space-y-3">
                           <div className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
                             <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Persona</p>
-                            <p className="text-lg font-black text-slate-800">{sceneContext.persona || 'Friendly study buddy'}</p>
+                            <p className="text-lg font-black text-slate-800">{sceneContext?.persona || 'Friendly study buddy'}</p>
                           </div>
                           <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
                             <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Current Focus</p>
-                            <p className="text-sm text-slate-700 font-semibold">{sceneContext.intentTag ? sceneContext.intentTag.replace(/_/g, ' ') : 'casual scene talk'}</p>
+                            <p className="text-sm text-slate-700 font-semibold">{sceneContext?.intentTag ? sceneContext.intentTag.replace(/_/g, ' ') : 'casual scene talk'}</p>
                           </div>
                           {sessionSummary && (
                             <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
