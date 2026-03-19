@@ -486,6 +486,8 @@ async function analyzeSceneWithVision({ language, imageBase64, firstUtterance, c
 - words: Array<{ word: string, meaning: string, chineseHint?: string, example: string }>
 
 Use low-pressure, Gen Z friendly English coaching. Favor practical situations like home desk, cafe, airport, office, kitchen, street.
+If the image mainly shows a person or selfie and the environment is unclear, stay conservative: use broad labels like "study setup", "indoor practice", or "casual space" instead of specific claims.
+Only list objects that are clearly visible in the image.
 The opener must sound like a warm real person already inside the scene.
 Keep the opener to 1 or 2 short sentences, natural spoken English, no teacher talk, no labels, no explanations.
 End with one concrete question that invites the learner to answer immediately.

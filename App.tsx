@@ -296,6 +296,7 @@ const App = () => {
   const listeningAutoplayRef = useRef<string | null>(null);
   const [showAllSceneWords, setShowAllSceneWords] = useState(false);
   const cloudRetryTimerRef = useRef<number | null>(null);
+  const speakingSessionTokenRef = useRef(0);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -775,10 +776,13 @@ const App = () => {
       reader.readAsDataURL(file);
     });
 
+  const isActiveSpeakingSession = (token: number) => mode === AppMode.SPEAKING && speakingSessionTokenRef.current === token;
+
   const applySceneAnalysis = async (
     firstUtterance = '',
     options: { includeWords?: boolean; sourceImage?: string } = {}
   ) => {
+    const sessionToken = speakingSessionTokenRef.current;
     const imageSource = options.sourceImage || sceneImageDataUrl;
     if (!imageSource) {
       setErrorMsg('Upload one scene photo first, then I can recognize the setting and start the practice.');
@@ -791,6 +795,7 @@ const App = () => {
       }
       setIsConnecting(true);
       const result = await AIService.analyzeSceneContext(language, imageSource, firstUtterance, sceneContext);
+      if (!isActiveSpeakingSession(sessionToken)) return;
       const nextContext = normalizeSceneContext(result?.context);
       const nextHint = normalizeSceneHint(result?.hint);
       const nextWords = normalizeSceneWords(result?.words);
@@ -806,10 +811,13 @@ const App = () => {
       if (!chatMessages.length) {
         const opener = safeTrim(result?.opener) || 'Hi, I am your speaking partner. What are you doing in this place right now?';
         setChatMessages([{ role: 'model', text: opener }]);
-        void playGeneratedSpeech(opener);
+        if (isActiveSpeakingSession(sessionToken)) {
+          void playGeneratedSpeech(opener);
+        }
       }
     } catch (error) {
       console.error(error);
+      if (!isActiveSpeakingSession(sessionToken)) return;
       if (!chatMessages.length) {
         const fallbackOpener = 'Hi, I am your speaking partner. What are you doing in this place right now?';
         setChatMessages([
@@ -818,14 +826,19 @@ const App = () => {
             text: fallbackOpener,
           },
         ]);
-        void playGeneratedSpeech(fallbackOpener);
+        if (isActiveSpeakingSession(sessionToken)) {
+          void playGeneratedSpeech(fallbackOpener);
+        }
       }
     } finally {
-      setIsConnecting(false);
+      if (isActiveSpeakingSession(sessionToken)) {
+        setIsConnecting(false);
+      }
     }
   };
 
   const handleSceneImageSelected = async (file: File) => {
+    const sessionToken = speakingSessionTokenRef.current;
     setIsConnecting(true);
     setErrorMsg(null);
     setChatMessages([]);
@@ -837,19 +850,25 @@ const App = () => {
 
     try {
       const dataUrl = await readFileAsDataUrl(file);
+      if (!isActiveSpeakingSession(sessionToken)) return;
       setSceneImageDataUrl(dataUrl);
       setSceneImageName(file.name);
       setIsSceneReady(true);
       await applySceneAnalysis('', { sourceImage: dataUrl });
     } catch (error) {
       console.error(error);
-      setErrorMsg(error instanceof Error ? error.message : 'Failed to load the selected scene image.');
+      if (isActiveSpeakingSession(sessionToken)) {
+        setErrorMsg(error instanceof Error ? error.message : 'Failed to load the selected scene image.');
+      }
     } finally {
-      setIsConnecting(false);
+      if (isActiveSpeakingSession(sessionToken)) {
+        setIsConnecting(false);
+      }
     }
   };
 
   const endSpeakingSession = (reason: 'user_exit' | 'timeout') => {
+    speakingSessionTokenRef.current += 1;
     void stopRecorder();
     stopMediaStream();
     stopCurrentSpeechPlayback();
@@ -870,6 +889,7 @@ const App = () => {
   };
 
   const enterSpeakingMode = async () => {
+    speakingSessionTokenRef.current += 1;
     setIsLaunchingSpeaking(true);
     setErrorMsg(null);
     setChatMessages([]);
@@ -900,6 +920,7 @@ const App = () => {
   };
 
   const submitUtterance = async (utterance: string) => {
+    const sessionToken = speakingSessionTokenRef.current;
     if (!safeTrim(utterance) || isChatLoading) return;
     if (!sceneImageDataUrl) {
       setErrorMsg('Upload one scene photo first, then start the practice.');
@@ -929,6 +950,7 @@ const App = () => {
       if (shouldRefreshScene) {
         try {
           const sceneResult = await AIService.analyzeSceneContext(language, sceneImageDataUrl, utterance, sceneContext);
+          if (!isActiveSpeakingSession(sessionToken)) return;
           nextContext = normalizeSceneContext(sceneResult?.context);
           nextHint = normalizeSceneHint(sceneResult?.hint);
         } catch (sceneError) {
@@ -937,6 +959,7 @@ const App = () => {
       }
 
       const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance);
+      if (!isActiveSpeakingSession(sessionToken)) return;
 
       const resolvedContext = normalizeSceneContext(turn?.context || nextContext);
       const resolvedHint = normalizeSceneHint(turn?.hint || nextHint);
@@ -965,9 +988,12 @@ const App = () => {
       setLastNextPrompt(safeTrim(turn?.nextPrompt));
       setSessionSummary(safeTrim(resolvedFeedback.summary));
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: resolvedReply, feedback: resolvedFeedback }]);
-      await playGeneratedSpeech(resolvedReply);
+      if (isActiveSpeakingSession(sessionToken)) {
+        await playGeneratedSpeech(resolvedReply);
+      }
     } catch (error) {
       console.error(error);
+      if (!isActiveSpeakingSession(sessionToken)) return;
       const fallbackReply =
         speakingMode === 'words'
           ? 'Nice try. Pick one thing you can see and describe it with one short sentence, and I will help you polish it.'
@@ -985,10 +1011,14 @@ const App = () => {
       setLastNextPrompt('Try one short sentence about what you see right now.');
       setSessionSummary(fallbackFeedback.summary);
       setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: fallbackReply, feedback: fallbackFeedback }]);
-      await playGeneratedSpeech(fallbackReply);
+      if (isActiveSpeakingSession(sessionToken)) {
+        await playGeneratedSpeech(fallbackReply);
+      }
       setErrorMsg('Speaking stayed available, but the AI scene coach had a temporary network hiccup.');
     } finally {
-      setIsChatLoading(false);
+      if (isActiveSpeakingSession(sessionToken)) {
+        setIsChatLoading(false);
+      }
     }
   };
 
@@ -1324,17 +1354,6 @@ const App = () => {
       listeningAutoplayRef.current = null;
     }
   }, [mode, dailyContent]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && mode === AppMode.SPEAKING) {
-        endSpeakingSession('timeout');
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [mode]);
 
   useEffect(() => () => {
     void stopRecorder();
@@ -1751,9 +1770,6 @@ const App = () => {
                         <Camera size={14} /> Scene Explorer
                       </span>
                       <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneContext.persona || 'Study buddy mode'}</span>
-                      {sceneImageName ? (
-                        <span className="hidden md:inline text-xs font-bold text-slate-400 truncate max-w-[180px]">{sceneImageName}</span>
-                      ) : null}
                       <button onClick={() => sceneImageInputRef.current?.click()} className="rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
                         {sceneImageDataUrl ? 'Change photo' : 'Upload photo'}
                       </button>
