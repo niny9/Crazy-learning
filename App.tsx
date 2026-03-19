@@ -165,7 +165,7 @@ const formatDateGroupLabel = (value: string) => {
 
 const groupNotebookItemsByDate = <T extends { id: string; date?: string; dateAdded?: string }>(items: T[]): NotebookDateGroup<T>[] => {
   const groups = new Map<string, T[]>();
-  items.forEach((item) => {
+  items.filter(Boolean).forEach((item) => {
     const rawDate = item.dateAdded || item.date || '';
     const key = rawDate ? new Date(rawDate).toDateString() : 'Unknown date';
     const group = groups.get(key) || [];
@@ -523,13 +523,18 @@ const App = () => {
     try {
       if (type === 'reading') {
         const data = await AIService.getReadingSuggestions('Intermediate', language);
-        setDailyContent(data[0]);
-        if (data[0]) queueUsageEvent('open_reading_content', { title: data[0].title, source: data[0].source });
+        const nextItem = Array.isArray(data) ? data.find(Boolean) : null;
+        setDailyContent(nextItem || null);
+        if (nextItem) queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
       } else {
         const data = await AIService.getDailyListeningContent(language, seenTitles);
+        if (!data) {
+          setDailyContent(null);
+          return;
+        }
         setDailyContent(data);
-        setSeenTitles((prev) => [...prev, data.title]);
-        queueUsageEvent('open_listening_content', { title: data.title, source: data.source });
+        setSeenTitles((prev) => [...prev, data.title || 'Untitled listening']);
+        queueUsageEvent('open_listening_content', { title: data.title || 'Untitled listening', source: data.source || 'Unknown source' });
       }
     } catch (error) {
       console.error(error);
@@ -540,7 +545,7 @@ const App = () => {
     if (!dailyContent?.content) return;
 
     setIsTTSLoading(true);
-    queueUsageEvent('play_tts', { title: dailyContent.title, source: dailyContent.source });
+    queueUsageEvent('play_tts', { title: dailyContent.title || 'Untitled content', source: dailyContent.source || 'Unknown source' });
     try {
       await playGeneratedSpeech(dailyContent.content);
     } catch (error) {
@@ -1140,8 +1145,8 @@ const App = () => {
   }, [mode]);
 
   useEffect(() => {
-    if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== dailyContent.title) {
-      listeningAutoplayRef.current = dailyContent.title;
+    if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== (dailyContent.title || dailyContent.source || 'listening')) {
+      listeningAutoplayRef.current = dailyContent.title || dailyContent.source || 'listening';
       void handleTTS();
     }
     if (mode === AppMode.READING) {
@@ -1275,21 +1280,21 @@ const App = () => {
           </div>
 
           {groupNotebookItemsByDate(
-            (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item.language === language)
+            (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item && item.language === language)
           ).map((group) => (
-            <div key={group.title} className="space-y-4">
+            <div key={group.title || 'untitled-group'} className="space-y-4">
               <div className="inline-flex rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 shadow-sm border border-kitty-100">
-                {group.title}
+                {group.title || 'Unknown date'}
               </div>
-              {group.items.map((item) => (
-                <div key={item.id} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
+              {group.items.filter(Boolean).map((item) => (
+                <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
                   <div className="flex justify-between items-start mb-2">
                     <span className="font-black text-slate-800 text-xl tracking-tight">
                       {activeTab === 'vocab'
-                        ? (item as VocabItem).word
+                        ? (item as VocabItem).word || 'Untitled word'
                         : activeTab === 'sentences'
-                          ? `${(item as SavedSentence).text.substring(0, 30)}...`
-                          : (item as DiaryEntry).title}
+                          ? `${((item as SavedSentence).text || 'Untitled sentence').substring(0, 30)}...`
+                          : (item as DiaryEntry).title || 'Untitled diary'}
                     </span>
                     <button
                       onClick={() =>
