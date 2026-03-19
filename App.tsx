@@ -129,12 +129,6 @@ const DEFAULT_SCENE_HINT: SceneHint = {
   suggestions: ['talk about what is on your desk', 'share today’s plan', 'describe how you feel right now'],
 };
 
-const DEFAULT_SCENE_WORDS: SceneWord[] = [
-  { word: 'planner', meaning: 'a tool for organizing tasks', chineseHint: '计划本', example: 'I write my study goals in my planner every morning.' },
-  { word: 'focus', meaning: 'full attention on one task', chineseHint: '专注', example: 'I want to focus on speaking practice for ten minutes.' },
-  { word: 'deadline', meaning: 'the time something must be finished', chineseHint: '截止时间', example: 'I have a deadline for my project this week.' },
-];
-
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
@@ -197,17 +191,28 @@ const normalizeSceneHint = (value: Partial<SceneHint> | null | undefined): Scene
       : DEFAULT_SCENE_HINT.suggestions,
 });
 
-const normalizeSceneWords = (value: SceneWord[] | null | undefined): SceneWord[] =>
-  Array.isArray(value) && value.length
-    ? value
+const normalizeSceneWords = (value: SceneWord[] | null | undefined): SceneWord[] => {
+  if (!Array.isArray(value) || !value.length) return [];
+
+  return Array.from(
+    new Map(
+      value
         .filter(Boolean)
-        .map((word) => ({
-          word: safeTrim(word?.word) || 'scene item',
-          meaning: safeTrim(word?.meaning) || 'a useful word from your current scene',
-          chineseHint: safeTrim(word?.chineseHint) || undefined,
-          example: safeTrim(word?.example) || 'This is a useful word for describing your scene.',
-        }))
-    : DEFAULT_SCENE_WORDS;
+        .map((word) => {
+          const normalizedWord = safeTrim(word?.word);
+          if (!normalizedWord) return null;
+          const normalized = {
+            word: normalizedWord,
+            meaning: safeTrim(word?.meaning) || 'a useful word from your current scene',
+            chineseHint: safeTrim(word?.chineseHint) || undefined,
+            example: safeTrim(word?.example) || 'Use this word to describe what is around you right now.',
+          };
+          return [normalized.word.toLowerCase(), normalized] as const;
+        })
+        .filter(Boolean) as readonly (readonly [string, SceneWord])[]
+    ).values()
+  );
+};
 
 const App = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.DASHBOARD);
@@ -250,7 +255,7 @@ const App = () => {
   const [speakingMode, setSpeakingMode] = useState<SpeakingMode>('sentences');
   const [sceneContext, setSceneContext] = useState<SceneContext>(DEFAULT_SCENE_CONTEXT);
   const [sceneHint, setSceneHint] = useState<SceneHint>(DEFAULT_SCENE_HINT);
-  const [sceneWords, setSceneWords] = useState<SceneWord[]>(DEFAULT_SCENE_WORDS);
+  const [sceneWords, setSceneWords] = useState<SceneWord[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -273,6 +278,7 @@ const App = () => {
   const transcriptBufferRef = useRef('');
   const utteranceStartRef = useRef<number | null>(null);
   const sceneRefreshIntervalRef = useRef<number | null>(null);
+  const sceneBootTimerRef = useRef<number | null>(null);
   const speakingEventsRef = useRef<SpeakingEvent[]>([]);
   const speakingListRef = useRef<HTMLDivElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
@@ -288,6 +294,9 @@ const App = () => {
   const syncTimerRef = useRef<number | null>(null);
   const usageQueueRef = useRef<UsageEventPayload[]>([]);
   const listeningAutoplayRef = useRef<string | null>(null);
+  const [showAllSceneWords, setShowAllSceneWords] = useState(false);
+  const cloudRetryTimerRef = useRef<number | null>(null);
+  const speakingInitTriggeredRef = useRef(false);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
 
@@ -598,6 +607,11 @@ const App = () => {
   const isAudioCaptureSupported = () => typeof window !== 'undefined' && 'AudioContext' in window && !!navigator.mediaDevices?.getUserMedia;
 
   const stopMediaStream = () => {
+    speakingInitTriggeredRef.current = false;
+    if (sceneBootTimerRef.current) {
+      clearTimeout(sceneBootTimerRef.current);
+      sceneBootTimerRef.current = null;
+    }
     if (sceneRefreshIntervalRef.current) {
       clearInterval(sceneRefreshIntervalRef.current);
       sceneRefreshIntervalRef.current = null;
@@ -741,8 +755,12 @@ const App = () => {
     return canvas.toDataURL('image/jpeg', 0.72);
   };
 
-  const applySceneAnalysis = async (firstUtterance = '') => {
+  const applySceneAnalysis = async (firstUtterance = '', options: { includeWords?: boolean } = {}) => {
     try {
+      if (sceneBootTimerRef.current) {
+        clearTimeout(sceneBootTimerRef.current);
+        sceneBootTimerRef.current = null;
+      }
       const imageBase64 = await captureCurrentFrame();
       const result = await AIService.analyzeSceneContext(language, imageBase64, firstUtterance, sceneContext);
       const nextContext = normalizeSceneContext(result?.context);
@@ -750,7 +768,10 @@ const App = () => {
       const nextWords = normalizeSceneWords(result?.words);
       setSceneContext(nextContext);
       setSceneHint(nextHint);
-      setSceneWords(nextWords);
+      if (options.includeWords && nextWords.length) {
+        setSceneWords(nextWords);
+        setShowAllSceneWords(false);
+      }
       if (nextContext.intentTag && nextContext.intentTag !== sceneContext.intentTag) {
         logSpeakingEvent({ type: 'intent_update', intentTag: nextContext.intentTag });
       }
@@ -799,7 +820,8 @@ const App = () => {
     setChatMessages([]);
     setSceneContext(DEFAULT_SCENE_CONTEXT);
     setSceneHint(DEFAULT_SCENE_HINT);
-    setSceneWords(DEFAULT_SCENE_WORDS);
+    setSceneWords([]);
+    setShowAllSceneWords(false);
     setLastFeedback(null);
     setLastNextPrompt('');
     setSessionSummary('');
@@ -812,13 +834,8 @@ const App = () => {
       setMode(AppMode.SPEAKING);
       setIsSpeaking(true);
       setIsCameraReady(false);
+      speakingInitTriggeredRef.current = false;
       logSpeakingEvent({ type: 'session_start', environmentTag: DEFAULT_SCENE_CONTEXT.environmentTag });
-      window.setTimeout(() => {
-        void applySceneAnalysis('');
-      }, 1200);
-      sceneRefreshIntervalRef.current = window.setInterval(() => {
-        void applySceneAnalysis('');
-      }, 22000);
     } catch (error) {
       console.error(error);
       setErrorMsg(labels.errorMic);
@@ -831,6 +848,10 @@ const App = () => {
 
   const submitUtterance = async (utterance: string) => {
     if (!safeTrim(utterance) || isChatLoading) return;
+    if (sceneBootTimerRef.current) {
+      clearTimeout(sceneBootTimerRef.current);
+      sceneBootTimerRef.current = null;
+    }
 
     const duration = utteranceStartRef.current ? Date.now() - utteranceStartRef.current : 0;
     logSpeakingEvent({ type: 'user_utterance', lengthMs: duration });
@@ -844,16 +865,19 @@ const App = () => {
     setIsChatLoading(true);
 
     try {
-      const imageBase64 = await captureCurrentFrame();
       let nextContext = sceneContext;
       let nextHint = sceneHint;
 
-      try {
-        const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
-        nextContext = normalizeSceneContext(sceneResult?.context);
-        nextHint = normalizeSceneHint(sceneResult?.hint);
-      } catch (sceneError) {
-        console.error('Scene analysis failed', sceneError);
+      const shouldRefreshScene = speakingMode === 'words' && !sceneWords.length;
+      if (shouldRefreshScene) {
+        try {
+          const imageBase64 = await captureCurrentFrame();
+          const sceneResult = await AIService.analyzeSceneContext(language, imageBase64, utterance, sceneContext);
+          nextContext = normalizeSceneContext(sceneResult?.context);
+          nextHint = normalizeSceneHint(sceneResult?.hint);
+        } catch (sceneError) {
+          console.error('Scene analysis failed', sceneError);
+        }
       }
 
       const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance);
@@ -870,7 +894,10 @@ const App = () => {
 
       setSceneContext(resolvedContext);
       setSceneHint(resolvedHint);
-      setSceneWords(resolvedWords);
+      if (speakingMode === 'words' && resolvedWords.length) {
+        setSceneWords(resolvedWords);
+        setShowAllSceneWords(false);
+      }
       if (safeTrim(turn?.intentUpdated) && turn.intentUpdated !== sceneContext.intentTag) {
         logSpeakingEvent({ type: 'intent_update', intentTag: turn.intentUpdated });
       }
@@ -952,6 +979,10 @@ const App = () => {
       return;
     }
     if (isListening || !mediaStreamRef.current) return;
+    if (sceneBootTimerRef.current) {
+      clearTimeout(sceneBootTimerRef.current);
+      sceneBootTimerRef.current = null;
+    }
 
     const AudioContextApi = window.AudioContext;
     const audioContext = new AudioContextApi();
@@ -987,7 +1018,13 @@ const App = () => {
   useEffect(() => {
     if (videoRef.current && mediaStreamRef.current) {
       videoRef.current.srcObject = mediaStreamRef.current;
-      videoRef.current.onloadedmetadata = () => setIsCameraReady(true);
+      videoRef.current.onloadedmetadata = () => {
+        setIsCameraReady(true);
+        if (!speakingInitTriggeredRef.current) {
+          speakingInitTriggeredRef.current = true;
+          void applySceneAnalysis('');
+        }
+      };
       videoRef.current.play().catch(() => {});
     }
   }, [isSpeaking, mode]);
@@ -1081,7 +1118,7 @@ const App = () => {
         console.error('Supabase bootstrap failed', error);
         if (!cancelled) {
           setCloudSyncStatus('error');
-          setCloudSyncMessage('Cloud sync unavailable');
+          setCloudSyncMessage('Cloud reconnecting...');
           setIsAuthChecked(true);
         }
       }
@@ -1111,7 +1148,7 @@ const App = () => {
           .catch((error) => {
             console.error('Auth sync failed', error);
             setCloudSyncStatus('error');
-            setCloudSyncMessage('Cloud sync unavailable');
+            setCloudSyncMessage('Cloud reconnecting...');
             setAuthMessage(error instanceof Error ? error.message : 'Failed to sync after sign-in');
             setIsAuthChecked(true);
           });
@@ -1165,7 +1202,7 @@ const App = () => {
         .catch((error) => {
           console.error('Cloud sync failed', error);
           setCloudSyncStatus('error');
-          setCloudSyncMessage('Cloud sync unavailable');
+          setCloudSyncMessage('Cloud reconnecting...');
         });
     }, 500);
 
@@ -1176,6 +1213,42 @@ const App = () => {
       }
     };
   }, [vocabList, sentenceList, writingEntries, diaryEntries]);
+
+  useEffect(() => {
+    if (cloudRetryTimerRef.current) {
+      clearTimeout(cloudRetryTimerRef.current);
+      cloudRetryTimerRef.current = null;
+    }
+
+    if (cloudSyncStatus !== 'error' || !cloudUserIdRef.current || !isEmailUser) {
+      return;
+    }
+
+    cloudRetryTimerRef.current = window.setTimeout(() => {
+      if (!cloudUserIdRef.current) return;
+      setCloudSyncStatus('connecting');
+      setCloudSyncMessage('Retrying cloud sync...');
+      void applyCloudSnapshot(cloudUserIdRef.current)
+        .then(() => flushUsageQueue())
+        .then(() => {
+          hasBootstrappedCloudRef.current = true;
+          setCloudSyncStatus('synced');
+          setCloudSyncMessage('Signed in and synced');
+        })
+        .catch((error) => {
+          console.error('Cloud retry failed', error);
+          setCloudSyncStatus('error');
+          setCloudSyncMessage('Cloud reconnecting...');
+        });
+    }, 12000);
+
+    return () => {
+      if (cloudRetryTimerRef.current) {
+        clearTimeout(cloudRetryTimerRef.current);
+        cloudRetryTimerRef.current = null;
+      }
+    };
+  }, [cloudSyncStatus, isEmailUser]);
 
   useEffect(() => {
     if (mode !== AppMode.SPEAKING) {
@@ -1399,7 +1472,7 @@ const App = () => {
                 : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
                   ? 'bg-amber-50 text-amber-600'
                   : cloudSyncStatus === 'error'
-                    ? 'bg-red-50 text-red-600'
+                    ? 'bg-amber-50 text-amber-700'
                     : 'bg-slate-100 text-slate-500'
             }`}>
               <span className={`h-2 w-2 rounded-full ${
@@ -1408,7 +1481,7 @@ const App = () => {
                   : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
                     ? 'bg-amber-500'
                     : cloudSyncStatus === 'error'
-                      ? 'bg-red-500'
+                      ? 'bg-amber-500'
                       : 'bg-slate-400'
               }`} />
               {cloudSyncMessage}
@@ -1423,7 +1496,11 @@ const App = () => {
             )}
             <button onClick={() => setSidebarOpen(true)} className="relative p-3.5 bg-white rounded-2xl shadow-sm text-kitty-500 hover:scale-105 border border-kitty-100 transition-all">
               <ShoppingBag size={24} />
-              {(vocabList.length + sentenceList.length) > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">!</span>}
+              {(vocabList.length + sentenceList.length + diaryEntries.length) > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[1.35rem] h-5 px-1 bg-slate-900 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
+                  {Math.min(vocabList.length + sentenceList.length + diaryEntries.length, 99)}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1457,8 +1534,8 @@ const App = () => {
                         type="text"
                         inputMode="numeric"
                         value={authOtp}
-                        onChange={(event) => setAuthOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="6-digit code"
+                        onChange={(event) => setAuthOtp(event.target.value.replace(/\D/g, '').slice(0, 12))}
+                        placeholder="Verification code"
                         className="w-full bg-transparent outline-none text-lg tracking-[0.35em] text-slate-700 placeholder:text-slate-300"
                       />
                     </div>
@@ -1486,7 +1563,7 @@ const App = () => {
                       </button>
                       <button
                         onClick={() => void handleOtpVerify()}
-                        disabled={isAuthLoading || safeTrim(authOtp).length < 6}
+                        disabled={isAuthLoading || safeTrim(authOtp).length < 4}
                         className="rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
                       >
                         {isAuthLoading ? 'Verifying...' : 'Verify code'}
@@ -1788,17 +1865,25 @@ const App = () => {
 
                   <div className="flex flex-col gap-5 min-h-0">
                     <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
                         <h3 className="text-xl font-black text-slate-800">{speakingMode === 'words' ? 'Scene Words' : 'Session Mood'}</h3>
                         {speakingMode === 'words' && (
-                          <button onClick={() => void applySceneAnalysis(chatInput)} className="text-sm font-black text-kitty-600">
-                            Show more words
-                          </button>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => setShowAllSceneWords((prev) => !prev)}
+                              className="text-sm font-black text-slate-500"
+                            >
+                              {showAllSceneWords ? 'Collapse' : 'Expand'}
+                            </button>
+                            <button onClick={() => void applySceneAnalysis(chatInput, { includeWords: true })} className="text-sm font-black text-kitty-600">
+                              Generate words
+                            </button>
+                          </div>
                         )}
                       </div>
                       {speakingMode === 'words' ? (
-                        <div className="space-y-3">
-                          {sceneWords.slice(0, 5).map((word) => (
+                        <div className={`space-y-3 overflow-y-auto ${showAllSceneWords ? 'max-h-[32rem]' : 'max-h-[22rem]'}`}>
+                          {(showAllSceneWords ? sceneWords : sceneWords.slice(0, 4)).map((word) => (
                             <div key={word.word} className="rounded-[1.75rem] border border-slate-100 bg-white px-5 py-4 shadow-sm">
                               <div className="flex items-center justify-between gap-3 mb-1">
                                 <span className="text-lg font-black text-slate-800">{word.word}</span>
@@ -1808,9 +1893,14 @@ const App = () => {
                               <p className="mt-2 text-sm text-slate-700">{word.example}</p>
                             </div>
                           ))}
+                          {!sceneWords.length && (
+                            <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm text-slate-500 font-semibold">
+                              Tap `Generate words` when you want scene vocabulary. We will not keep generating it automatically.
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-[22rem] overflow-y-auto">
                           <div className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
                             <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Persona</p>
                             <p className="text-lg font-black text-slate-800">{sceneContext?.persona || 'Friendly study buddy'}</p>
