@@ -423,9 +423,35 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
   } else if (utterance.includes('ielts') || utterance.includes('exam')) {
     intentTag = 'exam_prep';
     persona = 'calm speaking coach';
+  } else if (utterance.includes('room') || utterance.includes('study') || utterance.includes('desk')) {
+    environmentTag = 'study_setup';
+    objects = ['desk', 'chair', 'screen'];
+    persona = 'friendly study buddy';
+  } else if (utterance.includes('inside') || utterance.includes('home') || utterance.includes('indoor')) {
+    environmentTag = 'indoor_practice';
+    objects = ['table', 'chair', 'light'];
+    persona = 'calm speaking coach';
   } else {
     intentTag = intentTag || 'casual_chat';
   }
+
+  const titleMap = {
+    airport: 'Detected: ✈️ Airport prep',
+    cafe: 'Detected: ☕ Cafe practice',
+    study_setup: 'Detected: 🪴 Study setup',
+    indoor_practice: 'Detected: 🛋️ Indoor practice',
+    casual_space: 'Detected: ✨ Casual space',
+    home_desk: 'Detected: 🏠 Desk study',
+  };
+
+  const suggestionMap = {
+    airport: ['ask for directions', 'practice check-in questions', 'handle a delay politely'],
+    cafe: ['order a drink clearly', 'change your order politely', 'ask about sizes or flavors'],
+    study_setup: ['describe your setup', 'share today’s plan', 'talk about what you are working on'],
+    indoor_practice: ['say how you feel today', 'describe the room around you', 'talk about your next task'],
+    casual_space: ['describe what you notice', 'talk about your mood', 'say what you want to do next'],
+    home_desk: ['talk about your desk', 'describe today’s tasks', 'share how you feel right now'],
+  };
 
   return {
     context: {
@@ -436,11 +462,8 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
       persona,
     },
     hint: {
-      title: environmentTag === 'airport' ? 'Detected: ✈ Airport travel mode' : 'Detected: 🏠 Desk study',
-      suggestions:
-        environmentTag === 'airport'
-          ? ['ask for directions', 'practice check-in questions', 'handle a delay politely']
-          : ['talk about your desk', 'describe today’s tasks', 'share how you feel right now'],
+      title: titleMap[environmentTag] || 'Detected: ✨ Casual space',
+      suggestions: suggestionMap[environmentTag] || suggestionMap.casual_space,
     },
     opener:
       environmentTag === 'airport'
@@ -518,16 +541,14 @@ Previous context: ${JSON.stringify(currentContext || {})}`,
   };
 }
 
-async function generateSpeakingTurn({ language, mode, context, hint, history, userUtterance }) {
-  const content = await callZhipu(
-    [
-      {
-        role: 'system',
-        content: `You are LinguaFlow AI Coach. Stay inside the learner's real-world scene and persona.
+async function generateSpeakingTurn({ language, mode, context, hint, history, userUtterance, imageBase64 }) {
+  const systemPrompt = `You are LinguaFlow AI Coach. Stay inside the learner's real-world scene and persona.
 Current scene context: ${JSON.stringify(context)}
 Current hint block: ${JSON.stringify(hint)}
 
 Rules:
+- The uploaded photo is the primary source of scene truth. Keep grounding the conversation in what is visible there.
+- You may refine environmentTag, persona, hint title, and suggestions when the latest user utterance shifts the focus, but do not contradict the visible image.
 - Be supportive, low-pressure, and concise.
 - Sound like a person inside the scene, not a generic tutor.
 - Keep each response suitable for 2-3 minute loops.
@@ -541,11 +562,10 @@ Rules:
 - feedback.tags can include fluency, accuracy, vocabulary.
 - suggestedSentence should be friendly, practical, and easy to say aloud.
 - If the user's utterance suggests a new intent, set intentUpdated.
-`,
-      },
-      {
-        role: 'user',
-        content: `Mode: ${mode}
+- hint.title should feel like a live scene label that could change with the image-driven focus.
+- hints and words must not repeat filler placeholders like "scene item".`;
+
+  const userPrompt = `Mode: ${mode}
 Latest user utterance: ${userUtterance}
 Recent turns: ${JSON.stringify(history.slice(-8))}
 
@@ -554,13 +574,38 @@ Return JSON with:
 - hint
 - reply
 - feedback
-- words (3 to 7 items if mode is "words", otherwise optional)
+- words (3 to 7 items if mode is "words", otherwise return [] unless the user explicitly asked for words)
 - nextPrompt
-- intentUpdated`,
-      },
-    ],
-    true
-  );
+- intentUpdated`;
+
+  const messages = [
+    {
+      role: 'system',
+      content: systemPrompt,
+    },
+    imageBase64
+      ? {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: userPrompt,
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageBase64,
+              },
+            },
+          ],
+        }
+      : {
+          role: 'user',
+          content: userPrompt,
+        },
+  ];
+
+  const content = await callZhipu(messages, true);
 
   const parsed = parseJson(content);
   return {
@@ -700,6 +745,7 @@ async function handleAiRequest(req, res) {
         const hint = payload.hint && typeof payload.hint === 'object' ? payload.hint : sceneFallback('', {}).hint;
         const history = getHistory(payload);
         const userUtterance = String(payload.userUtterance || '');
+        const imageBase64 = payload.imageBase64 ? String(payload.imageBase64) : null;
         const result = await generateSpeakingTurn({
           language,
           mode,
@@ -707,6 +753,7 @@ async function handleAiRequest(req, res) {
           hint,
           history,
           userUtterance,
+          imageBase64,
         });
         return sendJson(res, 200, result);
       }

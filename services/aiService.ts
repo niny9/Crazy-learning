@@ -148,7 +148,8 @@ export const sendSpeakingTurn = async (
   context: SceneContext,
   hint: SceneHint,
   history: ChatMessage[],
-  userUtterance: string
+  userUtterance: string,
+  imageBase64?: string | null
 ): Promise<SpeakingTurnPayload> => {
   return callAI<SpeakingTurnPayload>("speakingTurn", {
     language,
@@ -157,5 +158,6 @@ export const sendSpeakingTurn = async (
     hint,
     history,
     userUtterance,
+    imageBase64,
   });
 };

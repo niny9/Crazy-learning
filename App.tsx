@@ -288,6 +288,52 @@ const normalizeSceneHint = (value: Partial<SceneHint> | null | undefined): Scene
       : DEFAULT_SCENE_HINT.suggestions,
 });
 
+const describeSceneEnvironment = (environmentTag: string) => {
+  const map: Record<string, { emoji: string; label: string }> = {
+    home_desk: { emoji: '🏠', label: 'Desk study' },
+    study_setup: { emoji: '🪴', label: 'Study setup' },
+    indoor_practice: { emoji: '🛋️', label: 'Indoor practice' },
+    casual_space: { emoji: '✨', label: 'Casual space' },
+    cafe: { emoji: '☕', label: 'Cafe practice' },
+    airport: { emoji: '✈️', label: 'Airport prep' },
+    office: { emoji: '💼', label: 'Office English' },
+    kitchen: { emoji: '🍳', label: 'Kitchen talk' },
+    street: { emoji: '🚶', label: 'Street moment' },
+    bedroom: { emoji: '🛏️', label: 'Room check-in' },
+    park: { emoji: '🌿', label: 'Park chat' },
+  };
+
+  return map[safeTrim(environmentTag)] || { emoji: '✨', label: 'Scene practice' };
+};
+
+const describeIntentLabel = (intentTag?: string) => {
+  const intent = safeTrim(intentTag);
+  if (!intent) return 'casual chat';
+  return intent.replace(/_/g, ' ');
+};
+
+const buildSceneHeaderMeta = (context: SceneContext, hint: SceneHint, speakingMode: SpeakingMode, imageName: string) => {
+  const environment = describeSceneEnvironment(context.environmentTag);
+  const objectCount = safeArray<string>(context.objects).length;
+  const dynamicTitle = safeTrim(hint.title) || `Detected: ${environment.emoji} ${environment.label}`;
+  const dynamicSuggestions = safeArray<string>(hint.suggestions).slice(0, 2);
+
+  return {
+    eyebrow: speakingMode === 'words' ? 'Image-grounded vocabulary' : 'Image-grounded conversation',
+    title: dynamicTitle,
+    subtitle: imageName
+      ? `From ${imageName}${objectCount ? ` · ${objectCount} visible anchor ${objectCount > 1 ? 'objects' : 'object'}` : ''}`
+      : `${environment.label} · ${describeIntentLabel(context.intentTag)}`,
+    chips: [
+      `${environment.emoji} ${environment.label}`,
+      `Persona: ${safeTrim(context.persona) || 'friendly study buddy'}`,
+      `Focus: ${describeIntentLabel(context.intentTag)}`,
+      ...(dynamicSuggestions.length ? dynamicSuggestions.map((item) => `Cue: ${item}`) : []),
+      speakingMode === 'words' ? 'Mode: words' : 'Mode: conversation',
+    ],
+  };
+};
+
 const normalizeSceneWords = (value: SceneWord[] | null | undefined): SceneWord[] => {
   if (!Array.isArray(value) || !value.length) return [];
 
@@ -397,6 +443,7 @@ const App = () => {
   const speakingSessionTokenRef = useRef(0);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
+  const sceneHeaderMeta = buildSceneHeaderMeta(sceneContext, sceneHint, speakingMode, sceneImageName);
 
   const logSpeakingEvent = (event: SpeakingEvent) => {
     speakingEventsRef.current = [...speakingEventsRef.current.slice(-19), event];
@@ -1044,19 +1091,7 @@ const App = () => {
       let nextContext = sceneContext;
       let nextHint = sceneHint;
 
-      const shouldRefreshScene = speakingMode === 'words' && !sceneWords.length;
-      if (shouldRefreshScene) {
-        try {
-          const sceneResult = await AIService.analyzeSceneContext(language, sceneImageDataUrl, utterance, sceneContext);
-          if (!isActiveSpeakingSession(sessionToken)) return;
-          nextContext = normalizeSceneContext(sceneResult?.context);
-          nextHint = normalizeSceneHint(sceneResult?.hint);
-        } catch (sceneError) {
-          console.error('Scene analysis failed', sceneError);
-        }
-      }
-
-      const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance);
+      const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance, sceneImageDataUrl);
       if (!isActiveSpeakingSession(sessionToken)) return;
 
       const resolvedContext = normalizeSceneContext(turn?.context || nextContext);
@@ -1867,7 +1902,7 @@ const App = () => {
                       <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-600">
                         <Camera size={14} /> Scene Explorer
                       </span>
-                      <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneContext.persona || 'Study buddy mode'}</span>
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneHeaderMeta.eyebrow}</span>
                       <button onClick={() => sceneImageInputRef.current?.click()} className="rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
                         {sceneImageDataUrl ? 'Change photo' : 'Upload photo'}
                       </button>
@@ -1875,7 +1910,15 @@ const App = () => {
                         {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
                       </button>
                     </div>
-                    <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 mb-2">{sceneHint?.title || DEFAULT_SCENE_HINT.title}</h2>
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 mb-2">{sceneHeaderMeta.title}</h2>
+                    <p className="text-sm font-semibold text-slate-500 mb-3">{sceneHeaderMeta.subtitle}</p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {sceneHeaderMeta.chips.map((chip, index) => (
+                        <span key={`${chip}-${index}`} className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black text-kitty-700">
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {(sceneHint?.suggestions?.length ? sceneHint.suggestions : DEFAULT_SCENE_HINT.suggestions).map((suggestion, index) => (
                         <span key={`${suggestion}-${index}`} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
