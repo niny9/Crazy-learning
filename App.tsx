@@ -73,6 +73,12 @@ type NotebookDateGroup<T extends { id: string }> = {
   title: string;
   items: T[];
 };
+type NotebookLikeItem = {
+  id?: string;
+  date?: string;
+  dateAdded?: string;
+  language?: string;
+};
 
 const SUPPORTED_LANGUAGES = [
   { code: 'English', flag: '🇺🇸', label: 'English' },
@@ -134,10 +140,15 @@ const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
 const WAV_MIME_TYPE = 'audio/wav';
 const safeTrim = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+const safeArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value.filter(Boolean) as T[] : []);
 const mergeById = <T extends { id: string }>(localItems: T[], remoteItems: T[]) => {
   const merged = new Map<string, T>();
-  remoteItems.forEach((item) => merged.set(item.id, item));
-  localItems.forEach((item) => merged.set(item.id, item));
+  remoteItems.filter(Boolean).forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
+  localItems.filter(Boolean).forEach((item) => {
+    if (item?.id) merged.set(item.id, item);
+  });
   return Array.from(merged.values()).sort((left, right) => {
     const leftDate = 'dateAdded' in left ? String(left.dateAdded || '') : 'date' in left ? String(left.date || '') : '';
     const rightDate = 'dateAdded' in right ? String(right.dateAdded || '') : 'date' in right ? String(right.date || '') : '';
@@ -172,6 +183,93 @@ const groupNotebookItemsByDate = <T extends { id: string; date?: string; dateAdd
       title: key === 'Unknown date' ? key : formatDateGroupLabel(groupedItems[0]?.dateAdded || groupedItems[0]?.date || key),
       items: groupedItems,
     }));
+};
+
+const normalizeDailyContent = (value: Partial<DailyContent> | null | undefined): DailyContent | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  return {
+    title: safeTrim(value.title) || 'Untitled content',
+    summary: safeTrim(value.summary) || 'No summary yet.',
+    url: safeTrim(value.url) || '#',
+    content: safeTrim(value.content) || 'No content available yet.',
+    source: safeTrim(value.source) || 'LinguaFlow',
+  };
+};
+
+const normalizeVocabItem = (value: Partial<VocabItem> | null | undefined): VocabItem | null => {
+  if (!value || typeof value !== 'object') return null;
+  const word = safeTrim(value.word);
+  if (!word) return null;
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${word}`,
+    word,
+    definition: safeTrim(value.definition) || 'Definition pending.',
+    chineseDefinition: safeTrim(value.chineseDefinition) || undefined,
+    contextSentence: safeTrim(value.contextSentence) || 'No context sentence yet.',
+    dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
+    imageUrl: safeTrim(value.imageUrl) || undefined,
+    masteryLevel: typeof value.masteryLevel === 'number' ? value.masteryLevel : undefined,
+    language: safeTrim(value.language) || undefined,
+  };
+};
+
+const normalizeSentenceItem = (value: Partial<SavedSentence> | null | undefined): SavedSentence | null => {
+  if (!value || typeof value !== 'object') return null;
+  const text = safeTrim(value.text);
+  if (!text) return null;
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${text.slice(0, 12)}`,
+    text,
+    source: safeTrim(value.source) || 'Manual',
+    notes: safeTrim(value.notes) || undefined,
+    dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
+    scenario: safeTrim(value.scenario) || undefined,
+    advancedVersion: safeTrim(value.advancedVersion) || undefined,
+    language: safeTrim(value.language) || undefined,
+  };
+};
+
+const normalizeDiaryEntry = (value: Partial<DiaryEntry> | null | undefined): DiaryEntry | null => {
+  if (!value || typeof value !== 'object') return null;
+  const content = safeTrim(value.content);
+  if (!content) return null;
+
+  const sourceLabel = value.sourceLabel === 'Corrected' || value.sourceLabel === 'Pro Upgrade' || value.sourceLabel === 'Model Essay'
+    ? value.sourceLabel
+    : 'Model Essay';
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${content.slice(0, 12)}`,
+    date: safeTrim(value.date) || new Date().toISOString(),
+    topic: safeTrim(value.topic) || 'Free writing',
+    title: safeTrim(value.title) || 'Untitled diary',
+    content,
+    sourceLabel,
+    language: safeTrim(value.language) || undefined,
+  };
+};
+
+const normalizeWritingEntry = (value: Partial<WritingEntry> | null | undefined): WritingEntry | null => {
+  if (!value || typeof value !== 'object' || !value.feedback || typeof value.feedback !== 'object') return null;
+  const original = safeTrim(value.original);
+  if (!original) return null;
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${original.slice(0, 12)}`,
+    date: safeTrim(value.date) || new Date().toISOString(),
+    topic: safeTrim(value.topic) || 'Free writing',
+    original,
+    feedback: {
+      original: safeTrim(value.feedback.original) || original,
+      corrected: safeTrim(value.feedback.corrected) || original,
+      upgraded: safeTrim(value.feedback.upgraded) || original,
+      modelEssay: safeTrim(value.feedback.modelEssay) || original,
+    },
+    language: safeTrim(value.language) || undefined,
+  };
 };
 
 const normalizeSceneContext = (value: Partial<SceneContext> | null | undefined): SceneContext => ({
@@ -306,10 +404,10 @@ const App = () => {
   };
 
   const applyCloudSnapshot = async (userId: string) => {
-    const storedVocab = JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]') as VocabItem[];
-    const storedSentences = JSON.parse(window.localStorage.getItem(SENTENCE_STORAGE_KEY) || '[]') as SavedSentence[];
-    const storedWritingEntries = JSON.parse(window.localStorage.getItem(WRITING_STORAGE_KEY) || '[]') as WritingEntry[];
-    const storedDiaries = JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]') as DiaryEntry[];
+    const storedVocab = safeArray<Partial<VocabItem>>(JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]')).map(normalizeVocabItem).filter(Boolean) as VocabItem[];
+    const storedSentences = safeArray<Partial<SavedSentence>>(JSON.parse(window.localStorage.getItem(SENTENCE_STORAGE_KEY) || '[]')).map(normalizeSentenceItem).filter(Boolean) as SavedSentence[];
+    const storedWritingEntries = safeArray<Partial<WritingEntry>>(JSON.parse(window.localStorage.getItem(WRITING_STORAGE_KEY) || '[]')).map(normalizeWritingEntry).filter(Boolean) as WritingEntry[];
+    const storedDiaries = safeArray<Partial<DiaryEntry>>(JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]')).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[];
 
     const remoteData = await fetchLearningItems(userId);
     const mergedVocab = mergeById(storedVocab, remoteData.vocab);
@@ -560,11 +658,11 @@ const App = () => {
     try {
       if (type === 'reading') {
         const data = await AIService.getReadingSuggestions('Intermediate', language);
-        const nextItem = Array.isArray(data) ? data.find(Boolean) : null;
+        const nextItem = Array.isArray(data) ? normalizeDailyContent(data.find(Boolean) || null) : null;
         setDailyContent(nextItem || null);
         if (nextItem) queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
       } else {
-        const data = await AIService.getDailyListeningContent(language, seenTitles);
+        const data = normalizeDailyContent(await AIService.getDailyListeningContent(language, seenTitles));
         if (!data) {
           setDailyContent(null);
           return;
@@ -1132,16 +1230,16 @@ const App = () => {
       const stored = window.localStorage.getItem(WRITING_STORAGE_KEY);
       const storedDiaries = window.localStorage.getItem(DIARY_STORAGE_KEY);
       if (storedVocab) {
-        setVocabList(JSON.parse(storedVocab) as VocabItem[]);
+        setVocabList(safeArray<Partial<VocabItem>>(JSON.parse(storedVocab)).map(normalizeVocabItem).filter(Boolean) as VocabItem[]);
       }
       if (storedSentences) {
-        setSentenceList(JSON.parse(storedSentences) as SavedSentence[]);
+        setSentenceList(safeArray<Partial<SavedSentence>>(JSON.parse(storedSentences)).map(normalizeSentenceItem).filter(Boolean) as SavedSentence[]);
       }
       if (stored) {
-        setWritingEntries(JSON.parse(stored) as WritingEntry[]);
+        setWritingEntries(safeArray<Partial<WritingEntry>>(JSON.parse(stored)).map(normalizeWritingEntry).filter(Boolean) as WritingEntry[]);
       }
       if (storedDiaries) {
-        setDiaryEntries(JSON.parse(storedDiaries) as DiaryEntry[]);
+        setDiaryEntries(safeArray<Partial<DiaryEntry>>(JSON.parse(storedDiaries)).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[]);
       }
     } catch (error) {
       console.error('Failed to load notebook entries', error);
@@ -1523,25 +1621,25 @@ const App = () => {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-20 px-10 flex items-center justify-between glass shrink-0 z-40">
-          <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
+        <div className="min-h-20 px-4 py-4 md:px-6 lg:px-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40">
+          <div className="flex items-center gap-3 md:gap-4 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
             <div className="bg-kitty-500 text-white p-2.5 rounded-2xl shadow-lg group-hover:rotate-12 transition-all"><Star size={24} /></div>
             <div>
-              <h1 className="font-black text-2xl text-slate-900 tracking-tighter">LinguaFlow</h1>
+              <h1 className="font-black text-xl md:text-2xl text-slate-900 tracking-tighter">LinguaFlow</h1>
               <p className="text-[10px] font-black text-kitty-400 uppercase tracking-widest">AI English Coach</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4 lg:justify-end">
+            <div className="flex w-full sm:w-auto bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm overflow-x-auto">
               {SUPPORTED_LANGUAGES.map((item) => (
-                <button key={item.code} onClick={() => { setLanguage(item.code); setMode(AppMode.DASHBOARD); }} className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
+                <button key={item.code} onClick={() => { setLanguage(item.code); setMode(AppMode.DASHBOARD); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
                   <span>{item.flag}</span>
-                  <span className="hidden md:block">{item.label}</span>
+                  <span>{item.label}</span>
                 </button>
               ))}
             </div>
-            <div className={`hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
+            <div className={`flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
               cloudSyncStatus === 'synced'
                 ? 'bg-emerald-50 text-emerald-600'
                 : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
@@ -1564,9 +1662,9 @@ const App = () => {
             {isSupabaseConfigured() && (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 border border-kitty-100 shadow-sm hover:border-kitty-200"
+                className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 border border-kitty-100 shadow-sm hover:border-kitty-200 max-w-full"
               >
-                {isEmailUser ? `Signed in · ${currentUserEmail}` : 'Email login'}
+                <span className="truncate">{isEmailUser ? `Signed in · ${currentUserEmail}` : 'Email login'}</span>
               </button>
             )}
             <button onClick={() => setSidebarOpen(true)} className="relative p-3.5 bg-white rounded-2xl shadow-sm text-kitty-500 hover:scale-105 border border-kitty-100 transition-all">
@@ -1700,14 +1798,14 @@ const App = () => {
             </div>
           )}
           {mode === AppMode.DASHBOARD && (
-            <div className="h-full p-12 max-w-7xl mx-auto overflow-y-auto no-scrollbar pb-32">
-              <header className="mb-20 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
+            <div className="h-full p-5 md:p-8 lg:p-12 max-w-7xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
+              <header className="mb-12 md:mb-20 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
                 <div className="inline-block bg-kitty-100 text-kitty-600 px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest mb-6">Mastery Hub</div>
-                <h2 className="text-6xl font-black text-slate-900 mb-6 tracking-tight leading-none">{labels.welcome}</h2>
-                <p className="text-slate-400 text-2xl font-medium max-w-2xl mx-auto">{labels.sub}</p>
+                <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight leading-none">{labels.welcome}</h2>
+                <p className="text-slate-400 text-lg md:text-xl lg:text-2xl font-medium max-w-2xl mx-auto">{labels.sub}</p>
               </header>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-8">
                 {[
                   { m: AppMode.SPEAKING, icon: Mic, color: 'emerald', label: labels.speaking, tag: 'Scene Explorer' },
                   { m: AppMode.LISTENING, icon: Headphones, color: 'indigo', label: labels.listening, tag: 'Media' },
@@ -1727,15 +1825,15 @@ const App = () => {
                         void loadDailyContent(card.m === AppMode.READING ? 'reading' : 'listening');
                       }
                     }}
-                    className="group bg-white p-10 rounded-[3rem] cursor-pointer shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all border border-slate-100 hover:border-kitty-200 flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700"
+                    className="group bg-white p-6 md:p-8 lg:p-10 rounded-[2.25rem] md:rounded-[3rem] cursor-pointer shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all border border-slate-100 hover:border-kitty-200 flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-[280px]"
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <div className={`w-20 h-20 bg-${card.color}-50 text-${card.color}-500 rounded-[2rem] flex items-center justify-center mb-8 group-hover:scale-110 transition-transform`}>
-                      <card.icon size={40} />
+                    <div className={`w-16 h-16 md:w-20 md:h-20 bg-${card.color}-50 text-${card.color}-500 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mb-6 md:mb-8 group-hover:scale-110 transition-transform`}>
+                      <card.icon size={32} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-3xl font-black text-slate-800 tracking-tighter">{card.label}</h3>
+                        <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tighter">{card.label}</h3>
                         <span className={`text-[10px] font-black px-3 py-1 rounded-full bg-${card.color}-100 text-${card.color}-600 uppercase`}>{card.tag}</span>
                       </div>
                       <p className="text-slate-400 font-medium leading-relaxed">
@@ -1762,10 +1860,10 @@ const App = () => {
               )}
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
 
-              <div className="relative z-10 h-full p-6 md:p-10 flex flex-col">
-                <div className="flex items-start justify-between gap-4 mb-6">
-                  <div className="max-w-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-md p-6 shadow-2xl border border-white/60">
-                    <div className="flex items-center gap-3 mb-3">
+              <div className="relative z-10 h-full p-4 md:p-6 lg:p-10 flex flex-col">
+                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-5 md:mb-6">
+                  <div className="w-full xl:max-w-2xl rounded-[2rem] md:rounded-[2.5rem] bg-white/90 backdrop-blur-md p-5 md:p-6 shadow-2xl border border-white/60">
+                    <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3">
                       <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-600">
                         <Camera size={14} /> Scene Explorer
                       </span>
@@ -1777,7 +1875,7 @@ const App = () => {
                         {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
                       </button>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{sceneHint?.title || DEFAULT_SCENE_HINT.title}</h2>
+                    <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 mb-2">{sceneHint?.title || DEFAULT_SCENE_HINT.title}</h2>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {(sceneHint?.suggestions?.length ? sceneHint.suggestions : DEFAULT_SCENE_HINT.suggestions).map((suggestion, index) => (
                         <span key={`${suggestion}-${index}`} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
@@ -1790,12 +1888,12 @@ const App = () => {
                     </p>
                   </div>
 
-                  <button onClick={() => endSpeakingSession('user_exit')} className="rounded-full bg-white/90 px-6 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
+                  <button onClick={() => endSpeakingSession('user_exit')} className="self-start xl:self-auto rounded-full bg-white/90 px-5 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
                     <X size={16} /> Leave speaking
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3 mb-5">
+                <div className="flex flex-wrap items-center gap-3 mb-5">
                   {(['words', 'sentences'] as SpeakingMode[]).map((tab) => (
                     <button
                       key={tab}
@@ -1807,7 +1905,7 @@ const App = () => {
                   ))}
                 </div>
 
-                <div className="grid lg:grid-cols-[1.2fr_0.8fr] gap-6 flex-1 min-h-0">
+                <div className="grid xl:grid-cols-[1.12fr_0.88fr] gap-4 md:gap-6 flex-1 min-h-0">
                   <div className="rounded-[2.75rem] bg-white/12 backdrop-blur-md border border-white/15 shadow-2xl p-5 md:p-7 flex flex-col min-h-0">
                     <div ref={speakingListRef} className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-2">
                       {isConnecting && (
@@ -1822,14 +1920,21 @@ const App = () => {
                       )}
 
                       {!isSceneReady && (
-                        <div className="rounded-[2.25rem] bg-white/88 px-6 py-6 shadow-sm">
+                        <div className="rounded-[2rem] md:rounded-[2.25rem] bg-white/88 px-5 py-5 md:px-6 md:py-6 shadow-sm">
                           <div className="flex flex-col gap-4">
                             <div>
                               <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Scene snapshot</p>
-                              <h3 className="text-2xl font-black text-slate-900">Upload one image, then start practicing</h3>
+                              <h3 className="text-xl md:text-2xl font-black text-slate-900">Upload one image, then start practicing</h3>
                               <p className="mt-2 text-sm font-medium text-slate-500">
                                 Desk, cafe, street, kitchen, airport, office, or any real place you want to practice with.
                               </p>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                              {['1. Upload a scene photo', '2. Let AI read the setting', '3. Start a short speaking loop'].map((step) => (
+                                <div key={step} className="rounded-2xl bg-kitty-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-kitty-700">
+                                  {step}
+                                </div>
+                              ))}
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
                               <input
@@ -1859,7 +1964,7 @@ const App = () => {
 
                       {chatMessages.map((message, index) => (
                         <div key={`${message.role}-${index}`} className={`max-w-[88%] ${message.role === 'user' ? 'ml-auto' : ''}`}>
-                          <div className={`rounded-[2rem] px-6 py-5 text-lg leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-kitty-500 text-white' : 'bg-white/92 text-slate-700'}`}>
+                          <div className={`rounded-[2rem] px-5 py-4 md:px-6 md:py-5 text-base md:text-lg leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-kitty-500 text-white' : 'bg-white/92 text-slate-700'}`}>
                             {message.text}
                           </div>
                           {message.feedback && (
@@ -1907,7 +2012,7 @@ const App = () => {
                           {errorMsg}
                         </div>
                       )}
-                      <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-end">
+                      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-end">
                         <div className="flex-1 rounded-[2rem] bg-white/90 px-5 py-4">
                           <textarea
                             value={chatInput}
@@ -1923,7 +2028,7 @@ const App = () => {
                             className="w-full min-h-24 resize-none outline-none bg-transparent text-lg text-slate-700 placeholder:text-slate-300 disabled:opacity-50"
                           />
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
                           <button
                             onClick={() => {
                               if (!speechSupported) return;
@@ -1963,14 +2068,14 @@ const App = () => {
                               }
                             }}
                             disabled={!speechSupported || isConnecting || !isSceneReady}
-                            className={`min-w-[170px] md:min-w-[200px] rounded-[2rem] px-7 py-6 text-white font-black shadow-2xl transition-all ${isListening ? 'bg-red-500' : 'bg-kitty-500 hover:bg-kitty-600'} disabled:opacity-50`}
+                            className={`min-w-[170px] sm:min-w-[200px] rounded-[2rem] px-6 py-5 text-white font-black shadow-2xl transition-all ${isListening ? 'bg-red-500' : 'bg-kitty-500 hover:bg-kitty-600'} disabled:opacity-50`}
                           >
                             <div className="flex flex-col items-center gap-2">
                               <Mic size={24} />
                               <span>{isListening ? 'Release to send' : 'Hold to speak'}</span>
                             </div>
                           </button>
-                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading || !isSceneReady} className="rounded-[2rem] bg-white/90 px-6 py-6 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center gap-3">
+                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading || !isSceneReady} className="rounded-[2rem] bg-white/90 px-6 py-5 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center justify-center gap-3">
                             <Send size={18} /> Send
                           </button>
                         </div>
@@ -2075,14 +2180,14 @@ const App = () => {
           )}
 
           {(mode === AppMode.LISTENING || mode === AppMode.READING) && (
-            <div className="h-full p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className={`bg-white rounded-[4rem] p-16 shadow-2xl h-full flex flex-col border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'} overflow-hidden`}>
-                <div className="flex justify-between items-start mb-12">
+            <div className="h-full p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className={`bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-10 lg:p-16 shadow-2xl h-full flex flex-col border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'} overflow-hidden`}>
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                   <div>
                     <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
                       {dailyContent?.source || 'Curated Content'}
                     </div>
-                    <h2 className="text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
+                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
                     {dailyContent?.url && dailyContent.url !== '#' && (
                       <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
                         Open original source <ArrowRight size={16} />
@@ -2098,7 +2203,7 @@ const App = () => {
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto pr-6 no-scrollbar text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200" onMouseUp={handleTextSelection}>
+                <div className="flex-1 overflow-y-auto pr-0 md:pr-4 lg:pr-6 no-scrollbar text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200" onMouseUp={handleTextSelection}>
                   {dailyContent?.content || 'Synchronizing with external libraries...'}
                 </div>
               </div>
@@ -2106,27 +2211,27 @@ const App = () => {
           )}
 
           {mode === AppMode.WRITING && (
-            <div className="h-full p-10 max-w-7xl mx-auto flex gap-10 animate-in fade-in duration-700">
-              <div className="flex-1 flex flex-col bg-white rounded-[4rem] p-12 shadow-2xl border border-pink-100 relative overflow-hidden">
-                <div className="flex justify-between items-center mb-10">
-                  <h2 className="text-3xl font-black text-slate-800">Writing Studio</h2>
-                  <div className="flex items-center gap-3">
-                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-8 py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
+            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-6 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
+              <div className="flex-1 flex flex-col bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-8 lg:p-12 shadow-2xl border border-pink-100 relative overflow-hidden min-h-[520px]">
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-800">Writing Studio</h2>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
                     </button>
-                    <button onClick={saveWritingEntry} disabled={!writingResult || !safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-8 py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
+                    <button onClick={saveWritingEntry} disabled={!writingResult || !safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
                       <Bookmark size={18} /> Save Diary
                     </button>
                   </div>
                 </div>
                 {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
-                {writingTopic && <div className="mb-10 p-8 bg-pink-50/30 rounded-[2.5rem] border border-pink-100 text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
-                <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="Type your story, essay or journal here..." className="flex-1 w-full resize-none outline-none text-2xl text-slate-600 bg-transparent placeholder:text-slate-200 font-medium leading-relaxed no-scrollbar" />
-                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-10 w-full py-6 bg-kitty-500 text-white rounded-3xl font-black text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
+                {writingTopic && <div className="mb-8 md:mb-10 p-6 md:p-8 bg-pink-50/30 rounded-[2rem] md:rounded-[2.5rem] border border-pink-100 text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
+                <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="Type your story, essay or journal here..." className="flex-1 w-full resize-none outline-none text-lg md:text-xl lg:text-2xl text-slate-600 bg-transparent placeholder:text-slate-200 font-medium leading-relaxed no-scrollbar min-h-[260px]" />
+                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-8 md:mt-10 w-full py-5 md:py-6 bg-kitty-500 text-white rounded-3xl font-black text-xl md:text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
                   {isWritingLoading ? <RefreshCw className="animate-spin" /> : <><CheckCircle size={28} /> {labels.check}</>}
                 </button>
               </div>
-              <div className="w-[480px] space-y-8 overflow-y-auto no-scrollbar">
+              <div className="w-full xl:w-[480px] space-y-6 md:space-y-8 overflow-y-auto no-scrollbar">
                 {writingResult ? (
                   <div className="space-y-6 animate-in slide-in-from-right-8 duration-500" onMouseUp={handleTextSelection}>
                     {[
@@ -2134,14 +2239,14 @@ const App = () => {
                       { label: 'Pro Upgrade', text: writingResult.upgraded, color: 'indigo' },
                       { label: 'Model Essay', text: writingResult.modelEssay, color: 'slate' },
                     ].map((result, index) => (
-                      <div key={index} className={`bg-${result.color}-50 p-10 rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
+                      <div key={index} className={`bg-${result.color}-50 p-6 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
                         <div className="flex items-center justify-between gap-3 mb-4">
                           <span className={`text-[10px] font-black uppercase tracking-widest text-${result.color}-600`}>{result.label}</span>
                           <button onClick={() => saveDiaryVariant(result.label as 'Corrected' | 'Pro Upgrade' | 'Model Essay', result.text)} className="text-xs font-black text-kitty-600 hover:text-kitty-700">
                             Save to Diary
                           </button>
                         </div>
-                        <p className="text-slate-800 text-lg leading-relaxed font-bold">{result.text}</p>
+                        <p className="text-slate-800 text-base md:text-lg leading-relaxed font-bold break-words">{result.text}</p>
                       </div>
                     ))}
                   </div>

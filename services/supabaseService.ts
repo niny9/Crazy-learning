@@ -142,6 +142,8 @@ const mapItem = (itemType: ItemType, item: VocabItem | SavedSentence | DiaryEntr
   payload: item,
 });
 
+const safePayloadArray = <T,>(items: unknown[]) => items.filter((item) => item && typeof item === 'object').map((item) => item as T);
+
 export const fetchLearningItems = async (userId: string) => {
   const client = getClient();
   if (!client) {
@@ -165,10 +167,10 @@ export const fetchLearningItems = async (userId: string) => {
   const items = data ?? [];
 
   return {
-    vocab: items.filter((item) => item.item_type === 'vocab').map((item) => item.payload as VocabItem),
-    sentences: items.filter((item) => item.item_type === 'sentence').map((item) => item.payload as SavedSentence),
-    diaries: items.filter((item) => item.item_type === 'diary').map((item) => item.payload as DiaryEntry),
-    writingEntries: items.filter((item) => item.item_type === 'writing_entry').map((item) => item.payload as WritingEntry),
+    vocab: safePayloadArray<VocabItem>(items.filter((item) => item.item_type === 'vocab').map((item) => item.payload)),
+    sentences: safePayloadArray<SavedSentence>(items.filter((item) => item.item_type === 'sentence').map((item) => item.payload)),
+    diaries: safePayloadArray<DiaryEntry>(items.filter((item) => item.item_type === 'diary').map((item) => item.payload)),
+    writingEntries: safePayloadArray<WritingEntry>(items.filter((item) => item.item_type === 'writing_entry').map((item) => item.payload)),
   };
 };
 

@@ -23,14 +23,21 @@ const showRootFailure = (detail: string) => {
   `;
 };
 
+const buildErrorDetail = (error: unknown, fallback: string) => {
+  if (error instanceof Error) {
+    return [error.message, error.stack].filter(Boolean).join('\n\n');
+  }
+  return fallback;
+};
+
 window.addEventListener('error', (event) => {
-  const detail = event.error instanceof Error ? event.error.message : String(event.message || 'Unknown window error');
+  const detail = buildErrorDetail(event.error, String(event.message || 'Unknown window error'));
   console.error('Window error', event.error || event.message);
   showRootFailure(detail);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  const reason = event.reason instanceof Error ? event.reason.message : String(event.reason || 'Unknown promise rejection');
+  const reason = buildErrorDetail(event.reason, String(event.reason || 'Unknown promise rejection'));
   console.error('Unhandled promise rejection', event.reason);
   showRootFailure(reason);
 });
@@ -42,7 +49,7 @@ try {
     </React.StrictMode>
   );
 } catch (error) {
-  const detail = error instanceof Error ? error.message : 'Unknown render error';
+  const detail = buildErrorDetail(error, 'Unknown render error');
   console.error('Root render error', error);
   showRootFailure(detail);
 }
