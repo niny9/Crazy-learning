@@ -11,6 +11,8 @@ services:
         value: 22.14.0
       - key: ZHIPU_MODEL
         value: glm-4-flash
+      - key: ZHIPU_VISION_MODEL
+        value: glm-4.6v-flash
       - key: ZHIPU_API_KEY
         sync: false
       - key: TTS_MODEL

@@ -14,6 +14,7 @@ const distDir = path.join(__dirname, 'dist');
 
 const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const MODEL_NAME = process.env.ZHIPU_MODEL || 'glm-4-flash';
+const VISION_MODEL_NAME = process.env.ZHIPU_VISION_MODEL || 'glm-4.6v-flash';
 const DASHSCOPE_WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
 const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-zhide-v1';
 const ASR_MODEL_NAME = process.env.ASR_MODEL || 'paraformer-v2';
@@ -116,7 +117,7 @@ function sendFile(res, filePath, contentType) {
   createReadStream(filePath).pipe(res);
 }
 
-async function callZhipu(messages, wantsJson = false) {
+async function callZhipu(messages, wantsJson = false, modelName = MODEL_NAME) {
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     throw new Error('Missing ZHIPU_API_KEY');
@@ -129,7 +130,7 @@ async function callZhipu(messages, wantsJson = false) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: MODEL_NAME,
+      model: modelName,
       messages,
       temperature: 0.7,
       response_format: wantsJson ? { type: 'json_object' } : undefined,
@@ -380,7 +381,9 @@ async function fetchDashscopeTranscript(transcriptionUrl) {
 }
 
 function parseJson(value) {
-  return JSON.parse(value);
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return JSON.parse(fenced ? fenced[1].trim() : trimmed);
 }
 
 function getHistory(payload) {
@@ -403,17 +406,17 @@ function getTimeOfDay() {
 
 function sceneFallback(firstUtterance = '', currentContext = {}) {
   const utterance = firstUtterance.toLowerCase();
-  let environmentTag = currentContext.environmentTag || 'home_desk';
+  let environmentTag = currentContext.environmentTag || 'casual_space';
   let intentTag = currentContext.intentTag;
-  let objects = Array.isArray(currentContext.objects) ? currentContext.objects : ['laptop', 'desk', 'notebook'];
-  let persona = currentContext.persona || 'friendly study buddy';
+  let objects = Array.isArray(currentContext.objects) ? currentContext.objects : [];
+  let persona = currentContext.persona || 'friendly speaking buddy';
 
   if (utterance.includes('interview')) {
     intentTag = 'job_interview';
     persona = 'supportive mock interviewer';
   } else if (utterance.includes('coffee') || utterance.includes('order')) {
     intentTag = 'ordering';
-    environmentTag = environmentTag === 'home_desk' ? 'cafe' : environmentTag;
+    environmentTag = environmentTag === 'casual_space' ? 'cafe' : environmentTag;
     persona = 'friendly barista';
   } else if (utterance.includes('travel') || utterance.includes('airport') || utterance.includes('flight')) {
     intentTag = 'travel';
@@ -426,7 +429,7 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
   } else if (utterance.includes('room') || utterance.includes('study') || utterance.includes('desk')) {
     environmentTag = 'study_setup';
     objects = ['desk', 'chair', 'screen'];
-    persona = 'friendly study buddy';
+    persona = 'friendly speaking buddy';
   } else if (utterance.includes('inside') || utterance.includes('home') || utterance.includes('indoor')) {
     environmentTag = 'indoor_practice';
     objects = ['table', 'chair', 'light'];
@@ -438,6 +441,8 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
   const titleMap = {
     airport: 'Detected: ✈️ Airport prep',
     cafe: 'Detected: ☕ Cafe practice',
+    selfie_check_in: 'Detected: 🤳 Selfie check-in',
+    portrait_moment: 'Detected: 🙂 Personal moment',
     study_setup: 'Detected: 🪴 Study setup',
     indoor_practice: 'Detected: 🛋️ Indoor practice',
     casual_space: 'Detected: ✨ Casual space',
@@ -447,6 +452,8 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
   const suggestionMap = {
     airport: ['ask for directions', 'practice check-in questions', 'handle a delay politely'],
     cafe: ['order a drink clearly', 'change your order politely', 'ask about sizes or flavors'],
+    selfie_check_in: ['say how you feel today', 'describe your expression', 'talk about what you are doing right now'],
+    portrait_moment: ['describe the moment', 'say what is on your mind', 'talk about where you are'],
     study_setup: ['describe your setup', 'share today’s plan', 'talk about what you are working on'],
     indoor_practice: ['say how you feel today', 'describe the room around you', 'talk about your next task'],
     casual_space: ['describe what you notice', 'talk about your mood', 'say what you want to do next'],
@@ -470,6 +477,8 @@ function sceneFallback(firstUtterance = '', currentContext = {}) {
         ? 'Hi, I can be your airport helper today. Where are you flying, and what do you need to do first?'
         : intentTag === 'job_interview'
           ? 'Hi, let us do a gentle mock interview. What role are you going for, and what makes it a good fit for you?'
+          : environmentTag === 'selfie_check_in' || environmentTag === 'portrait_moment'
+            ? 'Hey, this feels like a personal moment. How are you feeling in this photo right now?'
           : 'Hey, I am here with you. What are you doing in this space right now?',
     words:
       environmentTag === 'airport'
@@ -515,7 +524,13 @@ The opener must sound like a warm real person already inside the scene.
 Keep the opener to 1 or 2 short sentences, natural spoken English, no teacher talk, no labels, no explanations.
 End with one concrete question that invites the learner to answer immediately.
 First utterance: ${firstUtterance || 'No speech yet'}
-Previous context: ${JSON.stringify(currentContext || {})}`,
+Previous context: ${JSON.stringify(currentContext || {})}
+
+Important:
+- If the photo is mainly a face or selfie, explicitly reflect that. Good labels include "Selfie check-in", "Close-up portrait", or "Personal moment".
+- Do not call a selfie, portrait, or face-focused image a desk/study scene unless the desk is clearly dominant.
+- If the environment is unclear, choose a broad, honest label instead of a fake specific one.
+- Make the opener directly react to what is visible in the photo, not a generic desk question.`,
           },
           {
             type: 'image_url',
@@ -526,7 +541,8 @@ Previous context: ${JSON.stringify(currentContext || {})}`,
         ],
       },
     ],
-    true
+    true,
+    VISION_MODEL_NAME
   );
 
   const parsed = parseJson(content);

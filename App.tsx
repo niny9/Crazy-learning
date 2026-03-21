@@ -122,16 +122,16 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
 };
 
 const DEFAULT_SCENE_CONTEXT: SceneContext = {
-  objects: ['laptop', 'desk', 'notebook'],
-  environmentTag: 'home_desk',
+  objects: [],
+  environmentTag: 'casual_space',
   intentTag: 'casual_chat',
   timeOfDay: 'afternoon',
-  persona: 'friendly study buddy',
+  persona: 'friendly speaking buddy',
 };
 
 const DEFAULT_SCENE_HINT: SceneHint = {
-  title: 'Detected: 🏠 Desk study',
-  suggestions: ['talk about what is on your desk', 'share today’s plan', 'describe how you feel right now'],
+  title: 'Detected: ✨ Scene check-in',
+  suggestions: ['describe what is visible', 'say how you feel right now', 'start with one thing about this moment'],
 };
 
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
@@ -291,6 +291,8 @@ const normalizeSceneHint = (value: Partial<SceneHint> | null | undefined): Scene
 const describeSceneEnvironment = (environmentTag: string) => {
   const map: Record<string, { emoji: string; label: string }> = {
     home_desk: { emoji: '🏠', label: 'Desk study' },
+    selfie_check_in: { emoji: '🤳', label: 'Selfie check-in' },
+    portrait_moment: { emoji: '🙂', label: 'Personal moment' },
     study_setup: { emoji: '🪴', label: 'Study setup' },
     indoor_practice: { emoji: '🛋️', label: 'Indoor practice' },
     casual_space: { emoji: '✨', label: 'Casual space' },
@@ -326,7 +328,7 @@ const buildSceneHeaderMeta = (context: SceneContext, hint: SceneHint, speakingMo
       : `${environment.label} · ${describeIntentLabel(context.intentTag)}`,
     chips: [
       `${environment.emoji} ${environment.label}`,
-      `Persona: ${safeTrim(context.persona) || 'friendly study buddy'}`,
+      `Persona: ${safeTrim(context.persona) || 'friendly speaking buddy'}`,
       `Focus: ${describeIntentLabel(context.intentTag)}`,
       ...(dynamicSuggestions.length ? dynamicSuggestions.map((item) => `Cue: ${item}`) : []),
       speakingMode === 'words' ? 'Mode: words' : 'Mode: conversation',
