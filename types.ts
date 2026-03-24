@@ -6,6 +6,7 @@ export enum AppMode {
   READING = 'READING',
   WRITING = 'WRITING',
   EXAM_PORTAL = 'EXAM_PORTAL',
+  STORY_LIBRARY = 'STORY_LIBRARY',
 }
 
 export interface VocabItem {
@@ -66,6 +67,36 @@ export interface WritingEntry {
   topic: string;
   original: string;
   feedback: WritingFeedback;
+  language?: string;
+}
+
+export type TodayStoryMode = 'zh' | 'mixed' | 'en';
+
+export interface StoryPhrase {
+  original: string;
+  explanation: string;
+  alternative: string;
+}
+
+export interface TodayStoryResult {
+  title: string;
+  original: string;
+  rewritten: string;
+  keyPhrases: StoryPhrase[];
+  comment?: string;
+  tags?: string[];
+}
+
+export interface TodayStoryEntry {
+  id: string;
+  date: string;
+  title: string;
+  mode: TodayStoryMode;
+  originalText: string;
+  rewrittenText: string;
+  keyPhrases: StoryPhrase[];
+  comment?: string;
+  tags?: string[];
   language?: string;
 }
 

@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BookOpen,
   Bookmark,
-  Camera,
   CheckCircle,
   FileText,
   Globe,
@@ -13,7 +12,6 @@ import {
   PenTool,
   Plus,
   RefreshCw,
-  Send,
   ShoppingBag,
   Sparkles,
   Square,
@@ -26,14 +24,13 @@ import {
 } from 'lucide-react';
 import {
   AppMode,
-  ChatMessage,
   DailyContent,
   DiaryEntry,
   SavedSentence,
-  SceneContext,
-  SceneHint,
-  SceneWord,
-  SpeakingFeedback,
+  StoryPhrase,
+  TodayStoryEntry,
+  TodayStoryMode,
+  TodayStoryResult,
   VocabItem,
   WritingEntry,
   WritingFeedback,
@@ -51,13 +48,7 @@ import {
   verifyEmailOtp,
   trackUsageEvent as persistUsageEvent,
 } from './services/supabaseService';
-type SpeakingMode = 'words' | 'sentences';
-type SpeakingEvent =
-  | { type: 'session_start'; environmentTag: string }
-  | { type: 'intent_update'; intentTag: string }
-  | { type: 'user_utterance'; lengthMs: number }
-  | { type: 'ai_feedback'; tags: string[] }
-  | { type: 'session_end'; reason: 'user_exit' | 'timeout' };
+type StoryStage = 'choose_mode' | 'record' | 'review' | 'result';
 type RecorderNodes = {
   audioContext: AudioContext;
   source: MediaStreamAudioSourceNode;
@@ -121,23 +112,12 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
   Japanese: 'ja-JP',
 };
 
-const DEFAULT_SCENE_CONTEXT: SceneContext = {
-  objects: [],
-  environmentTag: 'casual_space',
-  intentTag: 'casual_chat',
-  timeOfDay: 'afternoon',
-  persona: 'friendly speaking buddy',
-};
-
-const DEFAULT_SCENE_HINT: SceneHint = {
-  title: 'Detected: ✨ Scene check-in',
-  suggestions: ['describe what is visible', 'say how you feel right now', 'start with one thing about this moment'],
-};
-
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
+const STORY_STORAGE_KEY = 'linguaflow-story-entries';
 const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
+const STORY_REMINDER_KEY = 'linguaflow-story-reminder';
 const WAV_MIME_TYPE = 'audio/wav';
 const safeTrim = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const safeArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value.filter(Boolean) as T[] : []);
@@ -272,91 +252,39 @@ const normalizeWritingEntry = (value: Partial<WritingEntry> | null | undefined):
   };
 };
 
-const normalizeSceneContext = (value: Partial<SceneContext> | null | undefined): SceneContext => ({
-  objects: Array.isArray(value?.objects) && value?.objects.length ? value.objects.filter(Boolean) : DEFAULT_SCENE_CONTEXT.objects,
-  environmentTag: safeTrim(value?.environmentTag) || DEFAULT_SCENE_CONTEXT.environmentTag,
-  intentTag: safeTrim(value?.intentTag) || DEFAULT_SCENE_CONTEXT.intentTag,
-  timeOfDay: value?.timeOfDay || DEFAULT_SCENE_CONTEXT.timeOfDay,
-  persona: safeTrim(value?.persona) || DEFAULT_SCENE_CONTEXT.persona,
-});
-
-const normalizeSceneHint = (value: Partial<SceneHint> | null | undefined): SceneHint => ({
-  title: safeTrim(value?.title) || DEFAULT_SCENE_HINT.title,
-  suggestions:
-    Array.isArray(value?.suggestions) && value?.suggestions.length
-      ? value.suggestions.map((item) => safeTrim(item)).filter(Boolean)
-      : DEFAULT_SCENE_HINT.suggestions,
-});
-
-const describeSceneEnvironment = (environmentTag: string) => {
-  const map: Record<string, { emoji: string; label: string }> = {
-    home_desk: { emoji: '🏠', label: 'Desk study' },
-    selfie_check_in: { emoji: '🤳', label: 'Selfie check-in' },
-    portrait_moment: { emoji: '🙂', label: 'Personal moment' },
-    study_setup: { emoji: '🪴', label: 'Study setup' },
-    indoor_practice: { emoji: '🛋️', label: 'Indoor practice' },
-    casual_space: { emoji: '✨', label: 'Casual space' },
-    cafe: { emoji: '☕', label: 'Cafe practice' },
-    airport: { emoji: '✈️', label: 'Airport prep' },
-    office: { emoji: '💼', label: 'Office English' },
-    kitchen: { emoji: '🍳', label: 'Kitchen talk' },
-    street: { emoji: '🚶', label: 'Street moment' },
-    bedroom: { emoji: '🛏️', label: 'Room check-in' },
-    park: { emoji: '🌿', label: 'Park chat' },
-  };
-
-  return map[safeTrim(environmentTag)] || { emoji: '✨', label: 'Scene practice' };
-};
-
-const describeIntentLabel = (intentTag?: string) => {
-  const intent = safeTrim(intentTag);
-  if (!intent) return 'casual chat';
-  return intent.replace(/_/g, ' ');
-};
-
-const buildSceneHeaderMeta = (context: SceneContext, hint: SceneHint, speakingMode: SpeakingMode, imageName: string) => {
-  const environment = describeSceneEnvironment(context.environmentTag);
-  const objectCount = safeArray<string>(context.objects).length;
-  const dynamicTitle = safeTrim(hint.title) || `Detected: ${environment.emoji} ${environment.label}`;
-  const dynamicSuggestions = safeArray<string>(hint.suggestions).slice(0, 2);
+const normalizeStoryPhrase = (value: Partial<StoryPhrase> | null | undefined): StoryPhrase | null => {
+  if (!value || typeof value !== 'object') return null;
+  const original = safeTrim(value.original);
+  if (!original) return null;
 
   return {
-    eyebrow: speakingMode === 'words' ? 'Image-grounded vocabulary' : 'Image-grounded conversation',
-    title: dynamicTitle,
-    subtitle: imageName
-      ? `From ${imageName}${objectCount ? ` · ${objectCount} visible anchor ${objectCount > 1 ? 'objects' : 'object'}` : ''}`
-      : `${environment.label} · ${describeIntentLabel(context.intentTag)}`,
-    chips: [
-      `${environment.emoji} ${environment.label}`,
-      `Persona: ${safeTrim(context.persona) || 'friendly speaking buddy'}`,
-      `Focus: ${describeIntentLabel(context.intentTag)}`,
-      ...(dynamicSuggestions.length ? dynamicSuggestions.map((item) => `Cue: ${item}`) : []),
-      speakingMode === 'words' ? 'Mode: words' : 'Mode: conversation',
-    ],
+    original,
+    explanation: safeTrim(value.explanation) || 'A useful phrase from your story.',
+    alternative: safeTrim(value.alternative) || 'Try a slightly different way to say it.',
   };
 };
 
-const normalizeSceneWords = (value: SceneWord[] | null | undefined): SceneWord[] => {
-  if (!Array.isArray(value) || !value.length) return [];
+const normalizeStoryEntry = (value: Partial<TodayStoryEntry> | null | undefined): TodayStoryEntry | null => {
+  if (!value || typeof value !== 'object') return null;
+  const title = safeTrim(value.title);
+  const originalText = safeTrim(value.originalText);
+  const rewrittenText = safeTrim(value.rewrittenText);
+  if (!title || !originalText || !rewrittenText) return null;
 
-  return Array.from(
-    new Map(
-      value
-        .filter(Boolean)
-        .map((word) => {
-          const normalizedWord = safeTrim(word?.word);
-          if (!normalizedWord) return null;
-          const normalized = {
-            word: normalizedWord,
-            meaning: safeTrim(word?.meaning) || 'a useful word from your current scene',
-            chineseHint: safeTrim(word?.chineseHint) || undefined,
-            example: safeTrim(word?.example) || 'Use this word to describe what is around you right now.',
-          };
-          return [normalized.word.toLowerCase(), normalized] as const;
-        })
-        .filter(Boolean) as readonly (readonly [string, SceneWord])[]
-    ).values()
-  );
+  const mode: TodayStoryMode = value.mode === 'zh' || value.mode === 'mixed' || value.mode === 'en' ? value.mode : 'mixed';
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${title.slice(0, 12)}`,
+    date: safeTrim(value.date) || new Date().toISOString(),
+    title,
+    mode,
+    originalText,
+    rewrittenText,
+    keyPhrases: safeArray<Partial<StoryPhrase>>(value.keyPhrases).map(normalizeStoryPhrase).filter(Boolean) as StoryPhrase[],
+    comment: safeTrim(value.comment) || undefined,
+    tags: safeArray<string>(value.tags).map((item) => safeTrim(item)).filter(Boolean),
+    language: safeTrim(value.language) || undefined,
+  };
 };
 
 const App = () => {
@@ -381,6 +309,15 @@ const App = () => {
   const [writingResult, setWritingResult] = useState<WritingFeedback | null>(null);
   const [writingEntries, setWritingEntries] = useState<WritingEntry[]>([]);
   const [writingSavedNotice, setWritingSavedNotice] = useState('');
+  const [storyStage, setStoryStage] = useState<StoryStage>('choose_mode');
+  const [storyMode, setStoryMode] = useState<TodayStoryMode>('mixed');
+  const [storyTranscript, setStoryTranscript] = useState('');
+  const [storyResult, setStoryResult] = useState<TodayStoryResult | null>(null);
+  const [storyEntries, setStoryEntries] = useState<TodayStoryEntry[]>([]);
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+  const [storyReminder, setStoryReminder] = useState('22:00');
+  const [isStoryGenerating, setIsStoryGenerating] = useState(false);
+  const [storyNotice, setStoryNotice] = useState('');
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
@@ -394,25 +331,10 @@ const App = () => {
   const [isAuthChecked, setIsAuthChecked] = useState(!isSupabaseConfigured());
   const [isOtpStage, setIsOtpStage] = useState(false);
 
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isSceneReady, setIsSceneReady] = useState(false);
-  const [speakingMode, setSpeakingMode] = useState<SpeakingMode>('sentences');
-  const [sceneContext, setSceneContext] = useState<SceneContext>(DEFAULT_SCENE_CONTEXT);
-  const [sceneHint, setSceneHint] = useState<SceneHint>(DEFAULT_SCENE_HINT);
-  const [sceneWords, setSceneWords] = useState<SceneWord[]>([]);
-  const [sceneImageDataUrl, setSceneImageDataUrl] = useState<string | null>(null);
-  const [sceneImageName, setSceneImageName] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isVoiceOutputEnabled, setIsVoiceOutputEnabled] = useState(true);
-  const [lastFeedback, setLastFeedback] = useState<SpeakingFeedback | null>(null);
-  const [lastNextPrompt, setLastNextPrompt] = useState('');
-  const [sessionSummary, setSessionSummary] = useState('');
   const [isTTSLoading, setIsTTSLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -420,13 +342,6 @@ const App = () => {
   const [selectedText, setSelectedText] = useState('');
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const sceneImageInputRef = useRef<HTMLInputElement | null>(null);
-  const transcriptBufferRef = useRef('');
-  const utteranceStartRef = useRef<number | null>(null);
-  const sceneRefreshIntervalRef = useRef<number | null>(null);
-  const sceneBootTimerRef = useRef<number | null>(null);
-  const speakingEventsRef = useRef<SpeakingEvent[]>([]);
-  const speakingListRef = useRef<HTMLDivElement | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const holdTriggeredRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -440,41 +355,38 @@ const App = () => {
   const syncTimerRef = useRef<number | null>(null);
   const usageQueueRef = useRef<UsageEventPayload[]>([]);
   const listeningAutoplayRef = useRef<string | null>(null);
-  const [showAllSceneWords, setShowAllSceneWords] = useState(false);
   const cloudRetryTimerRef = useRef<number | null>(null);
-  const speakingSessionTokenRef = useRef(0);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
-  const sceneHeaderMeta = buildSceneHeaderMeta(sceneContext, sceneHint, speakingMode, sceneImageName);
-
-  const logSpeakingEvent = (event: SpeakingEvent) => {
-    speakingEventsRef.current = [...speakingEventsRef.current.slice(-19), event];
-    queueUsageEvent(event.type, { ...event, language });
-  };
+  const selectedStory = storyEntries.find((entry) => entry.id === selectedStoryId) || storyEntries[0] || null;
 
   const applyCloudSnapshot = async (userId: string) => {
     const storedVocab = safeArray<Partial<VocabItem>>(JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]')).map(normalizeVocabItem).filter(Boolean) as VocabItem[];
     const storedSentences = safeArray<Partial<SavedSentence>>(JSON.parse(window.localStorage.getItem(SENTENCE_STORAGE_KEY) || '[]')).map(normalizeSentenceItem).filter(Boolean) as SavedSentence[];
     const storedWritingEntries = safeArray<Partial<WritingEntry>>(JSON.parse(window.localStorage.getItem(WRITING_STORAGE_KEY) || '[]')).map(normalizeWritingEntry).filter(Boolean) as WritingEntry[];
     const storedDiaries = safeArray<Partial<DiaryEntry>>(JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]')).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[];
+    const storedStories = safeArray<Partial<TodayStoryEntry>>(JSON.parse(window.localStorage.getItem(STORY_STORAGE_KEY) || '[]')).map(normalizeStoryEntry).filter(Boolean) as TodayStoryEntry[];
 
     const remoteData = await fetchLearningItems(userId);
     const mergedVocab = mergeById(storedVocab, remoteData.vocab);
     const mergedSentences = mergeById(storedSentences, remoteData.sentences);
     const mergedWritingEntries = mergeById(storedWritingEntries, remoteData.writingEntries);
     const mergedDiaries = mergeById(storedDiaries, remoteData.diaries);
+    const mergedStories = mergeById(storedStories, remoteData.stories);
 
     isApplyingCloudSnapshotRef.current = true;
     setVocabList(mergedVocab);
     setSentenceList(mergedSentences);
     setWritingEntries(mergedWritingEntries);
     setDiaryEntries(mergedDiaries);
+    setStoryEntries(mergedStories);
 
     await Promise.all([
       replaceLearningItems(userId, 'vocab', mergedVocab),
       replaceLearningItems(userId, 'sentence', mergedSentences),
       replaceLearningItems(userId, 'writing_entry', mergedWritingEntries),
       replaceLearningItems(userId, 'diary', mergedDiaries),
+      replaceLearningItems(userId, 'story', mergedStories),
     ]);
     isApplyingCloudSnapshotRef.current = false;
   };
@@ -685,6 +597,85 @@ const App = () => {
     queueUsageEvent('save_diary_variant', { sourceLabel, topic: entry.topic });
   };
 
+  const storyModeMeta: Record<TodayStoryMode, { title: string; description: string }> = {
+    zh: { title: '我先用中文讲', description: '适合完全不敢开口，先把今天的事情讲顺。' },
+    mixed: { title: '我用中英夹杂讲', description: '适合已经能说一点英语，但会自然夹中文。' },
+    en: { title: '我尝试全英文讲', description: '适合想挑战自己，用英文讲清楚今天的一件事。' },
+  };
+
+  const storyModeLabel = (value: TodayStoryMode) => storyModeMeta[value].title;
+
+  const openStoryLibrary = () => {
+    setMode(AppMode.STORY_LIBRARY);
+    setSelectedStoryId((prev) => prev || storyEntries[0]?.id || null);
+  };
+
+  const startStoryMode = (nextMode: TodayStoryMode) => {
+    setStoryMode(nextMode);
+    setStoryStage('record');
+    setStoryTranscript('');
+    setStoryResult(null);
+    setStoryNotice('');
+    setErrorMsg(null);
+    setSpeechDraft('');
+    stopCurrentSpeechPlayback();
+    queueUsageEvent('today_story_mode_selected', { mode: nextMode });
+  };
+
+  const saveTodayStory = (result: TodayStoryResult, transcript: string) => {
+    const entry: TodayStoryEntry = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      title: safeTrim(result.title) || 'Untitled story',
+      mode: storyMode,
+      originalText: safeTrim(transcript) || safeTrim(result.original),
+      rewrittenText: safeTrim(result.rewritten),
+      keyPhrases: safeArray<StoryPhrase>(result.keyPhrases).slice(0, 3),
+      comment: safeTrim(result.comment) || undefined,
+      tags: safeArray<string>(result.tags).slice(0, 4),
+      language,
+    };
+
+    setStoryEntries((prev) => [entry, ...prev.filter((item) => item.id !== entry.id)].slice(0, 200));
+    setSelectedStoryId(entry.id);
+    setStoryNotice('已自动保存到你的故事库。');
+    window.setTimeout(() => setStoryNotice(''), 2200);
+    queueUsageEvent('today_story_saved', { mode: entry.mode, title: entry.title });
+  };
+
+  const handleGenerateTodayStory = async () => {
+    const transcript = safeTrim(storyTranscript);
+    if (!transcript) return;
+
+    setIsStoryGenerating(true);
+    setErrorMsg(null);
+    try {
+      const result = await AIService.generateTodayStory(transcript, storyMode, language);
+      setStoryResult(result);
+      setStoryStage('result');
+      saveTodayStory(result, transcript);
+      queueUsageEvent('today_story_generated', { mode: storyMode, length: transcript.length });
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(error instanceof Error ? error.message : '生成今天的故事失败了，请再试一次。');
+    } finally {
+      setIsStoryGenerating(false);
+    }
+  };
+
+  const copyStoryText = async (value: string) => {
+    if (!safeTrim(value)) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setStoryNotice('优化后的故事已复制。');
+      window.setTimeout(() => setStoryNotice(''), 1800);
+    } catch (error) {
+      console.error(error);
+      setStoryNotice('复制失败，请手动复制。');
+      window.setTimeout(() => setStoryNotice(''), 1800);
+    }
+  };
+
   const handleTextSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -754,14 +745,6 @@ const App = () => {
   const isAudioCaptureSupported = () => typeof window !== 'undefined' && 'AudioContext' in window && !!navigator.mediaDevices?.getUserMedia;
 
   const stopMediaStream = () => {
-    if (sceneBootTimerRef.current) {
-      clearTimeout(sceneBootTimerRef.current);
-      sceneBootTimerRef.current = null;
-    }
-    if (sceneRefreshIntervalRef.current) {
-      clearInterval(sceneRefreshIntervalRef.current);
-      sceneRefreshIntervalRef.current = null;
-    }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -915,148 +898,31 @@ const App = () => {
     }
   };
 
-  const readFileAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Failed to read the selected image.'));
-      reader.readAsDataURL(file);
-    });
-
-  const isActiveSpeakingSession = (token: number) => mode === AppMode.SPEAKING && speakingSessionTokenRef.current === token;
-
-  const applySceneAnalysis = async (
-    firstUtterance = '',
-    options: { includeWords?: boolean; sourceImage?: string } = {}
-  ) => {
-    const sessionToken = speakingSessionTokenRef.current;
-    const imageSource = options.sourceImage || sceneImageDataUrl;
-    if (!imageSource) {
-      setErrorMsg('Upload one scene photo first, then I can recognize the setting and start the practice.');
-      return;
-    }
-    try {
-      if (sceneBootTimerRef.current) {
-        clearTimeout(sceneBootTimerRef.current);
-        sceneBootTimerRef.current = null;
-      }
-      setIsConnecting(true);
-      const result = await AIService.analyzeSceneContext(language, imageSource, firstUtterance, sceneContext);
-      if (!isActiveSpeakingSession(sessionToken)) return;
-      const nextContext = normalizeSceneContext(result?.context);
-      const nextHint = normalizeSceneHint(result?.hint);
-      const nextWords = normalizeSceneWords(result?.words);
-      setSceneContext(nextContext);
-      setSceneHint(nextHint);
-      if (options.includeWords && nextWords.length) {
-        setSceneWords(nextWords);
-        setShowAllSceneWords(false);
-      }
-      if (nextContext.intentTag && nextContext.intentTag !== sceneContext.intentTag) {
-        logSpeakingEvent({ type: 'intent_update', intentTag: nextContext.intentTag });
-      }
-      if (!chatMessages.length) {
-        const opener = safeTrim(result?.opener) || 'Hi, I am your speaking partner. What are you doing in this place right now?';
-        setChatMessages([{ role: 'model', text: opener }]);
-        if (isActiveSpeakingSession(sessionToken)) {
-          void playGeneratedSpeech(opener);
-        }
-      }
-    } catch (error) {
-      console.error(error);
-      if (!isActiveSpeakingSession(sessionToken)) return;
-      if (!chatMessages.length) {
-        const fallbackOpener = 'Hi, I am your speaking partner. What are you doing in this place right now?';
-        setChatMessages([
-          {
-            role: 'model',
-            text: fallbackOpener,
-          },
-        ]);
-        if (isActiveSpeakingSession(sessionToken)) {
-          void playGeneratedSpeech(fallbackOpener);
-        }
-      }
-    } finally {
-      if (isActiveSpeakingSession(sessionToken)) {
-        setIsConnecting(false);
-      }
-    }
-  };
-
-  const handleSceneImageSelected = async (file: File) => {
-    const sessionToken = speakingSessionTokenRef.current;
-    setIsConnecting(true);
-    setErrorMsg(null);
-    setChatMessages([]);
-    setLastFeedback(null);
-    setLastNextPrompt('');
-    setSessionSummary('');
-    setSceneWords([]);
-    setShowAllSceneWords(false);
-
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      if (!isActiveSpeakingSession(sessionToken)) return;
-      setSceneImageDataUrl(dataUrl);
-      setSceneImageName(file.name);
-      setIsSceneReady(true);
-      await applySceneAnalysis('', { sourceImage: dataUrl });
-    } catch (error) {
-      console.error(error);
-      if (isActiveSpeakingSession(sessionToken)) {
-        setErrorMsg(error instanceof Error ? error.message : 'Failed to load the selected scene image.');
-      }
-    } finally {
-      if (isActiveSpeakingSession(sessionToken)) {
-        setIsConnecting(false);
-      }
-    }
-  };
-
   const endSpeakingSession = (reason: 'user_exit' | 'timeout') => {
-    speakingSessionTokenRef.current += 1;
     void stopRecorder();
     stopMediaStream();
     stopCurrentSpeechPlayback();
     setIsListening(false);
     setSpeechDraft('');
-    setChatInput('');
-    setIsChatLoading(false);
-    setIsSpeaking(false);
-    setIsConnecting(false);
-    setIsSceneReady(false);
-    setSceneImageDataUrl(null);
-    setSceneImageName('');
-    setLastFeedback(null);
-    setLastNextPrompt('');
-    setSessionSummary('');
+    setStoryStage('choose_mode');
+    setStoryTranscript('');
+    setStoryResult(null);
     setMode(AppMode.DASHBOARD);
-    logSpeakingEvent({ type: 'session_end', reason });
+    queueUsageEvent('today_story_session_end', { reason });
   };
 
   const enterSpeakingMode = async () => {
-    speakingSessionTokenRef.current += 1;
     setIsLaunchingSpeaking(true);
     setErrorMsg(null);
-    setChatMessages([]);
-    setSceneContext(DEFAULT_SCENE_CONTEXT);
-    setSceneHint(DEFAULT_SCENE_HINT);
-    setSceneWords([]);
-    setSceneImageDataUrl(null);
-    setSceneImageName('');
-    setShowAllSceneWords(false);
-    setLastFeedback(null);
-    setLastNextPrompt('');
-    setSessionSummary('');
-    setIsSceneReady(false);
-    speakingEventsRef.current = [];
+    setStoryStage('choose_mode');
+    setStoryTranscript('');
+    setStoryResult(null);
+    setStoryNotice('');
     stopCurrentSpeechPlayback();
 
     try {
       setMode(AppMode.SPEAKING);
-      setIsSpeaking(true);
-      logSpeakingEvent({ type: 'session_start', environmentTag: DEFAULT_SCENE_CONTEXT.environmentTag });
+      queueUsageEvent('today_story_session_start', { stage: 'choose_mode' });
     } catch (error) {
       console.error(error);
       setErrorMsg('We could not open the speaking space right now.');
@@ -1066,98 +932,7 @@ const App = () => {
     }
   };
 
-  const submitUtterance = async (utterance: string) => {
-    const sessionToken = speakingSessionTokenRef.current;
-    if (!safeTrim(utterance) || isChatLoading) return;
-    if (!sceneImageDataUrl) {
-      setErrorMsg('Upload one scene photo first, then start the practice.');
-      return;
-    }
-    if (sceneBootTimerRef.current) {
-      clearTimeout(sceneBootTimerRef.current);
-      sceneBootTimerRef.current = null;
-    }
-
-    const duration = utteranceStartRef.current ? Date.now() - utteranceStartRef.current : 0;
-    logSpeakingEvent({ type: 'user_utterance', lengthMs: duration });
-    utteranceStartRef.current = null;
-
-    const userMessage: ChatMessage = { role: 'user', text: safeTrim(utterance) };
-    const history = [...chatMessages, userMessage].slice(-10);
-    setChatMessages(history);
-    setChatInput('');
-    setSpeechDraft('');
-    setIsChatLoading(true);
-
-    try {
-      let nextContext = sceneContext;
-      let nextHint = sceneHint;
-
-      const turn = await AIService.sendSpeakingTurn(language, speakingMode, nextContext, nextHint, history, utterance, sceneImageDataUrl);
-      if (!isActiveSpeakingSession(sessionToken)) return;
-
-      const resolvedContext = normalizeSceneContext(turn?.context || nextContext);
-      const resolvedHint = normalizeSceneHint(turn?.hint || nextHint);
-      const resolvedWords = normalizeSceneWords(turn?.words);
-      const resolvedReply = safeTrim(turn?.reply) || 'Tell me one thing about your current scene, and I will keep this practice going.';
-      const resolvedFeedback = turn?.feedback || {
-        summary: 'Nice start. Keep your answer short and natural, and I will help you improve it.',
-        tags: ['fluency'] as ('fluency' | 'accuracy' | 'vocabulary')[],
-        level: 'easy' as const,
-      };
-
-      setSceneContext(resolvedContext);
-      setSceneHint(resolvedHint);
-      if (speakingMode === 'words' && resolvedWords.length) {
-        setSceneWords(resolvedWords);
-        setShowAllSceneWords(false);
-      }
-      if (safeTrim(turn?.intentUpdated) && turn.intentUpdated !== sceneContext.intentTag) {
-        logSpeakingEvent({ type: 'intent_update', intentTag: turn.intentUpdated });
-      }
-      if (resolvedFeedback.tags?.length) {
-        logSpeakingEvent({ type: 'ai_feedback', tags: resolvedFeedback.tags });
-      }
-
-      setLastFeedback(resolvedFeedback);
-      setLastNextPrompt(safeTrim(turn?.nextPrompt));
-      setSessionSummary(safeTrim(resolvedFeedback.summary));
-      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: resolvedReply, feedback: resolvedFeedback }]);
-      if (isActiveSpeakingSession(sessionToken)) {
-        await playGeneratedSpeech(resolvedReply);
-      }
-    } catch (error) {
-      console.error(error);
-      if (!isActiveSpeakingSession(sessionToken)) return;
-      const fallbackReply =
-        speakingMode === 'words'
-          ? 'Nice try. Pick one thing you can see and describe it with one short sentence, and I will help you polish it.'
-          : 'Let’s keep it simple. Tell me one thing about your current scene, and I will reply like a supportive speaking coach.';
-      const fallbackFeedback: SpeakingFeedback = {
-        summary: 'Your input came through. Let’s keep the flow going with one shorter sentence.',
-        suggestedSentence:
-          speakingMode === 'words'
-            ? 'This is my laptop, and I use it for studying English.'
-            : 'I am at my desk now, and I want to practice speaking for a few minutes.',
-        tags: ['fluency'],
-        level: 'easy',
-      };
-      setLastFeedback(fallbackFeedback);
-      setLastNextPrompt('Try one short sentence about what you see right now.');
-      setSessionSummary(fallbackFeedback.summary);
-      setChatMessages((prev) => [...prev.slice(-9), { role: 'model', text: fallbackReply, feedback: fallbackFeedback }]);
-      if (isActiveSpeakingSession(sessionToken)) {
-        await playGeneratedSpeech(fallbackReply);
-      }
-      setErrorMsg('Speaking stayed available, but the AI scene coach had a temporary network hiccup.');
-    } finally {
-      if (isActiveSpeakingSession(sessionToken)) {
-        setIsChatLoading(false);
-      }
-    }
-  };
-
-  const stopVoiceInput = async () => {
+  const stopVoiceInput = async (completion: 'story_pause' | 'story_finish' | 'chat' = 'chat') => {
     const hasRecording = recordedChunksRef.current.length > 0;
     holdTriggeredRef.current = false;
     setIsListening(false);
@@ -1172,14 +947,18 @@ const App = () => {
 
     try {
       const audioBase64 = getRecordedAudioBase64();
-      const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, language);
-      const finalText = safeTrim(transcript) || safeTrim(chatInput);
+      const asrLanguage = mode === AppMode.SPEAKING ? (storyMode === 'en' ? 'English' : 'Chinese') : language;
+      const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, asrLanguage);
+      const finalText = safeTrim(transcript);
       setSpeechDraft('');
       recordedChunksRef.current = [];
       if (finalText) {
-        setChatInput(finalText);
-        transcriptBufferRef.current = '';
-        await submitUtterance(finalText);
+        if (mode === AppMode.SPEAKING) {
+          setStoryTranscript((prev) => [safeTrim(prev), finalText].filter(Boolean).join('\n\n'));
+          if (completion === 'story_finish') {
+            setStoryStage('review');
+          }
+        }
       }
     } catch (error) {
       console.error(error);
@@ -1199,15 +978,7 @@ const App = () => {
       setErrorMsg('This browser does not support voice input. Please type instead.');
       return;
     }
-    if (!sceneImageDataUrl) {
-      setErrorMsg('Upload one scene photo first, then you can use voice input.');
-      return;
-    }
     if (isListening) return;
-    if (sceneBootTimerRef.current) {
-      clearTimeout(sceneBootTimerRef.current);
-      sceneBootTimerRef.current = null;
-    }
 
     if (!mediaStreamRef.current) {
       try {
@@ -1227,8 +998,6 @@ const App = () => {
     zeroGain.gain.value = 0;
 
     recordedChunksRef.current = [];
-    transcriptBufferRef.current = '';
-    utteranceStartRef.current = Date.now();
     recordingSampleRateRef.current = audioContext.sampleRate;
     processor.onaudioprocess = (event) => {
       const channelData = event.inputBuffer.getChannelData(0);
@@ -1247,14 +1016,8 @@ const App = () => {
     };
     setErrorMsg(null);
     setIsListening(true);
-    setSpeechDraft('Listening...');
+    setSpeechDraft(mode === AppMode.SPEAKING ? '正在录音，讲讲今天发生的一件事...' : 'Listening...');
   };
-
-  useEffect(() => {
-    if (speakingListRef.current) {
-      speakingListRef.current.scrollTop = speakingListRef.current.scrollHeight;
-    }
-  }, [chatMessages, isChatLoading, lastFeedback]);
 
   useEffect(() => {
     setSpeechSupported(isAudioCaptureSupported());
@@ -1266,6 +1029,8 @@ const App = () => {
       const storedSentences = window.localStorage.getItem(SENTENCE_STORAGE_KEY);
       const stored = window.localStorage.getItem(WRITING_STORAGE_KEY);
       const storedDiaries = window.localStorage.getItem(DIARY_STORAGE_KEY);
+      const storedStories = window.localStorage.getItem(STORY_STORAGE_KEY);
+      const storedReminder = window.localStorage.getItem(STORY_REMINDER_KEY);
       if (storedVocab) {
         setVocabList(safeArray<Partial<VocabItem>>(JSON.parse(storedVocab)).map(normalizeVocabItem).filter(Boolean) as VocabItem[]);
       }
@@ -1278,6 +1043,12 @@ const App = () => {
       if (storedDiaries) {
         setDiaryEntries(safeArray<Partial<DiaryEntry>>(JSON.parse(storedDiaries)).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[]);
       }
+      if (storedStories) {
+        setStoryEntries(safeArray<Partial<TodayStoryEntry>>(JSON.parse(storedStories)).map(normalizeStoryEntry).filter(Boolean) as TodayStoryEntry[]);
+      }
+      if (storedReminder) {
+        setStoryReminder(storedReminder);
+      }
     } catch (error) {
       console.error('Failed to load notebook entries', error);
     }
@@ -1289,10 +1060,12 @@ const App = () => {
       window.localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceList));
       window.localStorage.setItem(WRITING_STORAGE_KEY, JSON.stringify(writingEntries));
       window.localStorage.setItem(DIARY_STORAGE_KEY, JSON.stringify(diaryEntries));
+      window.localStorage.setItem(STORY_STORAGE_KEY, JSON.stringify(storyEntries));
+      window.localStorage.setItem(STORY_REMINDER_KEY, storyReminder);
     } catch (error) {
       console.error('Failed to save notebook entries', error);
     }
-  }, [vocabList, sentenceList, writingEntries, diaryEntries]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, storyReminder]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -1415,6 +1188,7 @@ const App = () => {
         replaceLearningItems(cloudUserIdRef.current, 'sentence', sentenceList),
         replaceLearningItems(cloudUserIdRef.current, 'writing_entry', writingEntries),
         replaceLearningItems(cloudUserIdRef.current, 'diary', diaryEntries),
+        replaceLearningItems(cloudUserIdRef.current, 'story', storyEntries),
       ])
         .then(() => {
           setCloudSyncStatus('synced');
@@ -1433,7 +1207,7 @@ const App = () => {
         syncTimerRef.current = null;
       }
     };
-  }, [vocabList, sentenceList, writingEntries, diaryEntries]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries]);
 
   useEffect(() => {
     if (cloudRetryTimerRef.current) {
@@ -1495,15 +1269,6 @@ const App = () => {
     stopMediaStream();
     stopCurrentSpeechPlayback();
   }, []);
-
-  const feedbackPill = (tag: 'fluency' | 'accuracy' | 'vocabulary') => {
-    const styles: Record<string, string> = {
-      fluency: 'bg-emerald-50 text-emerald-600',
-      accuracy: 'bg-blue-50 text-blue-600',
-      vocabulary: 'bg-orange-50 text-orange-600',
-    };
-    return styles[tag];
-  };
 
   return (
     <div className="h-screen w-screen bg-kitty-50 flex overflow-hidden relative">
@@ -1835,390 +1600,397 @@ const App = () => {
             </div>
           )}
           {mode === AppMode.DASHBOARD && (
-            <div className="h-full p-5 md:p-8 lg:p-12 max-w-7xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
-              <header className="mb-12 md:mb-20 text-center animate-in fade-in slide-in-from-top-4 duration-1000">
-                <div className="inline-block bg-kitty-100 text-kitty-600 px-6 py-2 rounded-full text-sm font-black uppercase tracking-widest mb-6">Mastery Hub</div>
-                <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight leading-none">{labels.welcome}</h2>
-                <p className="text-slate-400 text-lg md:text-xl lg:text-2xl font-medium max-w-2xl mx-auto">{labels.sub}</p>
-              </header>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-8">
-                {[
-                  { m: AppMode.SPEAKING, icon: Mic, color: 'emerald', label: labels.speaking, tag: 'Scene Explorer' },
-                  { m: AppMode.LISTENING, icon: Headphones, color: 'indigo', label: labels.listening, tag: 'Media' },
-                  { m: AppMode.WRITING, icon: PenTool, color: 'pink', label: labels.writing, tag: 'Analysis' },
-                  { m: AppMode.READING, icon: BookOpen, color: 'orange', label: labels.reading, tag: 'Library' },
-                  { m: AppMode.EXAM_PORTAL, icon: GraduationCap, color: 'blue', label: labels.exams, tag: 'Tests' },
-                ].map((card, index) => (
-                  <div
-                    key={card.m}
-                    onClick={() => {
-                      if (card.m === AppMode.SPEAKING) {
-                        void enterSpeakingMode();
-                        return;
-                      }
-                      setMode(card.m);
-                      if (card.m === AppMode.READING || card.m === AppMode.LISTENING) {
-                        void loadDailyContent(card.m === AppMode.READING ? 'reading' : 'listening');
-                      }
-                    }}
-                    className="group bg-white p-6 md:p-8 lg:p-10 rounded-[2.25rem] md:rounded-[3rem] cursor-pointer shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all border border-slate-100 hover:border-kitty-200 flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-[280px]"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <div className={`w-16 h-16 md:w-20 md:h-20 bg-${card.color}-50 text-${card.color}-500 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mb-6 md:mb-8 group-hover:scale-110 transition-transform`}>
-                      <card.icon size={32} />
+            <div className="h-full p-5 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
+              <div className="rounded-[2.5rem] md:rounded-[4rem] bg-white p-8 md:p-12 lg:p-16 shadow-2xl border border-kitty-100">
+                <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
+                  <Mic size={16} /> Today Story
+                </div>
+                <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
+                  <div>
+                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[0.95]">
+                      每天用英语讲清楚
+                      <br />
+                      今天的一件事
+                    </h2>
+                    <p className="mt-6 text-lg md:text-xl text-slate-500 font-medium leading-relaxed max-w-2xl">
+                      不用背模板，不用准备话题。你只要讲今天发生在你身上的一件事，我来帮你整理成一篇更自然、以后也能复用的英语故事。
+                    </p>
+                    <div className="mt-8 flex flex-wrap gap-3">
+                      {['门槛低：中文 / 中英 / 全英文都可以', '结果感强：立刻看到优化版故事', '积累可见：每天自动进入故事库'].map((item) => (
+                        <span key={item} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600">
+                          {item}
+                        </span>
+                      ))}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tighter">{card.label}</h3>
-                        <span className={`text-[10px] font-black px-3 py-1 rounded-full bg-${card.color}-100 text-${card.color}-600 uppercase`}>{card.tag}</span>
-                      </div>
-                      <p className="text-slate-400 font-medium leading-relaxed">
-                        {card.m === AppMode.SPEAKING
-                          ? 'Upload one real-life scene photo, then start a grounded speaking practice.'
-                          : `Level up your ${language} skills with adaptive AI-powered sessions.`}
-                      </p>
+                    <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                      <button
+                        onClick={() => void enterSpeakingMode()}
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-kitty-500 px-8 py-5 text-white text-lg font-black shadow-xl hover:bg-kitty-600 transition-all"
+                      >
+                        <Mic size={22} /> 开始今天的故事
+                      </button>
+                      <button
+                        onClick={openStoryLibrary}
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-slate-100 px-8 py-5 text-slate-700 text-lg font-black hover:bg-slate-200 transition-all"
+                      >
+                        <BookOpen size={22} /> 我的故事库
+                      </button>
                     </div>
-                    <div className="mt-8 flex justify-end">
-                      <div className="p-4 bg-slate-50 rounded-full group-hover:bg-kitty-500 group-hover:text-white transition-all"><ArrowRight /></div>
+                    <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold text-slate-400">
+                      <button onClick={() => { setMode(AppMode.LISTENING); void loadDailyContent('listening'); }} className="hover:text-kitty-500 transition-colors">听力素材</button>
+                      <button onClick={() => { setMode(AppMode.READING); void loadDailyContent('reading'); }} className="hover:text-kitty-500 transition-colors">阅读素材</button>
+                      <button onClick={() => setMode(AppMode.WRITING)} className="hover:text-kitty-500 transition-colors">写作工作台</button>
+                      <button onClick={() => setMode(AppMode.EXAM_PORTAL)} className="hover:text-kitty-500 transition-colors">考试资源</button>
                     </div>
                   </div>
-                ))}
+
+                  <div className="space-y-5">
+                    <div className="rounded-[2rem] bg-emerald-50 p-6 border border-emerald-100">
+                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Today’s loop</p>
+                      <div className="space-y-3">
+                        {['1. 选一个模式，直接开讲', '2. 自动转写原话，可手动补几句', '3. AI 生成一篇像你自己会说的英文故事', '4. 存进故事库，后面继续复述和复用'].map((step) => (
+                          <div key={step} className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                            {step}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[2rem] bg-slate-50 p-6 border border-slate-100">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">连续积累</p>
+                      <p className="text-3xl font-black text-slate-900">{storyEntries.filter((item) => item.language === language).length}</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-500">篇属于你的英语故事已经存下来</p>
+                      <div className="mt-4 text-sm font-semibold text-slate-500">
+                        提醒时间：{storyReminder || '22:00'} · 今天{storyEntries.find((item) => new Date(item.date).toDateString() === new Date().toDateString() && item.language === language) ? '已经完成' : '还没讲故事'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {mode === AppMode.SPEAKING && (
-            <div className="h-full relative bg-slate-950 overflow-hidden">
-              {sceneImageDataUrl ? (
-                <img src={sceneImageDataUrl} alt="Uploaded scene" className="absolute inset-0 h-full w-full object-cover" />
-              ) : (
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(244,114,182,0.18),_transparent_35%),linear-gradient(180deg,#0f172a,#111827)]" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/35 to-slate-950/85" />
-
-              <div className="relative z-10 h-full p-4 md:p-6 lg:p-10 flex flex-col">
-                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-5 md:mb-6">
-                  <div className="w-full xl:max-w-2xl rounded-[2rem] md:rounded-[2.5rem] bg-white/90 backdrop-blur-md p-5 md:p-6 shadow-2xl border border-white/60">
-                    <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-emerald-600">
-                        <Camera size={14} /> Scene Explorer
-                      </span>
-                      <span className="text-xs font-black uppercase tracking-widest text-slate-400">{sceneHeaderMeta.eyebrow}</span>
-                      <button onClick={() => sceneImageInputRef.current?.click()} className="rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
-                        {sceneImageDataUrl ? 'Change photo' : 'Upload photo'}
-                      </button>
-                      <button onClick={() => setIsVoiceOutputEnabled((prev) => !prev)} className="ml-auto rounded-full bg-slate-100 px-3 py-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
-                        {isVoiceOutputEnabled ? 'Voice on' : 'Voice off'}
-                      </button>
-                    </div>
-                    <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 mb-2">{sceneHeaderMeta.title}</h2>
-                    <p className="text-sm font-semibold text-slate-500 mb-3">{sceneHeaderMeta.subtitle}</p>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {sceneHeaderMeta.chips.map((chip, index) => (
-                        <span key={`${chip}-${index}`} className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black text-kitty-700">
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {(sceneHint?.suggestions?.length ? sceneHint.suggestions : DEFAULT_SCENE_HINT.suggestions).map((suggestion, index) => (
-                        <span key={`${suggestion}-${index}`} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-600">
-                          {suggestion}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium">
-                      Objects in view: {(sceneContext?.objects?.length ? sceneContext.objects : DEFAULT_SCENE_CONTEXT.objects).join(' · ')} {sceneContext?.intentTag ? `· Intent: ${sceneContext.intentTag.replace(/_/g, ' ')}` : ''}
-                    </p>
+            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                <div>
+                  <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                    <Mic size={16} /> Today Story
                   </div>
-
-                  <button onClick={() => endSpeakingSession('user_exit')} className="self-start xl:self-auto rounded-full bg-white/90 px-5 py-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur-md border border-white/60 flex items-center gap-3">
-                    <X size={16} /> Leave speaking
-                  </button>
+                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">每天讲清楚今天的一件事</h2>
+                  <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
+                    不用准备模板。你只要把今天的事讲出来，我帮你整理成一篇更自然、更容易复述的英文故事。
+                  </p>
                 </div>
+                <button onClick={() => endSpeakingSession('user_exit')} className="self-start rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm border border-slate-100 flex items-center gap-3">
+                  <X size={16} /> 返回首页
+                </button>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-3 mb-5">
-                  {(['words', 'sentences'] as SpeakingMode[]).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setSpeakingMode(tab)}
-                      className={`px-5 py-3 rounded-full text-sm font-black transition-all ${speakingMode === tab ? 'bg-white text-kitty-600 shadow-lg' : 'bg-white/15 text-white border border-white/20 backdrop-blur-md'}`}
-                    >
-                      {tab === 'words' ? labels.words : labels.sentences}
-                    </button>
-                  ))}
-                </div>
+              {storyNotice && <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{storyNotice}</div>}
+              {errorMsg && <div className="mb-4 rounded-[1.5rem] bg-red-50 px-5 py-4 text-sm font-black text-red-600">{errorMsg}</div>}
 
-                <div className="grid xl:grid-cols-[1.12fr_0.88fr] gap-4 md:gap-6 flex-1 min-h-0">
-                  <div className="rounded-[2.75rem] bg-white/12 backdrop-blur-md border border-white/15 shadow-2xl p-5 md:p-7 flex flex-col min-h-0">
-                    <div ref={speakingListRef} className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-2">
-                      {isConnecting && (
-                        <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90 flex items-center gap-3">
-                          <RefreshCw className="animate-spin" size={18} /> {labels.connecting}
-                        </div>
-                      )}
-                      {!isSceneReady && !isConnecting && (
-                        <div className="rounded-[2rem] bg-white/15 px-6 py-5 text-white/90">
-                          Upload one photo of your real environment first. I will recognize the scene and start the speaking practice from that image.
-                        </div>
-                      )}
-
-                      {!isSceneReady && (
-                        <div className="rounded-[2rem] md:rounded-[2.25rem] bg-white/88 px-5 py-5 md:px-6 md:py-6 shadow-sm">
-                          <div className="flex flex-col gap-4">
+              {storyStage === 'choose_mode' && (
+                <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">Step 1</p>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">先选一个最容易开始的方式</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                      重点不是一开始就说得多漂亮，而是把今天的一件事讲出来。
+                    </p>
+                    <div className="mt-8 space-y-4">
+                      {(Object.keys(storyModeMeta) as TodayStoryMode[]).map((item) => (
+                        <button
+                          key={item}
+                          onClick={() => startStoryMode(item)}
+                          className="w-full rounded-[2rem] border border-slate-100 bg-slate-50 px-5 py-5 text-left hover:border-kitty-200 hover:bg-kitty-50 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-4">
                             <div>
-                              <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Scene snapshot</p>
-                              <h3 className="text-xl md:text-2xl font-black text-slate-900">Upload one image, then start practicing</h3>
-                              <p className="mt-2 text-sm font-medium text-slate-500">
-                                Desk, cafe, street, kitchen, airport, office, or any real place you want to practice with.
-                              </p>
+                              <p className="text-lg font-black text-slate-900">{storyModeMeta[item].title}</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-500">{storyModeMeta[item].description}</p>
                             </div>
-                            <div className="grid gap-2 sm:grid-cols-3">
-                              {['1. Upload a scene photo', '2. Let AI read the setting', '3. Start a short speaking loop'].map((step) => (
-                                <div key={step} className="rounded-2xl bg-kitty-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-kitty-700">
-                                  {step}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <input
-                                ref={sceneImageInputRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(event) => {
-                                  const file = event.target.files?.[0];
-                                  if (file) {
-                                    void handleSceneImageSelected(file);
-                                  }
-                                  event.currentTarget.value = '';
-                                }}
-                              />
-                              <button
-                                onClick={() => sceneImageInputRef.current?.click()}
-                                className="rounded-[1.5rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white"
-                              >
-                                Upload scene photo
-                              </button>
-                              <span className="text-sm font-semibold text-slate-400">JPG, PNG, or HEIC all work.</span>
-                            </div>
+                            <ArrowRight className="text-kitty-500 shrink-0" />
                           </div>
-                        </div>
-                      )}
-
-                      {chatMessages.map((message, index) => (
-                        <div key={`${message.role}-${index}`} className={`max-w-[88%] ${message.role === 'user' ? 'ml-auto' : ''}`}>
-                          <div className={`rounded-[2rem] px-5 py-4 md:px-6 md:py-5 text-base md:text-lg leading-relaxed shadow-sm ${message.role === 'user' ? 'bg-kitty-500 text-white' : 'bg-white/92 text-slate-700'}`}>
-                            {message.text}
-                          </div>
-                          {message.feedback && (
-                            <div className="mt-3 rounded-[1.5rem] bg-white/85 px-5 py-4 shadow-sm">
-                              <p className="text-sm font-bold text-slate-700">{message.feedback.summary}</p>
-                              {message.feedback.suggestedSentence && (
-                                <div className="mt-3 rounded-2xl bg-kitty-50 px-4 py-3 text-sm text-kitty-700 font-medium">
-                                  Try this: {message.feedback.suggestedSentence}
-                                </div>
-                              )}
-                              {message.feedback.tags?.length ? (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {message.feedback.tags.map((tag) => (
-                                    <span key={tag} className={`px-3 py-1 rounded-full text-xs font-black ${feedbackPill(tag)}`}>
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-[2.5rem] bg-kitty-50 p-7 md:p-10 border border-kitty-100">
+                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">What you get</p>
+                    <div className="space-y-3">
+                      {[
+                        '一版整理后的原话，让你知道自己刚刚到底讲了什么',
+                        '一篇更清晰、以后可以直接复述的英文故事',
+                        '3 个重点表达，方便以后面试、口语考试和聊天复用',
+                      ].map((item) => (
+                        <div key={item} className="rounded-[1.5rem] bg-white px-5 py-4 text-sm font-bold text-slate-700">
+                          {item}
                         </div>
                       ))}
-
-                      {isChatLoading && (
-                        <div className="max-w-[88%] rounded-[2rem] px-6 py-5 text-lg bg-white/80 text-slate-500">
-                          Your scene buddy is thinking...
-                        </div>
-                      )}
                     </div>
-
-                    <div className="mt-5">
-                      {speechDraft && (
-                        <div className="mb-3 rounded-[1.5rem] bg-emerald-50/95 px-5 py-4 text-sm font-semibold text-emerald-700">
-                          {speechDraft}
-                        </div>
-                      )}
-                      {lastNextPrompt && (
-                        <div className="mb-3 rounded-[1.5rem] bg-white/80 px-5 py-4 text-sm font-semibold text-slate-600">
-                          Easy follow-up: {lastNextPrompt}
-                        </div>
-                      )}
-                      {errorMsg && (
-                        <div className="mb-3 rounded-[1.5rem] bg-red-50/95 px-5 py-4 text-sm font-semibold text-red-600">
-                          {errorMsg}
-                        </div>
-                      )}
-                      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-end">
-                        <div className="flex-1 rounded-[2rem] bg-white/90 px-5 py-4">
-                          <textarea
-                            value={chatInput}
-                            onChange={(event) => setChatInput(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' && !event.shiftKey) {
-                                event.preventDefault();
-                                void submitUtterance(chatInput);
-                              }
-                            }}
-                            placeholder={speakingMode === 'words' ? 'Repeat a word, describe an object, or ask what something means...' : 'Say what you see, what you need, or just start talking...'}
-                            disabled={!isSceneReady}
-                            className="w-full min-h-24 resize-none outline-none bg-transparent text-lg text-slate-700 placeholder:text-slate-300 disabled:opacity-50"
-                          />
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <button
-                            onClick={() => {
-                              if (!speechSupported) return;
-                              if (holdTriggeredRef.current) {
-                                holdTriggeredRef.current = false;
-                                return;
-                              }
-                              if (isListening) {
-                                void stopVoiceInput();
-                              } else {
-                                void startVoiceInput();
-                              }
-                            }}
-                            onPointerDown={() => {
-                              if (!speechSupported || isListening || !isSceneReady) return;
-                              holdTimerRef.current = window.setTimeout(() => {
-                                holdTriggeredRef.current = true;
-                                void startVoiceInput();
-                              }, 180);
-                            }}
-                            onPointerUp={() => {
-                              if (holdTimerRef.current) {
-                                clearTimeout(holdTimerRef.current);
-                                holdTimerRef.current = null;
-                              }
-                              if (holdTriggeredRef.current) {
-                                void stopVoiceInput();
-                              }
-                            }}
-                            onPointerLeave={() => {
-                              if (holdTimerRef.current) {
-                                clearTimeout(holdTimerRef.current);
-                                holdTimerRef.current = null;
-                              }
-                              if (holdTriggeredRef.current) {
-                                void stopVoiceInput();
-                              }
-                            }}
-                            disabled={!speechSupported || isConnecting || !isSceneReady}
-                            className={`min-w-[170px] sm:min-w-[200px] rounded-[2rem] px-6 py-5 text-white font-black shadow-2xl transition-all ${isListening ? 'bg-red-500' : 'bg-kitty-500 hover:bg-kitty-600'} disabled:opacity-50`}
-                          >
-                            <div className="flex flex-col items-center gap-2">
-                              <Mic size={24} />
-                              <span>{isListening ? 'Release to send' : 'Hold to speak'}</span>
-                            </div>
-                          </button>
-                          <button onClick={() => void submitUtterance(chatInput)} disabled={!safeTrim(chatInput) || isChatLoading || !isSceneReady} className="rounded-[2rem] bg-white/90 px-6 py-5 text-slate-700 font-black shadow-2xl disabled:opacity-50 flex items-center justify-center gap-3">
-                            <Send size={18} /> Send
-                          </button>
-                        </div>
+                    <div className="mt-6 rounded-[1.75rem] bg-white px-5 py-4">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Daily reminder</p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="time"
+                          value={storyReminder}
+                          onChange={(event) => setStoryReminder(event.target.value)}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700"
+                        />
+                        <p className="text-sm font-semibold text-slate-500">打开页面时会提醒你：今天还没讲故事哦。</p>
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  <div className="flex flex-col gap-5 min-h-0">
-                    <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
-                      <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
-                        <h3 className="text-xl font-black text-slate-800">{speakingMode === 'words' ? 'Useful Words' : 'Coach Cues'}</h3>
-                        {speakingMode === 'words' && (
-                          <div className="flex items-center gap-3">
+              {(storyStage === 'record' || storyStage === 'review') && (
+                <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                      <span className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
+                        Step 2 · {storyModeLabel(storyMode)}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                        建议录 3–5 分钟
+                      </span>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">讲讲今天发生在你身上的一件事</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                      可以是一次沟通、一个情绪、一件小开心、一个决定，或者今天最想记住的一幕。
+                    </p>
+                    <div className="mt-8 rounded-[2rem] bg-slate-50 p-5 md:p-6">
+                      {speechDraft ? (
+                        <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
+                      ) : null}
+                      <textarea
+                        value={storyTranscript}
+                        onChange={(event) => setStoryTranscript(event.target.value)}
+                        placeholder="这里会出现语音转写结果。你也可以直接手动输入，先把故事讲顺最重要。"
+                        className="w-full min-h-[260px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
+                      />
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {!isListening ? (
+                          <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                            <Mic size={18} /> 开始录音
+                          </button>
+                        ) : (
+                          <button onClick={() => void stopVoiceInput('story_pause')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                            <Square size={18} /> 暂停并转写
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (isListening) {
+                              void stopVoiceInput('story_finish');
+                            } else if (safeTrim(storyTranscript)) {
+                              setStoryStage('review');
+                            }
+                          }}
+                          disabled={!isListening && !safeTrim(storyTranscript)}
+                          className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                        >
+                          结束并进入下一步
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Light guidance</p>
+                    <div className="space-y-3">
+                      {[
+                        '先讲发生了什么，再讲你当时怎么想。',
+                        '如果卡壳，就先用中文补一句。',
+                        '不需要太完整，AI 会帮你理顺结构。',
+                      ].map((item) => (
+                        <div key={item} className="rounded-[1.5rem] bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-600">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                    {storyStage === 'review' && (
+                      <button onClick={() => void handleGenerateTodayStory()} disabled={isStoryGenerating || !safeTrim(storyTranscript)} className="mt-6 w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50 flex items-center justify-center gap-3">
+                        {isStoryGenerating ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />}
+                        生成我的故事
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {storyStage === 'result' && storyResult && (
+                <div className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
+                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">Today’s Story · {new Date().toLocaleDateString()}</p>
+                        <h3 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{storyResult.title}</h3>
+                        <p className="mt-3 text-sm font-semibold text-slate-500">{storyModeLabel(storyMode)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button onClick={() => void copyStoryText(storyResult.rewritten)} className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700">
+                          复制英文故事
+                        </button>
+                        <button onClick={openStoryLibrary} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
+                          去我的故事库
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-8 grid gap-5">
+                      <div className="rounded-[2rem] bg-slate-50 px-5 py-5">
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">原话整理版</p>
+                        <p className="text-base md:text-lg leading-relaxed text-slate-600 whitespace-pre-wrap">{storyResult.original}</p>
+                      </div>
+                      <div className="rounded-[2rem] bg-emerald-50 px-5 py-5 border border-emerald-100">
+                        <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-3">优化后的英文版本</p>
+                        <p className="text-base md:text-lg leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{storyResult.rewritten}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">重点表达</h4>
+                      <div className="space-y-4">
+                        {storyResult.keyPhrases.map((phrase, index) => (
+                          <div key={`${phrase.original}-${index}`} className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
+                            <p className="text-base font-black text-slate-900">{phrase.original}</p>
+                            <p className="mt-2 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
+                            <p className="mt-2 text-sm text-kitty-700 font-bold">可替换说法：{phrase.alternative}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">今天的总评</h4>
+                      <p className="text-base font-semibold text-slate-600 leading-relaxed">
+                        {storyResult.comment || '今天这段故事已经有内容了。下一次继续练习“发生了什么 + 你怎么想”。'}
+                      </p>
+                      {storyResult.tags?.length ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {storyResult.tags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-600">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Next</p>
+                      <div className="grid gap-3">
+                        <button onClick={() => { setStoryStage('record'); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
+                          再讲一版，把故事说得更顺
+                        </button>
+                        <button onClick={() => { setStoryStage('choose_mode'); setStoryTranscript(''); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
+                          换一种模式重新开始
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === AppMode.STORY_LIBRARY && (
+            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                <div>
+                  <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                    <BookOpen size={16} /> My Stories
+                  </div>
+                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">我的故事库</h2>
+                  <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
+                    这里会慢慢长出你自己的英语故事素材。以后面试、考试、聊天，都可以从这里复述和调用。
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={() => void enterSpeakingMode()} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
+                    开始今天的故事
+                  </button>
+                  <button onClick={() => setMode(AppMode.DASHBOARD)} className="rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 border border-slate-100">
+                    返回首页
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-[2.5rem] bg-white p-6 md:p-8 shadow-xl border border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-black text-slate-900">按日期倒序</h3>
+                    <span className="text-sm font-black text-slate-400">{storyEntries.filter((item) => item.language === language).length} stories</span>
+                  </div>
+                  <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-2 no-scrollbar">
+                    {groupNotebookItemsByDate<TodayStoryEntry>(storyEntries.filter((item) => item.language === language)).map((group) => (
+                      <div key={group.title}>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{group.title}</p>
+                        <div className="space-y-3">
+                          {group.items.map((item) => (
                             <button
-                              onClick={() => setShowAllSceneWords((prev) => !prev)}
-                              className="text-sm font-black text-slate-500"
+                              key={item.id}
+                              onClick={() => setSelectedStoryId(item.id)}
+                              className={`w-full rounded-[1.75rem] px-5 py-4 text-left border transition-all ${selectedStory?.id === item.id ? 'bg-kitty-50 border-kitty-200' : 'bg-slate-50 border-slate-100 hover:border-kitty-150'}`}
                             >
-                              {showAllSceneWords ? 'Collapse' : 'Expand'}
+                              <p className="text-base font-black text-slate-900">{item.title}</p>
+                              <p className="mt-2 text-xs font-black uppercase tracking-widest text-kitty-500">{storyModeLabel(item.mode)}</p>
+                              <p className="mt-2 text-sm font-semibold text-slate-500 line-clamp-2">{item.rewrittenText}</p>
                             </button>
-                            <button onClick={() => void applySceneAnalysis(chatInput, { includeWords: true })} disabled={!isSceneReady} className="text-sm font-black text-kitty-600 disabled:opacity-50">
-                              Generate words
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {!storyEntries.filter((item) => item.language === language).length && (
+                      <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm font-semibold text-slate-500">
+                        你还没有保存任何故事。今天先讲第一篇吧。
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[2.5rem] bg-white p-6 md:p-8 shadow-xl border border-slate-100">
+                  {selectedStory ? (
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{new Date(selectedStory.date).toLocaleDateString()} · {storyModeLabel(selectedStory.mode)}</p>
+                      <h3 className="text-3xl font-black text-slate-900 tracking-tight">{selectedStory.title}</h3>
+                      <div className="mt-6 grid gap-5">
+                        <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">原始故事</p>
+                          <p className="text-base leading-relaxed text-slate-600 whitespace-pre-wrap">{selectedStory.originalText}</p>
+                        </div>
+                        <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4 border border-emerald-100">
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">优化后的英文故事</p>
+                            <button onClick={() => void copyStoryText(selectedStory.rewrittenText)} className="text-xs font-black text-kitty-600">
+                              复制
                             </button>
-                            <button onClick={() => sceneImageInputRef.current?.click()} className="text-sm font-black text-slate-500">
-                              Change photo
-                            </button>
+                          </div>
+                          <p className="text-base leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{selectedStory.rewrittenText}</p>
+                        </div>
+                        <div className="rounded-[1.75rem] bg-white border border-slate-100 px-5 py-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">重点表达</p>
+                          <div className="space-y-3">
+                            {selectedStory.keyPhrases.map((phrase, index) => (
+                              <div key={`${phrase.original}-${index}`} className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
+                                <p className="text-sm font-black text-slate-900">{phrase.original}</p>
+                                <p className="mt-1 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
+                                <p className="mt-1 text-sm text-kitty-700 font-bold">可替换说法：{phrase.alternative}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        {selectedStory.comment && (
+                          <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">点评</p>
+                            <p className="text-sm font-semibold text-slate-600">{selectedStory.comment}</p>
                           </div>
                         )}
                       </div>
-                      {speakingMode === 'words' ? (
-                        <div className={`space-y-3 overflow-y-auto ${showAllSceneWords ? 'max-h-[32rem]' : 'max-h-[22rem]'}`}>
-                          {(showAllSceneWords ? sceneWords : sceneWords.slice(0, 4)).map((word) => (
-                            <div key={word.word} className="rounded-[1.75rem] border border-slate-100 bg-white px-5 py-4 shadow-sm">
-                              <div className="flex items-center justify-between gap-3 mb-1">
-                                <span className="text-lg font-black text-slate-800">{word.word}</span>
-                                {word.chineseHint && <span className="text-xs font-black text-kitty-500">{word.chineseHint}</span>}
-                              </div>
-                              <p className="text-sm text-slate-500 font-semibold">{word.meaning}</p>
-                              <p className="mt-2 text-sm text-slate-700">{word.example}</p>
-                            </div>
-                          ))}
-                          {!sceneWords.length && (
-                            <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm text-slate-500 font-semibold">
-                              Tap `Generate words` when you want scene vocabulary. We will not keep generating it automatically.
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-3 max-h-[22rem] overflow-y-auto">
-                          <div className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
-                            <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Persona</p>
-                            <p className="text-lg font-black text-slate-800">{sceneContext?.persona || 'Friendly study buddy'}</p>
-                          </div>
-                          <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Current Focus</p>
-                            <p className="text-sm text-slate-700 font-semibold">{sceneContext?.intentTag ? sceneContext.intentTag.replace(/_/g, ' ') : 'casual scene talk'}</p>
-                          </div>
-                          {sessionSummary && (
-                            <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
-                              <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Mini Win</p>
-                              <p className="text-sm text-emerald-700 font-semibold">{sessionSummary}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
-
-                    <div className="rounded-[2.5rem] bg-white/88 backdrop-blur-md p-6 shadow-2xl">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-black text-slate-800">Coach Note</h3>
-                        <button onClick={() => void applySceneAnalysis(chatInput)} disabled={!isSceneReady} className="text-sm font-black text-kitty-600 disabled:opacity-50">
-                          Re-read photo
-                        </button>
-                      </div>
-                      {lastFeedback ? (
-                        <div>
-                          <p className="text-sm text-slate-600 font-semibold">{lastFeedback.summary}</p>
-                          {lastFeedback.suggestedSentence && (
-                            <div className="mt-4 rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm text-slate-700">
-                              Try this: {lastFeedback.suggestedSentence}
-                            </div>
-                          )}
-                          {lastFeedback.tags?.length ? (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {lastFeedback.tags.map((tag) => (
-                                <span key={tag} className={`px-3 py-1 rounded-full text-xs font-black ${feedbackPill(tag)}`}>
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500 font-semibold">
-                          Keep it light. Say one sentence about your environment and the coach will help you sound more natural.
-                        </p>
-                      )}
+                  ) : (
+                    <div className="h-full flex items-center justify-center rounded-[2rem] bg-slate-50 text-slate-500 font-semibold">
+                      先去生成你的第一篇 Today Story。
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>

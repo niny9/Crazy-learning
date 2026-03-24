@@ -6,6 +6,8 @@ import {
   SceneContext,
   SceneHint,
   SpeakingTurnPayload,
+  TodayStoryMode,
+  TodayStoryResult,
 } from "../types";
 
 type AiAction =
@@ -13,6 +15,7 @@ type AiAction =
   | "readingSuggestions"
   | "writingTopic"
   | "analyzeWriting"
+  | "todayStory"
   | "vocabContext"
   | "sceneAnalyze"
   | "speakingTurn";
@@ -113,6 +116,14 @@ export const analyzeWriting = async (
   language: string
 ): Promise<WritingFeedback> => {
   return callAI<WritingFeedback>("analyzeWriting", { text, language });
+};
+
+export const generateTodayStory = async (
+  transcript: string,
+  mode: TodayStoryMode,
+  language: string
+): Promise<TodayStoryResult> => {
+  return callAI<TodayStoryResult>("todayStory", { transcript, mode, language });
 };
 
 export const generateVocabContext = async (

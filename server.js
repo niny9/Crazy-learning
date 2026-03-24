@@ -723,6 +723,43 @@ async function handleAiRequest(req, res) {
         );
         return sendJson(res, 200, parseJson(content));
       }
+      case 'todayStory': {
+        const language = String(payload.language || 'English');
+        const transcript = String(payload.transcript || '');
+        const mode = String(payload.mode || 'mixed');
+        const content = await callZhipu(
+          [
+            {
+              role: 'system',
+              content: 'You are LinguaFlow Today Story Coach. Turn a learner’s rough daily story into a polished but still believable English story. Return strict JSON only.',
+            },
+            {
+              role: 'user',
+              content: `The learner is studying ${language}. Their speaking mode is ${mode}.
+They may use Chinese, English, or a mix.
+
+Transcript:
+${transcript}
+
+Return strict JSON with:
+- title: short, natural, specific
+- original: lightly cleaned transcript with better punctuation and sentence breaks, but still sounds like the user
+- rewritten: a clear first-person English version at B1-B2 difficulty
+- keyPhrases: exactly 3 items, each with original, explanation, alternative
+- comment: one short Chinese or mixed-language comment that praises one strength and gives one practical improvement
+- tags: 2 to 4 short tags such as work, study, emotions, friendship, travel
+
+Rules:
+- Keep the same story facts and first-person perspective.
+- Do not make it sound too advanced or like a different person wrote it.
+- The rewritten version should feel easy to retell aloud in an interview, exam, or daily chat.
+- keyPhrases should be genuinely useful chunks from the rewritten story, not generic textbook phrases.`,
+            },
+          ],
+          true
+        );
+        return sendJson(res, 200, parseJson(content));
+      }
       case 'vocabContext': {
         const language = String(payload.language || 'English');
         const word = String(payload.word || '');
