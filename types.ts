@@ -46,14 +46,6 @@ export interface VideoContent {
   keyPoints: string[];
 }
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  image?: string;
-  isCorrection?: boolean;
-  feedback?: SpeakingFeedback;
-}
-
 export interface WritingFeedback {
   original: string;
   corrected: string;
@@ -108,60 +100,6 @@ export interface DiaryEntry {
   content: string;
   sourceLabel: 'Corrected' | 'Pro Upgrade' | 'Model Essay';
   language?: string;
-}
-
-export interface SpeakingScenario {
-  id: string;
-  title: string;
-  description: string;
-  icon: any;
-  prompt: string;
-}
-
-export type TimeOfDay = 'morning' | 'afternoon' | 'evening';
-
-export interface SceneContext {
-  objects: string[];
-  environmentTag: string;
-  intentTag?: string;
-  timeOfDay?: TimeOfDay;
-  persona?: string;
-}
-
-export interface SceneHint {
-  title: string;
-  suggestions: string[];
-}
-
-export interface SpeakingFeedback {
-  summary: string;
-  suggestedSentence?: string;
-  tags?: ('fluency' | 'accuracy' | 'vocabulary')[];
-  level?: 'easy' | 'medium' | 'hard';
-}
-
-export interface SceneWord {
-  word: string;
-  meaning: string;
-  chineseHint?: string;
-  example: string;
-}
-
-export interface SpeakingTurnPayload {
-  context: SceneContext;
-  hint: SceneHint;
-  reply: string;
-  feedback: SpeakingFeedback;
-  words?: SceneWord[];
-  nextPrompt?: string;
-  intentUpdated?: string;
-}
-
-export interface SpeakingReport {
-  feedback: string;
-  improvements: string[];
-  vocabulary: { word: string; definition: string }[];
-  betterResponses: { original: string; improved: string; explanation: string }[];
 }
 
 export interface CustomExamLink {

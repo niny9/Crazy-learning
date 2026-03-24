@@ -77,6 +77,45 @@ const SUPPORTED_LANGUAGES = [
   { code: 'Japanese', flag: '🇯🇵', label: '日本語' },
 ];
 
+const SECONDARY_MODULES = [
+  {
+    key: 'listening',
+    title: 'Listening',
+    subtitle: '真实播客与音频素材',
+    description: '打开就能听，适合通勤和碎片时间做输入。',
+    icon: Headphones,
+    accent: 'indigo',
+    onEnter: 'listening' as const,
+  },
+  {
+    key: 'reading',
+    title: 'Reading',
+    subtitle: '产品 / 科技 / 职场阅读',
+    description: '直接读真实内容，保留原文链接，看到喜欢的还能跳出去深读。',
+    icon: BookOpen,
+    accent: 'orange',
+    onEnter: 'reading' as const,
+  },
+  {
+    key: 'writing',
+    title: 'Writing',
+    subtitle: '写作工作台',
+    description: '把你的原文改顺、升级，并沉淀进 Diary。',
+    icon: PenTool,
+    accent: 'emerald',
+    onEnter: 'writing' as const,
+  },
+  {
+    key: 'exams',
+    title: 'Exams',
+    subtitle: '考试资源入口',
+    description: '把外部高频备考资源重新放回首页，随时能进。',
+    icon: GraduationCap,
+    accent: 'sky',
+    onEnter: 'exams' as const,
+  },
+];
+
 const UI_LABELS: Record<string, any> = {
   English: {
     welcome: 'Welcome, Learner! 👋',
@@ -674,6 +713,24 @@ const App = () => {
       setStoryNotice('复制失败，请手动复制。');
       window.setTimeout(() => setStoryNotice(''), 1800);
     }
+  };
+
+  const openSecondaryModule = (target: 'listening' | 'reading' | 'writing' | 'exams') => {
+    if (target === 'listening') {
+      setMode(AppMode.LISTENING);
+      void loadDailyContent('listening');
+      return;
+    }
+    if (target === 'reading') {
+      setMode(AppMode.READING);
+      void loadDailyContent('reading');
+      return;
+    }
+    if (target === 'writing') {
+      setMode(AppMode.WRITING);
+      return;
+    }
+    setMode(AppMode.EXAM_PORTAL);
   };
 
   const handleTextSelection = () => {
@@ -1636,11 +1693,42 @@ const App = () => {
                         <BookOpen size={22} /> 我的故事库
                       </button>
                     </div>
-                    <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold text-slate-400">
-                      <button onClick={() => { setMode(AppMode.LISTENING); void loadDailyContent('listening'); }} className="hover:text-kitty-500 transition-colors">听力素材</button>
-                      <button onClick={() => { setMode(AppMode.READING); void loadDailyContent('reading'); }} className="hover:text-kitty-500 transition-colors">阅读素材</button>
-                      <button onClick={() => setMode(AppMode.WRITING)} className="hover:text-kitty-500 transition-colors">写作工作台</button>
-                      <button onClick={() => setMode(AppMode.EXAM_PORTAL)} className="hover:text-kitty-500 transition-colors">考试资源</button>
+                    <div className="mt-10">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Other Modules</p>
+                        <p className="text-sm font-semibold text-slate-400">听 / 读 / 写 / 考试都还在</p>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {SECONDARY_MODULES.map((item) => {
+                          const Icon = item.icon;
+                          const accentClass =
+                            item.accent === 'indigo'
+                              ? 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                              : item.accent === 'orange'
+                                ? 'bg-orange-50 text-orange-500 border-orange-100'
+                                : item.accent === 'emerald'
+                                  ? 'bg-emerald-50 text-emerald-500 border-emerald-100'
+                                  : 'bg-sky-50 text-sky-500 border-sky-100';
+
+                          return (
+                            <button
+                              key={item.key}
+                              onClick={() => openSecondaryModule(item.onEnter)}
+                              className="rounded-[2rem] border border-slate-100 bg-white px-5 py-5 text-left shadow-sm hover:shadow-md hover:border-kitty-200 transition-all"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div className={`rounded-2xl border px-3 py-3 ${accentClass}`}>
+                                  <Icon size={20} />
+                                </div>
+                                <ArrowRight className="text-slate-300 shrink-0" size={18} />
+                              </div>
+                              <p className="mt-4 text-xl font-black text-slate-900">{item.title}</p>
+                              <p className="mt-1 text-sm font-black text-kitty-500">{item.subtitle}</p>
+                              <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">{item.description}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 

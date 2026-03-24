@@ -2,10 +2,6 @@ import {
   DailyContent,
   WritingFeedback,
   VocabItem,
-  ChatMessage,
-  SceneContext,
-  SceneHint,
-  SpeakingTurnPayload,
   TodayStoryMode,
   TodayStoryResult,
 } from "../types";
@@ -16,9 +12,7 @@ type AiAction =
   | "writingTopic"
   | "analyzeWriting"
   | "todayStory"
-  | "vocabContext"
-  | "sceneAnalyze"
-  | "speakingTurn";
+  | "vocabContext";
 
 export const synthesizeSpeech = async (
   text: string,
@@ -134,41 +128,4 @@ export const generateVocabContext = async (
     "vocabContext",
     { word, language }
   );
-};
-
-export const analyzeSceneContext = async (
-  language: string,
-  imageBase64: string | null,
-  firstUtterance: string,
-  currentContext?: SceneContext
-): Promise<{ context: SceneContext; hint: SceneHint; opener: string; words: SpeakingTurnPayload["words"] }> => {
-  return callAI<{ context: SceneContext; hint: SceneHint; opener: string; words: SpeakingTurnPayload["words"] }>(
-    "sceneAnalyze",
-    {
-      language,
-      imageBase64,
-      firstUtterance,
-      currentContext,
-    }
-  );
-};
-
-export const sendSpeakingTurn = async (
-  language: string,
-  mode: "words" | "sentences",
-  context: SceneContext,
-  hint: SceneHint,
-  history: ChatMessage[],
-  userUtterance: string,
-  imageBase64?: string | null
-): Promise<SpeakingTurnPayload> => {
-  return callAI<SpeakingTurnPayload>("speakingTurn", {
-    language,
-    mode,
-    context,
-    hint,
-    history,
-    userUtterance,
-    imageBase64,
-  });
 };
