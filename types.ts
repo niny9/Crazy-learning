@@ -15,6 +15,7 @@ export interface VocabItem {
   definition: string;
   chineseDefinition?: string;
   contextSentence: string;
+  sourceUrl?: string;
   dateAdded: string;
   imageUrl?: string;
   masteryLevel?: number; // 0 = new, 1 = reviewing, 2 = mastered
@@ -25,6 +26,7 @@ export interface SavedSentence {
   id: string;
   text: string;
   source: string; 
+  sourceUrl?: string;
   notes?: string;
   dateAdded: string;
   scenario?: string;

@@ -255,6 +255,7 @@ const normalizeVocabItem = (value: Partial<VocabItem> | null | undefined): Vocab
     definition: safeTrim(value.definition) || 'Definition pending.',
     chineseDefinition: safeTrim(value.chineseDefinition) || undefined,
     contextSentence: safeTrim(value.contextSentence) || 'No context sentence yet.',
+    sourceUrl: safeTrim(value.sourceUrl) || undefined,
     dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
     imageUrl: safeTrim(value.imageUrl) || undefined,
     masteryLevel: typeof value.masteryLevel === 'number' ? value.masteryLevel : undefined,
@@ -271,6 +272,7 @@ const normalizeSentenceItem = (value: Partial<SavedSentence> | null | undefined)
     id: safeTrim(value.id) || `${Date.now()}-${text.slice(0, 12)}`,
     text,
     source: safeTrim(value.source) || 'Manual',
+    sourceUrl: safeTrim(value.sourceUrl) || undefined,
     notes: safeTrim(value.notes) || undefined,
     dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
     scenario: safeTrim(value.scenario) || undefined,
@@ -582,21 +584,22 @@ const App = () => {
 
   const isSentenceSelection = (text: string) => safeTrim(text).split(/\s+/).filter(Boolean).length > 2;
 
-  const addSelectionToNotebook = (text: string) => {
+  const addSelectionToNotebook = (text: string, sourceUrl?: string) => {
     if (isSentenceSelection(text)) {
-      saveSentence(text);
+      saveSentence(text, undefined, sourceUrl);
     } else {
-      void addToVocab(text);
+      void addToVocab(text, '', sourceUrl);
     }
   };
 
-  const addToVocab = async (word: string, context: string = '') => {
+  const addToVocab = async (word: string, context: string = '', sourceUrl?: string) => {
     const newItem: VocabItem = {
       id: Date.now().toString(),
       word,
       definition: 'Fetching...',
       chineseDefinition: '获取中...',
       contextSentence: context,
+      sourceUrl: safeTrim(sourceUrl) || dailyContent?.url || undefined,
       dateAdded: new Date().toISOString(),
       language,
     };
@@ -613,11 +616,12 @@ const App = () => {
     }
   };
 
-  const saveSentence = (text: string) => {
+  const saveSentence = (text: string, source?: string, sourceUrl?: string) => {
     const newSentence: SavedSentence = {
       id: Date.now().toString(),
       text,
-      source: dailyContent?.title || 'Manual',
+      source: source || dailyContent?.title || 'Manual',
+      sourceUrl: safeTrim(sourceUrl) || dailyContent?.url || undefined,
       dateAdded: new Date().toISOString(),
       language,
     };
@@ -1377,16 +1381,17 @@ const App = () => {
     const clipText = safeTrim(params.get('clipText'));
     const clipType = safeTrim(params.get('clipType'));
     const clipSource = safeTrim(params.get('clipSource')) || 'Web Clip';
+    const clipUrl = safeTrim(params.get('clipUrl'));
     if (!clipText || (clipType !== 'word' && clipType !== 'sentence')) {
       return;
     }
 
     if (clipType === 'word') {
-      void addToVocab(clipText, clipSource);
+      void addToVocab(clipText, clipSource, clipUrl);
       setStoryNotice(`已从浏览器插件保存单词：${clipText}`);
       setActiveTab('vocab');
     } else {
-      saveSentence(clipText);
+      saveSentence(clipText, clipSource, clipUrl);
       setStoryNotice('已从浏览器插件保存句子。');
       setActiveTab('sentences');
     }
@@ -1396,6 +1401,7 @@ const App = () => {
     params.delete('clipText');
     params.delete('clipType');
     params.delete('clipSource');
+    params.delete('clipUrl');
     const nextQuery = params.toString();
     const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
     window.history.replaceState({}, '', nextUrl);
@@ -1626,10 +1632,10 @@ const App = () => {
           style={{ top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 100 }}
           className="fixed z-[100] bg-slate-900 text-white p-2.5 rounded-3xl shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200"
         >
-          <button onClick={() => { addSelectionToNotebook(selectedText); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
+          <button onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
             <Plus size={16} /> {isSentenceSelection(selectedText) ? 'Sentence' : 'Word'}
           </button>
-          <button onClick={() => { saveSentence(selectedText); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
+          <button onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
             <Bookmark size={16} /> Save
           </button>
         </div>
@@ -1755,6 +1761,16 @@ const App = () => {
                         ? 'Saved sentence'
                         : `${(item as DiaryEntry).sourceLabel} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
                   </p>
+                  {activeTab !== 'diary' && (((item as VocabItem).sourceUrl) || ((item as SavedSentence).sourceUrl)) && (
+                    <a
+                      href={((item as VocabItem).sourceUrl || (item as SavedSentence).sourceUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mb-3 inline-flex items-center gap-2 text-xs font-black text-kitty-600 hover:text-kitty-700"
+                    >
+                      Open source <ArrowRight size={14} />
+                    </a>
+                  )}
                   <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
                     "
                     {activeTab === 'vocab'

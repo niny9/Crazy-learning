@@ -5,18 +5,46 @@ const getTargetUrl = async () => {
   return stored.linguaFlowTargetUrl || DEFAULT_TARGET_URL;
 };
 
-const buildImportUrl = async ({ text, type, source }) => {
+const getBestSourceTitle = async (tab) => {
+  if (!tab?.id) {
+    return tab?.title || DEFAULT_TARGET_URL;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "linguaflow-get-selection",
+    });
+    if (response?.source) {
+      return response.source;
+    }
+  } catch {
+    // content script may not answer on some pages
+  }
+
+  return tab?.title || (() => {
+    try {
+      return new URL(tab?.url || DEFAULT_TARGET_URL).hostname;
+    } catch {
+      return "Web Clip";
+    }
+  })();
+};
+
+const buildImportUrl = async ({ text, type, source, url: sourceUrl }) => {
   const targetUrl = await getTargetUrl();
   const url = new URL(targetUrl);
   url.searchParams.set("clipText", text);
   url.searchParams.set("clipType", type);
   url.searchParams.set("clipSource", source || "Web Clip");
+  if (sourceUrl) {
+    url.searchParams.set("clipUrl", sourceUrl);
+  }
   return url.toString();
 };
 
-const openLinguaFlowImport = async ({ text, type, source }) => {
+const openLinguaFlowImport = async ({ text, type, source, url: sourceUrl }) => {
   if (!text) return;
-  const url = await buildImportUrl({ text, type, source });
+  const url = await buildImportUrl({ text, type, source, url: sourceUrl });
   const targetOrigin = new URL(url).origin;
   const tabs = await chrome.tabs.query({});
   const existingTab = tabs.find((tab) => {
@@ -52,14 +80,16 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   const text = (info.selectionText || "").trim();
   if (!text) return;
   const type = info.menuItemId === "linguaflow-save-word" ? "word" : "sentence";
+  const source = await getBestSourceTitle(tab);
   openLinguaFlowImport({
     text,
     type,
-    source: tab?.title || new URL(tab?.url || DEFAULT_TARGET_URL).hostname,
+    source,
+    url: tab?.url,
   });
 });
 

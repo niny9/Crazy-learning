@@ -17,14 +17,63 @@ const inferClipType = (text) => {
   return words.length > 2 ? "sentence" : "word";
 };
 
+const readSelectionFromActiveTab = async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    return null;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: "linguaflow-get-selection",
+    });
+    if (response?.text) {
+      return response;
+    }
+  } catch {
+    // content script may not be available on browser internal pages
+  }
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        const selection = window.getSelection();
+        return {
+          text: (selection?.toString() || "").trim(),
+          source: document.title || window.location.hostname,
+          url: window.location.href,
+        };
+      },
+    });
+    return result?.result || null;
+  } catch {
+    return null;
+  }
+};
+
 const bootstrap = async () => {
   const storage = await chrome.storage.local.get(["linguaflowLastSelection"]);
   const syncStorage = await chrome.storage.sync.get(["linguaFlowTargetUrl"]);
-  const text = storage.linguaflowLastSelection?.text || "";
+  const liveSelection = await readSelectionFromActiveTab();
+  const fallbackSelection = storage.linguaflowLastSelection || {};
+  const text = liveSelection?.text || fallbackSelection.text || "";
   clipTextInput.value = text;
   clipTypeInput.value = inferClipType(text);
-  clipSourceInput.value = storage.linguaflowLastSelection?.source || "";
+  clipSourceInput.value = liveSelection?.source || fallbackSelection.source || "";
   targetUrlInput.value = syncStorage.linguaFlowTargetUrl || DEFAULT_TARGET_URL;
+
+  if (liveSelection?.text) {
+    await chrome.storage.local.set({
+      linguaflowLastSelection: {
+        text: liveSelection.text,
+        source: liveSelection.source || fallbackSelection.source || "",
+        url: liveSelection.url || fallbackSelection.url || "",
+        updatedAt: Date.now(),
+      },
+    });
+    setStatus("Selection captured from current page.");
+  }
 };
 
 const saveTargetUrl = async () => {
@@ -43,6 +92,7 @@ const sendSelection = async (type) => {
 
   const local = await chrome.storage.local.get(["linguaflowLastSelection"]);
   const source = clipSourceInput.value.trim() || local.linguaflowLastSelection?.source || "Web Clip";
+  const sourceUrl = local.linguaflowLastSelection?.url || "";
 
   chrome.runtime.sendMessage(
     {
@@ -51,6 +101,7 @@ const sendSelection = async (type) => {
         text,
         type,
         source,
+        url: sourceUrl,
       },
     },
     () => {
