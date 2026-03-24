@@ -2,7 +2,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.learning_items (
   user_id uuid not null references auth.users(id) on delete cascade,
-  item_type text not null check (item_type in ('vocab', 'sentence', 'diary', 'writing_entry')),
+  item_type text not null check (item_type in ('vocab', 'sentence', 'diary', 'writing_entry', 'story', 'content_source')),
   item_id text not null,
   language text,
   payload jsonb not null,

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinguaFlow Clipper</title>
+    <style>
+      body {
+        margin: 0;
+        width: 360px;
+        padding: 16px;
+        font-family: Arial, sans-serif;
+        background: #fff8fb;
+        color: #1f2937;
+      }
+      .card {
+        background: white;
+        border: 1px solid #f3d7e6;
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: 0 8px 24px rgba(244, 114, 182, 0.08);
+      }
+      .label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #ec4899;
+        margin-bottom: 8px;
+      }
+      textarea, input, select, button {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 14px;
+        border: 1px solid #f1d5e4;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      textarea {
+        resize: none;
+        min-height: 84px;
+      }
+      button {
+        border: 0;
+        background: #ec4899;
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .secondary {
+        background: #fdf2f8;
+        color: #be185d;
+      }
+      .grid {
+        display: grid;
+        gap: 10px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .hint {
+        font-size: 12px;
+        color: #6b7280;
+        line-height: 1.5;
+      }
+      .status {
+        font-size: 12px;
+        color: #be185d;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+      <div class="card">
+        <div class="label">Current selection</div>
+        <textarea id="clipText" placeholder="Select text on a webpage, then open the popup."></textarea>
+        <div class="row" style="margin-top: 10px;">
+          <select id="clipType">
+            <option value="word">Word</option>
+            <option value="sentence">Sentence</option>
+          </select>
+          <input id="clipSource" placeholder="Source title" />
+        </div>
+        <div class="row" style="margin-top: 10px;">
+          <button id="saveWord">Save as Word</button>
+          <button id="saveSentence" class="secondary">Save as Sentence</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card">
+        <div class="label">LinguaFlow URL</div>
+        <input id="targetUrl" placeholder="https://crazy-learning.onrender.com" />
+        <div class="hint" style="margin-top: 8px;">If you deploy to a custom domain later, replace it here.</div>
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+  </html>

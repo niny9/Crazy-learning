@@ -24,8 +24,12 @@ import {
 } from 'lucide-react';
 import {
   AppMode,
+  ContentSourceType,
+  CustomContentSource,
   DailyContent,
   DiaryEntry,
+  FreeTalkMessage,
+  FreeTalkReply,
   SavedSentence,
   StoryPhrase,
   TodayStoryEntry,
@@ -49,6 +53,7 @@ import {
   trackUsageEvent as persistUsageEvent,
 } from './services/supabaseService';
 type StoryStage = 'choose_mode' | 'record' | 'review' | 'result';
+type SpeakingTrack = 'story' | 'chat' | null;
 type RecorderNodes = {
   audioContext: AudioContext;
   source: MediaStreamAudioSourceNode;
@@ -153,6 +158,7 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
 
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const STORY_STORAGE_KEY = 'linguaflow-story-entries';
+const CONTENT_SOURCE_STORAGE_KEY = 'linguaflow-content-sources';
 const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
@@ -213,6 +219,28 @@ const normalizeDailyContent = (value: Partial<DailyContent> | null | undefined):
     url: safeTrim(value.url) || '#',
     content: safeTrim(value.content) || 'No content available yet.',
     source: safeTrim(value.source) || 'LinguaFlow',
+  };
+};
+
+const normalizeContentSource = (value: Partial<CustomContentSource> | null | undefined): CustomContentSource | null => {
+  if (!value || typeof value !== 'object') return null;
+  const name = safeTrim(value.name);
+  const url = safeTrim(value.url);
+  if (!name || !url) return null;
+
+  const type: ContentSourceType =
+    value.type === 'reading' || value.type === 'listening' || value.type === 'both'
+      ? value.type
+      : 'both';
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${name.slice(0, 12)}`,
+    name,
+    url,
+    type,
+    description: safeTrim(value.description) || undefined,
+    dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
+    language: safeTrim(value.language) || undefined,
   };
 };
 
@@ -357,6 +385,21 @@ const App = () => {
   const [storyReminder, setStoryReminder] = useState('22:00');
   const [isStoryGenerating, setIsStoryGenerating] = useState(false);
   const [storyNotice, setStoryNotice] = useState('');
+  const [speakingTrack, setSpeakingTrack] = useState<SpeakingTrack>(null);
+  const [freeTalkMessages, setFreeTalkMessages] = useState<FreeTalkMessage[]>([]);
+  const [freeTalkInput, setFreeTalkInput] = useState('');
+  const [freeTalkQuickReplies, setFreeTalkQuickReplies] = useState<string[]>([
+    'Tell me about your day.',
+    'What are you working on lately?',
+    'How are you feeling right now?',
+  ]);
+  const [freeTalkCorrection, setFreeTalkCorrection] = useState('');
+  const [isFreeTalkLoading, setIsFreeTalkLoading] = useState(false);
+  const [contentSources, setContentSources] = useState<CustomContentSource[]>([]);
+  const [sourceNameInput, setSourceNameInput] = useState('');
+  const [sourceUrlInput, setSourceUrlInput] = useState('');
+  const [sourceDescriptionInput, setSourceDescriptionInput] = useState('');
+  const [sourceTypeInput, setSourceTypeInput] = useState<ContentSourceType>('both');
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
@@ -388,6 +431,9 @@ const App = () => {
   const recorderRef = useRef<RecorderNodes | null>(null);
   const recordedChunksRef = useRef<Float32Array[]>([]);
   const recordingSampleRateRef = useRef(16000);
+  const freeTalkTurnIdRef = useRef(0);
+  const silenceTimerRef = useRef<number | null>(null);
+  const speechDetectedRef = useRef(false);
   const cloudUserIdRef = useRef<string | null>(null);
   const hasBootstrappedCloudRef = useRef(false);
   const isApplyingCloudSnapshotRef = useRef(false);
@@ -398,6 +444,8 @@ const App = () => {
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
   const selectedStory = storyEntries.find((entry) => entry.id === selectedStoryId) || storyEntries[0] || null;
+  const readingSources = contentSources.filter((item) => item.language === language && (item.type === 'reading' || item.type === 'both'));
+  const listeningSources = contentSources.filter((item) => item.language === language && (item.type === 'listening' || item.type === 'both'));
 
   const applyCloudSnapshot = async (userId: string) => {
     const storedVocab = safeArray<Partial<VocabItem>>(JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]')).map(normalizeVocabItem).filter(Boolean) as VocabItem[];
@@ -405,6 +453,7 @@ const App = () => {
     const storedWritingEntries = safeArray<Partial<WritingEntry>>(JSON.parse(window.localStorage.getItem(WRITING_STORAGE_KEY) || '[]')).map(normalizeWritingEntry).filter(Boolean) as WritingEntry[];
     const storedDiaries = safeArray<Partial<DiaryEntry>>(JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]')).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[];
     const storedStories = safeArray<Partial<TodayStoryEntry>>(JSON.parse(window.localStorage.getItem(STORY_STORAGE_KEY) || '[]')).map(normalizeStoryEntry).filter(Boolean) as TodayStoryEntry[];
+    const storedContentSources = safeArray<Partial<CustomContentSource>>(JSON.parse(window.localStorage.getItem(CONTENT_SOURCE_STORAGE_KEY) || '[]')).map(normalizeContentSource).filter(Boolean) as CustomContentSource[];
 
     const remoteData = await fetchLearningItems(userId);
     const mergedVocab = mergeById(storedVocab, remoteData.vocab);
@@ -412,6 +461,7 @@ const App = () => {
     const mergedWritingEntries = mergeById(storedWritingEntries, remoteData.writingEntries);
     const mergedDiaries = mergeById(storedDiaries, remoteData.diaries);
     const mergedStories = mergeById(storedStories, remoteData.stories);
+    const mergedContentSources = mergeById(storedContentSources, remoteData.contentSources);
 
     isApplyingCloudSnapshotRef.current = true;
     setVocabList(mergedVocab);
@@ -419,6 +469,7 @@ const App = () => {
     setWritingEntries(mergedWritingEntries);
     setDiaryEntries(mergedDiaries);
     setStoryEntries(mergedStories);
+    setContentSources(mergedContentSources);
 
     await Promise.all([
       replaceLearningItems(userId, 'vocab', mergedVocab),
@@ -426,6 +477,7 @@ const App = () => {
       replaceLearningItems(userId, 'writing_entry', mergedWritingEntries),
       replaceLearningItems(userId, 'diary', mergedDiaries),
       replaceLearningItems(userId, 'story', mergedStories),
+      replaceLearningItems(userId, 'content_source', mergedContentSources),
     ]);
     isApplyingCloudSnapshotRef.current = false;
   };
@@ -644,12 +696,57 @@ const App = () => {
 
   const storyModeLabel = (value: TodayStoryMode) => storyModeMeta[value].title;
 
+  const beginFreeTalk = async () => {
+    const opener: FreeTalkMessage = {
+      id: `assistant-${Date.now()}`,
+      role: 'assistant',
+      text: 'Hey, I am here. How was your day today?',
+    };
+
+    setSpeakingTrack('chat');
+    setFreeTalkMessages([opener]);
+    setFreeTalkInput('');
+    setFreeTalkCorrection('');
+    setStoryNotice('');
+    setErrorMsg(null);
+    setSpeechDraft('');
+    setFreeTalkQuickReplies([
+      'Tell me about your day.',
+      'What are you doing right now?',
+      'What made you smile today?',
+    ]);
+    queueUsageEvent('free_talk_started', { language });
+    await playGeneratedSpeech(opener.text);
+  };
+
+  const enterFreeTalkMode = async () => {
+    setIsLaunchingSpeaking(true);
+    setErrorMsg(null);
+    setMode(AppMode.SPEAKING);
+    setStoryStage('choose_mode');
+    setStoryTranscript('');
+    setStoryResult(null);
+    setStoryNotice('');
+    stopCurrentSpeechPlayback();
+
+    try {
+      await beginFreeTalk();
+    } catch (error) {
+      console.error(error);
+      setErrorMsg('We could not open Free Talk right now.');
+      setMode(AppMode.DASHBOARD);
+    } finally {
+      setIsLaunchingSpeaking(false);
+    }
+  };
+
   const openStoryLibrary = () => {
     setMode(AppMode.STORY_LIBRARY);
     setSelectedStoryId((prev) => prev || storyEntries[0]?.id || null);
   };
 
   const startStoryMode = (nextMode: TodayStoryMode) => {
+    setSpeakingTrack('story');
     setStoryMode(nextMode);
     setStoryStage('record');
     setStoryTranscript('');
@@ -702,6 +799,58 @@ const App = () => {
     }
   };
 
+  const handleSubmitFreeTalk = async (messageOverride?: string) => {
+    const nextText = safeTrim(messageOverride ?? freeTalkInput);
+    if (!nextText || isFreeTalkLoading) return;
+
+    const userMessage: FreeTalkMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text: nextText,
+    };
+    const nextHistory = [...freeTalkMessages, userMessage];
+
+    const turnId = Date.now();
+    freeTalkTurnIdRef.current = turnId;
+    setFreeTalkMessages(nextHistory);
+    setFreeTalkInput('');
+    setFreeTalkCorrection('');
+    setIsFreeTalkLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const result: FreeTalkReply = await AIService.generateFreeTalkReply(language, nextHistory, nextText);
+      if (freeTalkTurnIdRef.current !== turnId) {
+        return;
+      }
+      const assistantText = [safeTrim(result.reply), safeTrim(result.followUp)].filter(Boolean).join(' ');
+      if (assistantText) {
+        setFreeTalkMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            text: assistantText,
+          },
+        ]);
+        await playGeneratedSpeech(assistantText);
+      }
+      setFreeTalkQuickReplies(safeArray<string>(result.quickReplies).map((item) => safeTrim(item)).filter(Boolean).slice(0, 3));
+      setFreeTalkCorrection(safeTrim(result.correction));
+      queueUsageEvent('free_talk_turn', { length: nextText.length });
+    } catch (error) {
+      console.error(error);
+      if (freeTalkTurnIdRef.current !== turnId) {
+        return;
+      }
+      setErrorMsg(error instanceof Error ? error.message : 'Free Talk is unavailable right now.');
+    } finally {
+      if (freeTalkTurnIdRef.current === turnId) {
+        setIsFreeTalkLoading(false);
+      }
+    }
+  };
+
   const copyStoryText = async (value: string) => {
     if (!safeTrim(value)) return;
     try {
@@ -713,6 +862,34 @@ const App = () => {
       setStoryNotice('复制失败，请手动复制。');
       window.setTimeout(() => setStoryNotice(''), 1800);
     }
+  };
+
+  const addContentSource = () => {
+    const name = safeTrim(sourceNameInput);
+    const url = safeTrim(sourceUrlInput);
+    if (!name || !url) return;
+
+    const nextSource: CustomContentSource = {
+      id: Date.now().toString(),
+      name,
+      url,
+      type: sourceTypeInput,
+      description: safeTrim(sourceDescriptionInput) || undefined,
+      dateAdded: new Date().toISOString(),
+      language,
+    };
+
+    setContentSources((prev) => [nextSource, ...prev.filter((item) => item.url !== nextSource.url || item.language !== language)].slice(0, 100));
+    setSourceNameInput('');
+    setSourceUrlInput('');
+    setSourceDescriptionInput('');
+    setSourceTypeInput('both');
+    queueUsageEvent('save_content_source', { name, type: nextSource.type });
+  };
+
+  const removeContentSource = (id: string) => {
+    setContentSources((prev) => prev.filter((item) => item.id !== id));
+    queueUsageEvent('remove_content_source', { id });
   };
 
   const openSecondaryModule = (target: 'listening' | 'reading' | 'writing' | 'exams') => {
@@ -752,14 +929,17 @@ const App = () => {
 
   const loadDailyContent = async (type: 'reading' | 'listening') => {
     setDailyContent(null);
+    const customSourcesForType = contentSources.filter(
+      (item) => item.language === language && (item.type === type || item.type === 'both')
+    );
     try {
       if (type === 'reading') {
-        const data = await AIService.getReadingSuggestions('Intermediate', language);
+        const data = await AIService.getReadingSuggestions('Intermediate', language, customSourcesForType);
         const nextItem = Array.isArray(data) ? normalizeDailyContent(data.find(Boolean) || null) : null;
         setDailyContent(nextItem || null);
         if (nextItem) queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
       } else {
-        const data = normalizeDailyContent(await AIService.getDailyListeningContent(language, seenTitles));
+        const data = normalizeDailyContent(await AIService.getDailyListeningContent(language, seenTitles, customSourcesForType));
         if (!data) {
           setDailyContent(null);
           return;
@@ -808,6 +988,13 @@ const App = () => {
     }
   };
 
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
   const stopCurrentSpeechPlayback = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -823,6 +1010,7 @@ const App = () => {
   };
 
   const stopRecorder = async () => {
+    clearSilenceTimer();
     const recorder = recorderRef.current;
     recorderRef.current = null;
     if (!recorder) return;
@@ -961,6 +1149,17 @@ const App = () => {
     stopCurrentSpeechPlayback();
     setIsListening(false);
     setSpeechDraft('');
+    setSpeakingTrack(null);
+    speechDetectedRef.current = false;
+    freeTalkTurnIdRef.current = Date.now();
+    setFreeTalkMessages([]);
+    setFreeTalkInput('');
+    setFreeTalkCorrection('');
+    setFreeTalkQuickReplies([
+      'Tell me about your day.',
+      'What are you working on lately?',
+      'How are you feeling right now?',
+    ]);
     setStoryStage('choose_mode');
     setStoryTranscript('');
     setStoryResult(null);
@@ -971,6 +1170,7 @@ const App = () => {
   const enterSpeakingMode = async () => {
     setIsLaunchingSpeaking(true);
     setErrorMsg(null);
+    setSpeakingTrack(null);
     setStoryStage('choose_mode');
     setStoryTranscript('');
     setStoryResult(null);
@@ -992,6 +1192,8 @@ const App = () => {
   const stopVoiceInput = async (completion: 'story_pause' | 'story_finish' | 'chat' = 'chat') => {
     const hasRecording = recordedChunksRef.current.length > 0;
     holdTriggeredRef.current = false;
+    clearSilenceTimer();
+    speechDetectedRef.current = false;
     setIsListening(false);
     setSpeechDraft(hasRecording ? 'Transcribing your speech...' : '');
 
@@ -1004,16 +1206,27 @@ const App = () => {
 
     try {
       const audioBase64 = getRecordedAudioBase64();
-      const asrLanguage = mode === AppMode.SPEAKING ? (storyMode === 'en' ? 'English' : 'Chinese') : language;
+      const asrLanguage =
+        mode === AppMode.SPEAKING
+          ? speakingTrack === 'story'
+            ? storyMode === 'en'
+              ? 'English'
+              : 'Chinese'
+            : 'English'
+          : language;
       const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, asrLanguage);
       const finalText = safeTrim(transcript);
       setSpeechDraft('');
       recordedChunksRef.current = [];
       if (finalText) {
         if (mode === AppMode.SPEAKING) {
-          setStoryTranscript((prev) => [safeTrim(prev), finalText].filter(Boolean).join('\n\n'));
-          if (completion === 'story_finish') {
-            setStoryStage('review');
+          if (speakingTrack === 'story') {
+            setStoryTranscript((prev) => [safeTrim(prev), finalText].filter(Boolean).join('\n\n'));
+            if (completion === 'story_finish') {
+              setStoryStage('review');
+            }
+          } else if (speakingTrack === 'chat') {
+            void handleSubmitFreeTalk(finalText);
           }
         }
       }
@@ -1037,6 +1250,13 @@ const App = () => {
     }
     if (isListening) return;
 
+    if (mode === AppMode.SPEAKING && speakingTrack === 'chat') {
+      stopCurrentSpeechPlayback();
+      freeTalkTurnIdRef.current = Date.now();
+      setIsFreeTalkLoading(false);
+      speechDetectedRef.current = false;
+    }
+
     if (!mediaStreamRef.current) {
       try {
         mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1056,6 +1276,7 @@ const App = () => {
 
     recordedChunksRef.current = [];
     recordingSampleRateRef.current = audioContext.sampleRate;
+    speechDetectedRef.current = false;
     processor.onaudioprocess = (event) => {
       const channelData = event.inputBuffer.getChannelData(0);
       recordedChunksRef.current.push(new Float32Array(channelData));
@@ -1071,9 +1292,44 @@ const App = () => {
       processor,
       zeroGain,
     };
+
+    const scheduleChatAutoStop = () => {
+      if (mode !== AppMode.SPEAKING || speakingTrack !== 'chat') return;
+      clearSilenceTimer();
+      silenceTimerRef.current = window.setTimeout(() => {
+        if (recorderRef.current && speechDetectedRef.current) {
+          void stopVoiceInput('chat');
+        }
+      }, 1200);
+    };
+
     setErrorMsg(null);
     setIsListening(true);
-    setSpeechDraft(mode === AppMode.SPEAKING ? '正在录音，讲讲今天发生的一件事...' : 'Listening...');
+    setSpeechDraft(
+      mode === AppMode.SPEAKING
+        ? speakingTrack === 'chat'
+          ? 'Listening... speak naturally and I will reply right after you stop.'
+          : '正在录音，讲讲今天发生的一件事...'
+        : 'Listening...'
+    );
+
+    if (mode === AppMode.SPEAKING && speakingTrack === 'chat') {
+      processor.onaudioprocess = (event) => {
+        const channelData = event.inputBuffer.getChannelData(0);
+        recordedChunksRef.current.push(new Float32Array(channelData));
+
+        let energy = 0;
+        for (let index = 0; index < channelData.length; index += 1) {
+          energy += channelData[index] * channelData[index];
+        }
+        const rms = Math.sqrt(energy / channelData.length);
+        if (rms > 0.015) {
+          speechDetectedRef.current = true;
+          scheduleChatAutoStop();
+        }
+      };
+      return;
+    }
   };
 
   useEffect(() => {
@@ -1087,6 +1343,7 @@ const App = () => {
       const stored = window.localStorage.getItem(WRITING_STORAGE_KEY);
       const storedDiaries = window.localStorage.getItem(DIARY_STORAGE_KEY);
       const storedStories = window.localStorage.getItem(STORY_STORAGE_KEY);
+      const storedContentSources = window.localStorage.getItem(CONTENT_SOURCE_STORAGE_KEY);
       const storedReminder = window.localStorage.getItem(STORY_REMINDER_KEY);
       if (storedVocab) {
         setVocabList(safeArray<Partial<VocabItem>>(JSON.parse(storedVocab)).map(normalizeVocabItem).filter(Boolean) as VocabItem[]);
@@ -1103,6 +1360,9 @@ const App = () => {
       if (storedStories) {
         setStoryEntries(safeArray<Partial<TodayStoryEntry>>(JSON.parse(storedStories)).map(normalizeStoryEntry).filter(Boolean) as TodayStoryEntry[]);
       }
+      if (storedContentSources) {
+        setContentSources(safeArray<Partial<CustomContentSource>>(JSON.parse(storedContentSources)).map(normalizeContentSource).filter(Boolean) as CustomContentSource[]);
+      }
       if (storedReminder) {
         setStoryReminder(storedReminder);
       }
@@ -1112,17 +1372,48 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const clipText = safeTrim(params.get('clipText'));
+    const clipType = safeTrim(params.get('clipType'));
+    const clipSource = safeTrim(params.get('clipSource')) || 'Web Clip';
+    if (!clipText || (clipType !== 'word' && clipType !== 'sentence')) {
+      return;
+    }
+
+    if (clipType === 'word') {
+      void addToVocab(clipText, clipSource);
+      setStoryNotice(`已从浏览器插件保存单词：${clipText}`);
+      setActiveTab('vocab');
+    } else {
+      saveSentence(clipText);
+      setStoryNotice('已从浏览器插件保存句子。');
+      setActiveTab('sentences');
+    }
+    setSidebarOpen(true);
+    window.setTimeout(() => setStoryNotice(''), 2200);
+
+    params.delete('clipText');
+    params.delete('clipType');
+    params.delete('clipSource');
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, []);
+
+  useEffect(() => {
     try {
       window.localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(vocabList));
       window.localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(sentenceList));
       window.localStorage.setItem(WRITING_STORAGE_KEY, JSON.stringify(writingEntries));
       window.localStorage.setItem(DIARY_STORAGE_KEY, JSON.stringify(diaryEntries));
       window.localStorage.setItem(STORY_STORAGE_KEY, JSON.stringify(storyEntries));
+      window.localStorage.setItem(CONTENT_SOURCE_STORAGE_KEY, JSON.stringify(contentSources));
       window.localStorage.setItem(STORY_REMINDER_KEY, storyReminder);
     } catch (error) {
       console.error('Failed to save notebook entries', error);
     }
-  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, storyReminder]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources, storyReminder]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -1246,6 +1537,7 @@ const App = () => {
         replaceLearningItems(cloudUserIdRef.current, 'writing_entry', writingEntries),
         replaceLearningItems(cloudUserIdRef.current, 'diary', diaryEntries),
         replaceLearningItems(cloudUserIdRef.current, 'story', storyEntries),
+        replaceLearningItems(cloudUserIdRef.current, 'content_source', contentSources),
       ])
         .then(() => {
           setCloudSyncStatus('synced');
@@ -1264,7 +1556,7 @@ const App = () => {
         syncTimerRef.current = null;
       }
     };
-  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources]);
 
   useEffect(() => {
     if (cloudRetryTimerRef.current) {
@@ -1687,6 +1979,12 @@ const App = () => {
                         <Mic size={22} /> 开始今天的故事
                       </button>
                       <button
+                        onClick={() => void enterFreeTalkMode()}
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-indigo-50 px-8 py-5 text-indigo-700 text-lg font-black hover:bg-indigo-100 transition-all"
+                      >
+                        <Headphones size={22} /> 直接聊几句英语
+                      </button>
+                      <button
                         onClick={openStoryLibrary}
                         className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-slate-100 px-8 py-5 text-slate-700 text-lg font-black hover:bg-slate-200 transition-all"
                       >
@@ -1777,14 +2075,28 @@ const App = () => {
               {storyNotice && <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{storyNotice}</div>}
               {errorMsg && <div className="mb-4 rounded-[1.5rem] bg-red-50 px-5 py-4 text-sm font-black text-red-600">{errorMsg}</div>}
 
-              {storyStage === 'choose_mode' && (
+              {speakingTrack === null && storyStage === 'choose_mode' && (
                 <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">Step 1</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">先选一个最容易开始的方式</h3>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">先选你今天更需要哪种口语练习</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
-                      重点不是一开始就说得多漂亮，而是把今天的一件事讲出来。
+                      如果你已经知道今天想讲什么，就走 Today Story；如果你只是想找个人直接聊几句英语，就走 Free Talk。
                     </p>
+                    <div className="mt-8 grid gap-4">
+                      <button
+                        onClick={() => void beginFreeTalk()}
+                        className="w-full rounded-[2rem] border border-indigo-100 bg-indigo-50 px-5 py-5 text-left hover:border-indigo-200 transition-all"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-lg font-black text-slate-900">Free Talk</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">不知道说什么也没关系，先和 AI 直接聊几句英语。</p>
+                          </div>
+                          <ArrowRight className="text-indigo-500 shrink-0" />
+                        </div>
+                      </button>
+                    </div>
                     <div className="mt-8 space-y-4">
                       {(Object.keys(storyModeMeta) as TodayStoryMode[]).map((item) => (
                         <button
@@ -1832,7 +2144,7 @@ const App = () => {
                 </div>
               )}
 
-              {(storyStage === 'record' || storyStage === 'review') && (
+              {speakingTrack === 'story' && (storyStage === 'record' || storyStage === 'review') && (
                 <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -1906,7 +2218,114 @@ const App = () => {
                 </div>
               )}
 
-              {storyStage === 'result' && storyResult && (
+              {speakingTrack === 'chat' && (
+                <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                    <div className="flex flex-wrap items-center gap-3 mb-6">
+                      <span className="rounded-full bg-indigo-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-indigo-600">
+                        Free Talk
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                        Say one thing, get one reply
+                      </span>
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">直接聊，不知道说什么也可以</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                      你说一句，我就回一句，并自动用英文播报。重点是把聊天节奏跑起来，不需要先想一个完整故事。
+                    </p>
+
+                    <div className="mt-8 space-y-4 max-h-[46vh] overflow-y-auto pr-2 no-scrollbar">
+                      {freeTalkMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`rounded-[1.75rem] px-5 py-4 ${
+                            message.role === 'assistant' ? 'bg-slate-50 text-slate-800' : 'bg-kitty-500 text-white'
+                          }`}
+                        >
+                          <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-70">
+                            {message.role === 'assistant' ? 'AI partner' : 'You'}
+                          </p>
+                          <p className="text-base md:text-lg font-medium leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                        </div>
+                      ))}
+                      {isFreeTalkLoading && (
+                        <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm font-black text-slate-500">
+                          Replying...
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 rounded-[2rem] bg-slate-50 p-5 md:p-6">
+                      {speechDraft ? (
+                        <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
+                      ) : null}
+                      <textarea
+                        value={freeTalkInput}
+                        onChange={(event) => setFreeTalkInput(event.target.value)}
+                        placeholder="Say something simple... for example: Today was busy, I am a little tired, but I still wanted to practice."
+                        className="w-full min-h-[120px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
+                      />
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {!isListening ? (
+                          <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                            <Mic size={18} /> 开始说话
+                          </button>
+                        ) : (
+                          <button onClick={() => void stopVoiceInput('chat')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                            <Square size={18} /> 停止并让 AI 回复
+                          </button>
+                        )}
+                        <button
+                          onClick={() => void handleSubmitFreeTalk()}
+                          disabled={isFreeTalkLoading || !safeTrim(freeTalkInput)}
+                          className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">Start here</h4>
+                      <div className="flex flex-wrap gap-3">
+                        {freeTalkQuickReplies.map((item) => (
+                          <button
+                            key={item}
+                            onClick={() => setFreeTalkInput(item)}
+                            className="rounded-full bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-600 hover:bg-indigo-100 transition-all"
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">Tiny improvement</h4>
+                      <p className="text-base font-semibold text-slate-600 leading-relaxed">
+                        {freeTalkCorrection || 'Once you send a message, I will point out one small upgrade you can reuse in the next round.'}
+                      </p>
+                    </div>
+                    <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Good enough rule</p>
+                      <div className="space-y-3">
+                        {[
+                          '先说短句，不要追求完整。',
+                          '卡住时就先说最简单的版本。',
+                          '重点是把一来一回跑起来。',
+                        ].map((item) => (
+                          <div key={item} className="rounded-[1.5rem] bg-white px-4 py-4 text-sm font-semibold text-slate-600">
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {speakingTrack === 'story' && storyStage === 'result' && storyResult && (
                 <div className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -2087,6 +2506,80 @@ const App = () => {
           {(mode === AppMode.LISTENING || mode === AppMode.READING) && (
             <div className="h-full p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className={`bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-10 lg:p-16 shadow-2xl h-full flex flex-col border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'} overflow-hidden`}>
+                <div className="mb-6 md:mb-8 rounded-[2rem] border border-slate-100 bg-slate-50/80 p-5 md:p-6">
+                  <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">My sources</p>
+                      <h3 className="text-xl md:text-2xl font-black text-slate-900">
+                        {mode === AppMode.LISTENING ? '自定义你的听力信息源' : '自定义你的阅读信息源'}
+                      </h3>
+                      <p className="mt-2 text-sm md:text-base font-semibold text-slate-500 max-w-2xl">
+                        加上你自己常看的播客、网站或专栏之后，后面的每日素材会优先从这些源里抽，不再只用默认推荐。
+                      </p>
+                    </div>
+                    <div className="rounded-[1.5rem] bg-white px-4 py-3 text-sm font-bold text-slate-500 border border-slate-100">
+                      当前已启用 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个源
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1.2fr_0.9fr_auto]">
+                    <input
+                      value={sourceNameInput}
+                      onChange={(event) => setSourceNameInput(event.target.value)}
+                      placeholder={mode === AppMode.LISTENING ? '比如 Lenny’s Podcast' : '比如 Stratechery'}
+                      className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                    />
+                    <input
+                      value={sourceUrlInput}
+                      onChange={(event) => setSourceUrlInput(event.target.value)}
+                      placeholder="https://..."
+                      className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                    />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select
+                        value={sourceTypeInput}
+                        onChange={(event) => setSourceTypeInput(event.target.value as ContentSourceType)}
+                        className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
+                      >
+                        <option value="both">读 + 听</option>
+                        <option value="reading">只给阅读</option>
+                        <option value="listening">只给听力</option>
+                      </select>
+                      <input
+                        value={sourceDescriptionInput}
+                        onChange={(event) => setSourceDescriptionInput(event.target.value)}
+                        placeholder="补一句主题，比如 AI / 商业 / 影视"
+                        className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                      />
+                    </div>
+                    <button
+                      onClick={addContentSource}
+                      disabled={!safeTrim(sourceNameInput) || !safeTrim(sourceUrlInput)}
+                      className="rounded-[1.25rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
+                    >
+                      添加源
+                    </button>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {(mode === AppMode.LISTENING ? listeningSources : readingSources).map((item) => (
+                      <div key={item.id} className="inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-100">
+                        <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-kitty-600 transition-colors">
+                          {item.name}
+                        </a>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-kitty-500">{item.type}</span>
+                        <button onClick={() => removeContentSource(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
+                      <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
+                        还没有自定义源，当前先使用默认推荐。
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                   <div>
                     <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>

@@ -40,6 +40,18 @@ export interface DailyContent {
   source: string;
 }
 
+export type ContentSourceType = 'reading' | 'listening' | 'both';
+
+export interface CustomContentSource {
+  id: string;
+  name: string;
+  url: string;
+  type: ContentSourceType;
+  description?: string;
+  dateAdded: string;
+  language?: string;
+}
+
 export interface VideoContent {
   transcript: string;
   summary: string;
@@ -90,6 +102,19 @@ export interface TodayStoryEntry {
   comment?: string;
   tags?: string[];
   language?: string;
+}
+
+export interface FreeTalkMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface FreeTalkReply {
+  reply: string;
+  followUp?: string;
+  quickReplies?: string[];
+  correction?: string;
 }
 
 export interface DiaryEntry {

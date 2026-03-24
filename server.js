@@ -391,6 +391,67 @@ function chooseCuratedItem(items, seenTitles = []) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+function normalizeCustomSources(value, type) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      name: typeof item.name === 'string' ? item.name.trim() : '',
+      url: typeof item.url === 'string' ? item.url.trim() : '',
+      type: typeof item.type === 'string' ? item.type.trim() : 'both',
+      description: typeof item.description === 'string' ? item.description.trim() : '',
+    }))
+    .filter((item) => item.name && item.url && (item.type === type || item.type === 'both'));
+}
+
+async function buildCustomSourceContent({ language, type, level, source }) {
+  const typeLabel = type === 'listening' ? 'listening' : 'reading';
+  const contentLength = type === 'listening' ? '250-400 words' : '250-350 words';
+  const voiceLabel = type === 'listening' ? 'listening guide or transcript-style practice excerpt' : 'reading practice excerpt';
+  const learnerGoal =
+    type === 'listening'
+      ? 'help the learner follow spoken English, shadow useful lines, and summarize key points'
+      : 'help the learner skim, read closely, and collect reusable topic vocabulary';
+
+  const content = await callZhipu(
+    [
+      {
+        role: 'system',
+        content: 'You are LinguaFlow content curator. Create learner-friendly daily practice cards based on a user-selected source. Return strict JSON only.',
+      },
+      {
+        role: 'user',
+        content: `The learner is studying ${language}. Their preferred ${typeLabel} source is:
+Name: ${source.name}
+URL: ${source.url}
+Description: ${source.description || 'No extra description'}
+
+Return strict JSON with:
+- title
+- summary
+- url
+- content
+- source
+
+Rules:
+- Use exactly this URL for the url field: ${source.url}
+- Use exactly this source name for the source field: ${source.name}
+- Build a believable daily ${typeLabel} practice card inspired by the source's usual topics and tone.
+- The content should be a ${voiceLabel}, around ${contentLength}.
+- The learner level is ${level || 'Intermediate'}.
+- Keep it practical and reusable for English learners.
+- ${learnerGoal}
+- Do not mention that you are inventing or simulating anything.
+- Do not switch to a different website or source.`,
+      },
+    ],
+    true
+  );
+
+  return parseJson(content);
+}
+
 
 async function handleAiRequest(req, res) {
   try {
@@ -407,6 +468,16 @@ async function handleAiRequest(req, res) {
       case 'dailyListening': {
         const language = String(payload.language || 'English');
         const seenTitles = Array.isArray(payload.seenTitles) ? payload.seenTitles.join(', ') : '';
+        const customSources = normalizeCustomSources(payload.customSources, 'listening');
+        if (customSources.length) {
+          const source = customSources[Math.floor(Math.random() * customSources.length)];
+          const result = await buildCustomSourceContent({
+            language,
+            type: 'listening',
+            source,
+          });
+          return sendJson(res, 200, result);
+        }
         if (language === 'English') {
           return sendJson(res, 200, chooseCuratedItem(CURATED_LISTENING_RESOURCES, Array.isArray(payload.seenTitles) ? payload.seenTitles : []));
         }
@@ -428,6 +499,17 @@ async function handleAiRequest(req, res) {
       case 'readingSuggestions': {
         const language = String(payload.language || 'English');
         const level = String(payload.level || 'Intermediate');
+        const customSources = normalizeCustomSources(payload.customSources, 'reading');
+        if (customSources.length) {
+          const source = customSources[Math.floor(Math.random() * customSources.length)];
+          const result = await buildCustomSourceContent({
+            language,
+            type: 'reading',
+            level,
+            source,
+          });
+          return sendJson(res, 200, [result]);
+        }
         if (language === 'English') {
           return sendJson(res, 200, [chooseCuratedItem(CURATED_READING_RESOURCES)]);
         }
@@ -512,6 +594,42 @@ Rules:
 - Do not make it sound too advanced or like a different person wrote it.
 - The rewritten version should feel easy to retell aloud in an interview, exam, or daily chat.
 - keyPhrases should be genuinely useful chunks from the rewritten story, not generic textbook phrases.`,
+            },
+          ],
+          true
+        );
+        return sendJson(res, 200, parseJson(content));
+      }
+      case 'freeTalk': {
+        const language = String(payload.language || 'English');
+        const userMessage = String(payload.userMessage || '');
+        const history = Array.isArray(payload.history) ? payload.history.slice(-8) : [];
+        const content = await callZhipu(
+          [
+            {
+              role: 'system',
+              content: `You are LinguaFlow Free Talk Coach. Have a warm, natural, low-pressure spoken English conversation with a Chinese learner.
+Return strict JSON only with:
+- reply
+- followUp
+- quickReplies (array of 2 to 3 short starter ideas)
+- correction
+
+Rules:
+- Sound like a friendly real person, not a teacher or rubric.
+- Keep reply extremely short: ideally 1 short sentence, maximum 2.
+- Ask one follow-up question at most.
+- Help the learner keep talking even if they feel they have nothing to say.
+- If the learner's English is rough, answer kindly and keep the chat moving.
+- correction should be optional, short, and only include one tiny upgrade they can reuse.
+- quickReplies should be short, everyday prompts like "Tell me about your day" or "What are you working on?".
+- The main conversation language should be English, but correction can use a little Chinese if helpful.
+- The learner UI language is ${language}.`,
+            },
+            {
+              role: 'user',
+              content: `Recent conversation: ${JSON.stringify(history)}
+Latest learner message: ${userMessage || 'Start the conversation and help me begin.'}`,
             },
           ],
           true

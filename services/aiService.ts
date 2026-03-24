@@ -1,5 +1,8 @@
 import {
+  CustomContentSource,
   DailyContent,
+  FreeTalkMessage,
+  FreeTalkReply,
   WritingFeedback,
   VocabItem,
   TodayStoryMode,
@@ -12,6 +15,7 @@ type AiAction =
   | "writingTopic"
   | "analyzeWriting"
   | "todayStory"
+  | "freeTalk"
   | "vocabContext";
 
 export const synthesizeSpeech = async (
@@ -74,10 +78,11 @@ async function callAI<T>(action: AiAction, payload: Record<string, unknown>): Pr
 
 export const getDailyListeningContent = async (
   language: string,
-  seenTitles: string[] = []
+  seenTitles: string[] = [],
+  customSources: CustomContentSource[] = []
 ): Promise<DailyContent> => {
   try {
-    return await callAI<DailyContent>("dailyListening", { language, seenTitles });
+    return await callAI<DailyContent>("dailyListening", { language, seenTitles, customSources });
   } catch {
     return {
       title: "The Art of Learning",
@@ -91,10 +96,11 @@ export const getDailyListeningContent = async (
 
 export const getReadingSuggestions = async (
   level: string,
-  language: string
+  language: string,
+  customSources: CustomContentSource[] = []
 ): Promise<DailyContent[]> => {
   try {
-    return await callAI<DailyContent[]>("readingSuggestions", { level, language });
+    return await callAI<DailyContent[]>("readingSuggestions", { level, language, customSources });
   } catch {
     return [];
   }
@@ -118,6 +124,14 @@ export const generateTodayStory = async (
   language: string
 ): Promise<TodayStoryResult> => {
   return callAI<TodayStoryResult>("todayStory", { transcript, mode, language });
+};
+
+export const generateFreeTalkReply = async (
+  language: string,
+  history: FreeTalkMessage[],
+  userMessage: string
+): Promise<FreeTalkReply> => {
+  return callAI<FreeTalkReply>("freeTalk", { language, history, userMessage });
 };
 
 export const generateVocabContext = async (
