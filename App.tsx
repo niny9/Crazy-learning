@@ -397,6 +397,7 @@ const App = () => {
     'How are you feeling right now?',
   ]);
   const [freeTalkCorrection, setFreeTalkCorrection] = useState('');
+  const [freeTalkImprovements, setFreeTalkImprovements] = useState<string[]>([]);
   const [isFreeTalkLoading, setIsFreeTalkLoading] = useState(false);
   const [contentSources, setContentSources] = useState<CustomContentSource[]>([]);
   const [sourceNameInput, setSourceNameInput] = useState('');
@@ -823,6 +824,7 @@ const App = () => {
     setFreeTalkMessages(nextHistory);
     setFreeTalkInput('');
     setFreeTalkCorrection('');
+    setFreeTalkImprovements([]);
     setIsFreeTalkLoading(true);
     setErrorMsg(null);
 
@@ -845,6 +847,12 @@ const App = () => {
       }
       setFreeTalkQuickReplies(safeArray<string>(result.quickReplies).map((item) => safeTrim(item)).filter(Boolean).slice(0, 3));
       setFreeTalkCorrection(safeTrim(result.correction));
+      setFreeTalkImprovements(
+        safeArray<string>(result.improvements)
+          .map((item) => safeTrim(item))
+          .filter(Boolean)
+          .slice(0, 2)
+      );
       queueUsageEvent('free_talk_turn', { length: nextText.length });
     } catch (error) {
       console.error(error);
@@ -879,7 +887,7 @@ const App = () => {
 
       const accessToken = await getSupabaseAccessToken();
       if (!accessToken) {
-        throw new Error('Please sign in again before generating your plugin token.');
+        throw new Error('请先重新登录，再生成插件连接码。');
       }
 
       const response = await fetch('/api/clipper/token', {
@@ -891,13 +899,13 @@ const App = () => {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok || typeof data?.clipperToken !== 'string') {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to generate plugin token');
+        throw new Error(typeof data?.error === 'string' ? data.error : '生成插件连接码失败');
       }
 
       setClipperToken(data.clipperToken);
-      setClipperTokenMessage('Plugin token is ready. Copy it into the Chrome extension.');
+      setClipperTokenMessage('插件连接码已生成，复制到 Chrome 插件里就能直接保存。');
     } catch (error) {
-      setClipperTokenMessage(error instanceof Error ? error.message : 'Failed to generate plugin token');
+      setClipperTokenMessage(error instanceof Error ? error.message : '生成插件连接码失败');
     } finally {
       setIsGeneratingClipperToken(false);
     }
@@ -907,9 +915,9 @@ const App = () => {
     if (!clipperToken) return;
     try {
       await navigator.clipboard.writeText(clipperToken);
-      setClipperTokenMessage('Plugin token copied.');
+      setClipperTokenMessage('插件连接码已复制。');
     } catch {
-      setClipperTokenMessage('Copy failed. Please copy it manually.');
+      setClipperTokenMessage('复制失败，请手动复制。');
     }
   };
 
@@ -1989,7 +1997,7 @@ const App = () => {
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Chrome Clipper</p>
                       <p className="text-sm text-slate-500 font-medium">
-                        Generate your personal plugin token once, then paste it into the extension popup.
+                        先生成你的插件连接码，再粘到 Chrome 插件里。之后插件就能直接把单词和句子存进你的账号。
                       </p>
                     </div>
                     <button
@@ -1997,19 +2005,19 @@ const App = () => {
                       disabled={isGeneratingClipperToken}
                       className="rounded-full bg-kitty-500 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
                     >
-                      {isGeneratingClipperToken ? 'Generating...' : 'Generate token'}
+                      {isGeneratingClipperToken ? '生成中...' : '生成连接码'}
                     </button>
                   </div>
                   {clipperToken && (
                     <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4 border border-kitty-100">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Plugin token</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">插件连接码</p>
                       <div className="flex flex-col gap-3 md:flex-row md:items-center">
                         <code className="flex-1 break-all text-xs leading-6 text-slate-600">{clipperToken}</code>
                         <button
                           onClick={() => void copyClipperToken()}
                           className="rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white"
                         >
-                          Copy
+                          复制
                         </button>
                       </div>
                     </div>
@@ -2399,10 +2407,27 @@ const App = () => {
                       </div>
                     </div>
                     <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">Tiny improvement</h4>
-                      <p className="text-base font-semibold text-slate-600 leading-relaxed">
-                        {freeTalkCorrection || 'Once you send a message, I will point out one small upgrade you can reuse in the next round.'}
-                      </p>
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">Better ways to say it</h4>
+                      <div className="space-y-4">
+                        {freeTalkImprovements.length ? (
+                          freeTalkImprovements.map((item, index) => (
+                            <div key={`${index}-${item}`} className="rounded-[1.5rem] bg-slate-50 px-4 py-4">
+                              <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{index + 1}</p>
+                              <p className="text-base font-semibold text-slate-700 leading-relaxed">{item}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-base font-semibold text-slate-600 leading-relaxed">
+                            Once you send a message, I will give you 1 to 2 stronger versions so you can reuse them next time.
+                          </p>
+                        )}
+                        {freeTalkCorrection ? (
+                          <div className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
+                            <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Coach note</p>
+                            <p className="text-sm font-semibold text-kitty-700 leading-relaxed">{freeTalkCorrection}</p>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Good enough rule</p>

@@ -77,7 +77,7 @@ const bootstrap = async () => {
         updatedAt: Date.now(),
       },
     });
-    setStatus("Selection captured from current page.");
+    setStatus("已读取当前网页的选中内容。");
   }
 };
 
@@ -95,7 +95,7 @@ const saveDirectImportConfig = async () => {
 const sendSelection = async (type) => {
   const text = clipTextInput.value.trim();
   if (!text) {
-    setStatus("Please select something first.");
+    setStatus("请先在网页里选中一个单词或一句话。");
     return;
   }
 
@@ -118,14 +118,14 @@ const sendSelection = async (type) => {
     },
     (response) => {
       if (response?.ok && response?.mode === "direct") {
-        setStatus(type === "word" ? "Word saved directly." : "Sentence saved directly.");
+        setStatus(type === "word" ? "已直接存入单词本。" : "已直接存入句子库。");
         return;
       }
       if (response?.ok) {
-        setStatus(type === "word" ? "Opened LinguaFlow to finish saving." : "Opened LinguaFlow to finish saving.");
+        setStatus("已打开 LinguaFlow，继续完成保存。");
         return;
       }
-      setStatus(`Save failed: ${response?.error || "unknown error"}`);
+      setStatus(`保存失败：${response?.error || "未知错误"}`);
     }
   );
 };
@@ -136,15 +136,15 @@ clipTextInput.addEventListener("input", () => {
   clipTypeInput.value = inferClipType(clipTextInput.value);
 });
 clipTypeInput.addEventListener("change", () => {
-  setStatus(`Default type set to ${clipTypeInput.value}.`);
+  setStatus(`默认保存类型已切换为${clipTypeInput.value === "word" ? "单词" : "句子"}。`);
 });
 targetUrlInput.addEventListener("change", () => {
   void saveTargetUrl();
-  setStatus("LinguaFlow URL updated.");
+  setStatus("LinguaFlow 地址已更新。");
 });
 clipperTokenInput.addEventListener("change", () => {
   void saveDirectImportConfig();
-  setStatus("Clipper token saved.");
+  setStatus("插件连接码已保存。");
 });
 
 document.addEventListener("keydown", (event) => {

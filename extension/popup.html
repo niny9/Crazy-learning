@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LinguaFlow Clipper</title>
+    <title>LinguaFlow 划词助手</title>
     <style>
       body {
         margin: 0;
@@ -75,34 +75,34 @@
   <body>
     <div class="grid">
       <div class="card">
-        <div class="label">Current selection</div>
-        <textarea id="clipText" placeholder="Select text on a webpage, then open the popup."></textarea>
+        <div class="label">当前选中内容</div>
+        <textarea id="clipText" placeholder="先在网页里划词或划句，再打开插件。"></textarea>
         <div class="row" style="margin-top: 10px;">
           <select id="clipType">
-            <option value="word">Word</option>
-            <option value="sentence">Sentence</option>
+            <option value="word">单词</option>
+            <option value="sentence">句子</option>
           </select>
-          <input id="clipSource" placeholder="Source title" />
+          <input id="clipSource" placeholder="文章来源标题" />
         </div>
         <div class="row" style="margin-top: 10px;">
-          <button id="saveWord">Save as Word</button>
-          <button id="saveSentence" class="secondary">Save as Sentence</button>
+          <button id="saveWord">存到单词本</button>
+          <button id="saveSentence" class="secondary">存到句子库</button>
         </div>
         <div class="status" id="status"></div>
       </div>
 
       <div class="card">
-        <div class="label">LinguaFlow URL</div>
+        <div class="label">LinguaFlow 地址</div>
         <input id="targetUrl" placeholder="https://crazy-learning.onrender.com" />
-        <div class="hint" style="margin-top: 8px;">If you deploy to a custom domain later, replace it here.</div>
+        <div class="hint" style="margin-top: 8px;">如果你之后换成自己的域名，在这里改掉就行。</div>
       </div>
 
       <div class="card">
-        <div class="label">Direct save</div>
+        <div class="label">直接保存</div>
         <div class="grid">
-          <input id="clipperToken" type="password" placeholder="Your personal plugin token" />
+          <input id="clipperToken" type="password" placeholder="你的插件连接码" />
         </div>
-        <div class="hint" style="margin-top: 8px;">Generate this token inside LinguaFlow account settings once. If missing, the extension falls back to opening the site.</div>
+        <div class="hint" style="margin-top: 8px;">先去 LinguaFlow 账号弹窗里点“生成连接码”，复制后贴到这里。没填也能用，只是会退回到打开网页保存。</div>
       </div>
     </div>
     <script src="popup.js"></script>
