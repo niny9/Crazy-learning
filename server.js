@@ -21,90 +21,25 @@ const ASR_MODEL_NAME = process.env.ASR_MODEL || 'paraformer-v2';
 const DASHSCOPE_ASR_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription';
 const uploadDir = path.join(os.tmpdir(), 'linguaflow-audio');
 
-const CURATED_READING_RESOURCES = [
-  {
-    title: 'How to Build a New Habit: This is Your Strategy Guide',
-    source: 'James Clear',
-    url: 'https://jamesclear.com/habit-guide',
-    summary: 'A practical guide to habit design, ideal for reading about systems thinking, identity-based change, and consistent improvement.',
-    content:
-      'Reading preview:\n\nJames Clear explains habits as repeated decisions that shape identity over time. This piece is useful if you want natural English around productivity, routines, and self-improvement. As you read, notice how he moves from a simple definition to actionable steps. Pay attention to phrases like “start small,” “make it obvious,” and “build systems, not just goals.” After reading, try summarizing one idea in your own words and connect it to your current study routine.',
-  },
-  {
-    title: 'Product Discovery',
-    source: 'SVPG',
-    url: 'https://www.svpg.com/product-discovery/',
-    summary: 'A classic Marty Cagan article on how product teams discover solutions before building them.',
-    content:
-      'Reading preview:\n\nThis SVPG article walks through the logic of product discovery: understanding a real problem, interviewing users, prototyping quickly, and testing before shipping. It is especially useful if you care about product management vocabulary like opportunity, prototype, requirement, and user testing. While reading, track how the article builds a process from uncertainty to evidence. Then try explaining the four-week discovery cycle in simple English.',
-  },
-  {
-    title: 'All of our Product articles',
-    source: 'First Round Review',
-    url: 'https://review.firstround.com/articles/product',
-    summary: 'A curated page of product essays about PMF, decision-making, storytelling, and product leadership.',
-    content:
-      'Reading preview:\n\nThis First Round Review page is a strong entry point if you want real startup and product language. The page links to essays about product-market fit, founder judgment, organizational design, and product craft. It is useful for skimming headlines, choosing one article, and building topic vocabulary such as scale, taste, roadmap, and strategy. Start by scanning titles and choosing the one that best matches your current interest.',
-  },
-  {
-    title: 'The Proven, Reasonable and Totally Unsexy Secret to Success',
-    source: 'James Clear',
-    url: 'https://jamesclear.com/habit-creep',
-    summary: 'A readable article about continuous improvement and “habit creep,” with natural, modern nonfiction English.',
-    content:
-      'Reading preview:\n\nJames Clear uses the idea of “lifestyle creep” to introduce “habit creep,” a gentle form of continuous improvement. This article is good for learners who want accessible but polished English. Look at how the writer uses analogy to explain a mindset shift. Try collecting expressions related to progress, repetition, and long-term change, then write two sentences about your own learning habits.',
-  },
-  {
-    title: 'Product managers',
-    source: 'First Round Review',
-    url: 'https://review.firstround.com/articles/product-managers/',
-    summary: 'A hub page that gathers practical essays for PMs, from hiring and scaling to product judgment.',
-    content:
-      'Reading preview:\n\nThis page gathers product-management articles across hiring, org design, scaling, and decision-making. It is ideal if you want real workplace English used by startup operators. Skim the summaries, choose one subtopic, and practice explaining why it matters. You can also compare how different headlines frame product problems in concise business English.',
-  },
+const DEFAULT_READING_SOURCES = [
+  { name: 'Stratechery', url: 'https://stratechery.com/', type: 'reading', description: 'Deep strategy, tech, and business analysis for product-minded readers.' },
+  { name: 'First Round Review', url: 'https://review.firstround.com/', type: 'reading', description: 'Startup, product, hiring, and operator essays with practical takeaways.' },
+  { name: 'SVPG Articles', url: 'https://www.svpg.com/articles/', type: 'reading', description: 'Product management, discovery, and product leadership writing by SVPG.' },
+  { name: 'Harvard Business Review', url: 'https://hbr.org/', type: 'reading', description: 'Management, leadership, workplace, and professional communication reading.' },
+  { name: 'Farnam Street', url: 'https://fs.blog/', type: 'reading', description: 'Mental models, decision-making, and thinking-oriented longform reading.' },
+  { name: 'James Clear', url: 'https://jamesclear.com/articles', type: 'reading', description: 'Clear nonfiction about habits, growth, and self-improvement.' },
+  { name: 'Medium PM', url: 'https://medium.com/tag/product-management', type: 'reading', description: 'Product management writing and practical PM perspectives.' },
+  { name: 'Indie Hackers', url: 'https://www.indiehackers.com/', type: 'reading', description: 'Founder stories, startups, and internet business discussions.' },
 ];
 
-const CURATED_LISTENING_RESOURCES = [
-  {
-    title: 'Do things that don’t scale',
-    source: 'Masters of Scale',
-    url: 'https://mastersofscale.com/episode/brian-chesky/',
-    summary: 'Brian Chesky reflects on early Airbnb lessons and why handcrafted experiences can lead to scalable companies.',
-    content:
-      'Listening guide:\n\nIn this episode, you will hear startup language around product experience, scale, and customer obsession. Focus on expressions like “perfect experience,” “design backward,” and “what users really want.” First, listen for the big idea. Second, replay one short section and shadow the speaker’s rhythm. Finally, summarize what “doing things that do not scale” means in your own words.',
-  },
-  {
-    title: 'Build your culture like a product',
-    source: 'Masters of Scale',
-    url: 'https://mastersofscale.com/build-your-culture-like-a-product-dharmesh-shah/',
-    summary: 'Dharmesh Shah explains how culture can be intentionally designed and iterated, just like a product.',
-    content:
-      'Listening guide:\n\nThis episode is rich in workplace English: culture, transparency, buy-in, and team design. Use it if you want to get more comfortable with thoughtful business conversation rather than fast casual chat. Try listening once for structure, then once more to capture 3 key phrases you might reuse in an interview or team discussion.',
-  },
-  {
-    title: 'How Founders Hire a VP of Product',
-    source: 'a16z Podcast',
-    url: 'https://a16z.com/podcast/a16z-podcast-how-founders-hire-a-vp-of-product/',
-    summary: 'A practical discussion about hiring product leadership and defining what the role really means.',
-    content:
-      'Listening guide:\n\nThis conversation is useful if you care about startup hiring, leadership, and product orgs. Listen for phrases about ownership, integration, role definition, and common hiring mistakes. After listening, try answering: what qualities make a strong product leader, and how would you explain them in English?',
-  },
-  {
-    title: 'Building Products for Power Users',
-    source: 'a16z Podcast',
-    url: 'https://a16z.com/podcast/a16z-podcast-building-products-for-power-users/',
-    summary: 'A discussion on delighting advanced users while keeping software learnable and valuable.',
-    content:
-      'Listening guide:\n\nYou will hear language about premium products, onboarding, usability, and power-user workflows. This is a good step up from slower educational audio because it combines clear structure with native-speed product discussion. Listen for how the speakers define “power users” and how they balance delight with simplicity.',
-  },
-  {
-    title: 'Engineering a Revolution at Work',
-    source: 'a16z Podcast',
-    url: 'https://a16z.com/podcast/a16z-podcast-engineering-a-revolution-at-work/',
-    summary: 'A conversation about how workplace tools reshape managers, teams, and productivity.',
-    content:
-      'Listening guide:\n\nThis episode fits your product, tech, and workplace interests. The speakers discuss productivity tools, management, and how work changes with technology. Try listening for contrast words like “but,” “however,” and “instead,” because they often signal the most important insights in native interviews.',
-  },
+const DEFAULT_LISTENING_SOURCES = [
+  { name: "Lenny's Podcast", url: 'https://www.lennyspodcast.com/', type: 'listening', description: 'Product, growth, career, and startup interviews in conversational English.' },
+  { name: 'Masters of Scale', url: 'https://mastersofscale.com/', type: 'listening', description: 'Business, leadership, and company-building stories from founders and operators.' },
+  { name: 'Tim Ferriss Show', url: 'https://tim.blog/podcast', type: 'listening', description: 'Long-form interviews about performance, habits, work, and life.' },
+  { name: 'a16z Podcast', url: 'https://a16z.com/podcasts', type: 'listening', description: 'Tech, startup, AI, and product discussions at native speed.' },
+  { name: 'The Journal', url: 'https://www.wsj.com/podcasts/the-journal', type: 'listening', description: 'News and business storytelling for stronger listening comprehension.' },
+  { name: 'How I Built This', url: 'https://www.npr.org/podcasts/510313/how-i-built-this', type: 'listening', description: 'Founder stories and company journeys in a strong interview format.' },
+  { name: 'Look & Sound of Leadership', url: 'https://essentialcomm.com/podcast/', type: 'listening', description: 'Leadership communication and workplace speaking patterns.' },
 ];
 
 function sendJson(res, statusCode, data) {
@@ -625,7 +560,148 @@ function normalizeCustomSources(value, type) {
     .filter((item) => item.name && item.url && (item.type === type || item.type === 'both'));
 }
 
-async function buildCustomSourceContent({ language, type, level, source }) {
+function chooseCustomSource(sources, excludeUrls = []) {
+  const normalizedExcludeUrls = Array.isArray(excludeUrls)
+    ? excludeUrls.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : [];
+
+  const unseen = sources.filter((item) => !normalizedExcludeUrls.includes(item.url));
+  const pool = unseen.length ? unseen : sources;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+function stripTags(value) {
+  return decodeHtmlEntities(String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+}
+
+function normalizeAbsoluteUrl(baseUrl, href) {
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch {
+    return '';
+  }
+}
+
+function parseFeedEntries(xml, sourceUrl) {
+  const items = [];
+  const itemMatches = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+  const entryMatches = xml.match(/<entry\b[\s\S]*?<\/entry>/gi) || [];
+  const blocks = [...itemMatches, ...entryMatches];
+
+  for (const block of blocks) {
+    const titleMatch = block.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const linkMatch =
+      block.match(/<link[^>]*>([\s\S]*?)<\/link>/i) ||
+      block.match(/<link[^>]+href=["']([^"']+)["'][^>]*\/?>/i);
+
+    const title = stripTags(titleMatch?.[1] || '');
+    const url = normalizeAbsoluteUrl(sourceUrl, stripTags(linkMatch?.[1] || ''));
+    if (title && url) {
+      items.push({ title, url });
+    }
+  }
+
+  return items;
+}
+
+function parseHtmlCandidates(html, sourceUrl) {
+  const candidates = [];
+  const patterns = [
+    /<article\b[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/article>/gi,
+    /<h[1-3][^>]*>\s*<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>\s*<\/h[1-3]>/gi,
+    /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(html))) {
+      const url = normalizeAbsoluteUrl(sourceUrl, stripTags(match[1] || ''));
+      const title = stripTags(match[2] || '');
+      if (!url || !title) continue;
+      candidates.push({ title, url });
+      if (candidates.length >= 40) {
+        return candidates;
+      }
+    }
+  }
+
+  return candidates;
+}
+
+async function discoverSourceEntries(sourceUrl) {
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        'User-Agent': 'LinguaFlow/1.0 (+https://crazy-learning.onrender.com)',
+      },
+    });
+    if (!response.ok) {
+      return [];
+    }
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const body = await response.text();
+    const rawItems =
+      contentType.includes('xml') || /<(rss|feed)\b/i.test(body)
+        ? parseFeedEntries(body, sourceUrl)
+        : parseHtmlCandidates(body, sourceUrl);
+
+    const sourceHost = new URL(sourceUrl).host;
+    const seen = new Set();
+
+    return rawItems
+      .filter((item) => {
+        if (!item.url || !item.title) return false;
+        if (item.url === sourceUrl) return false;
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        try {
+          const candidateUrl = new URL(item.url);
+          if (candidateUrl.host !== sourceHost) return false;
+          if (candidateUrl.hash) candidateUrl.hash = '';
+          const pathname = candidateUrl.pathname.toLowerCase();
+          if (
+            pathname === '/' ||
+            pathname.includes('/tag/') ||
+            pathname.includes('/category/') ||
+            pathname.includes('/search') ||
+            pathname.includes('/about') ||
+            pathname.includes('/contact')
+          ) {
+            return false;
+          }
+        } catch {
+          return false;
+        }
+        return item.title.length > 8;
+      })
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+function chooseSourceEntry(entries, excludeUrls = []) {
+  const normalizedExcludeUrls = Array.isArray(excludeUrls)
+    ? excludeUrls.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : [];
+  const unseen = entries.filter((item) => !normalizedExcludeUrls.includes(item.url));
+  const pool = unseen.length ? unseen : entries;
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
+async function buildCustomSourceContent({ language, type, level, source, excludeUrls = [] }) {
   const typeLabel = type === 'listening' ? 'listening' : 'reading';
   const contentLength = type === 'listening' ? '250-400 words' : '250-350 words';
   const voiceLabel = type === 'listening' ? 'listening guide or transcript-style practice excerpt' : 'reading practice excerpt';
@@ -633,6 +709,10 @@ async function buildCustomSourceContent({ language, type, level, source }) {
     type === 'listening'
       ? 'help the learner follow spoken English, shadow useful lines, and summarize key points'
       : 'help the learner skim, read closely, and collect reusable topic vocabulary';
+  const discoveredEntries = await discoverSourceEntries(source.url);
+  const chosenEntry = chooseSourceEntry(discoveredEntries, excludeUrls);
+  const targetUrl = chosenEntry?.url || source.url;
+  const targetTitle = chosenEntry?.title || source.name;
 
   const content = await callZhipu(
     [
@@ -644,8 +724,10 @@ async function buildCustomSourceContent({ language, type, level, source }) {
         role: 'user',
         content: `The learner is studying ${language}. Their preferred ${typeLabel} source is:
 Name: ${source.name}
-URL: ${source.url}
+Source URL: ${source.url}
 Description: ${source.description || 'No extra description'}
+Selected item title: ${targetTitle}
+Selected item URL: ${targetUrl}
 
 Return strict JSON with:
 - title
@@ -655,9 +737,10 @@ Return strict JSON with:
 - source
 
 Rules:
-- Use exactly this URL for the url field: ${source.url}
+- Use exactly this URL for the url field: ${targetUrl}
 - Use exactly this source name for the source field: ${source.name}
-- Build a believable daily ${typeLabel} practice card inspired by the source's usual topics and tone.
+- Use the selected item title as the main topic anchor for this card.
+- Build a believable daily ${typeLabel} practice card inspired by the selected item and the source's usual tone.
 - The content should be a ${voiceLabel}, around ${contentLength}.
 - The learner level is ${level || 'Intermediate'}.
 - Keep it practical and reusable for English learners.
@@ -689,17 +772,26 @@ async function handleAiRequest(req, res) {
         const language = String(payload.language || 'English');
         const seenTitles = Array.isArray(payload.seenTitles) ? payload.seenTitles.join(', ') : '';
         const customSources = normalizeCustomSources(payload.customSources, 'listening');
+        const excludeUrls = Array.isArray(payload.excludeUrls) ? payload.excludeUrls : [];
         if (customSources.length) {
-          const source = customSources[Math.floor(Math.random() * customSources.length)];
+          const source = chooseCustomSource(customSources, excludeUrls);
           const result = await buildCustomSourceContent({
             language,
             type: 'listening',
             source,
+            excludeUrls,
           });
           return sendJson(res, 200, result);
         }
         if (language === 'English') {
-          return sendJson(res, 200, chooseCuratedItem(CURATED_LISTENING_RESOURCES, Array.isArray(payload.seenTitles) ? payload.seenTitles : []));
+          const source = chooseCustomSource(DEFAULT_LISTENING_SOURCES, excludeUrls);
+          const result = await buildCustomSourceContent({
+            language,
+            type: 'listening',
+            source,
+            excludeUrls,
+          });
+          return sendJson(res, 200, result);
         }
         const content = await callZhipu(
           [
@@ -720,18 +812,28 @@ async function handleAiRequest(req, res) {
         const language = String(payload.language || 'English');
         const level = String(payload.level || 'Intermediate');
         const customSources = normalizeCustomSources(payload.customSources, 'reading');
+        const excludeUrls = Array.isArray(payload.excludeUrls) ? payload.excludeUrls : [];
         if (customSources.length) {
-          const source = customSources[Math.floor(Math.random() * customSources.length)];
+          const source = chooseCustomSource(customSources, excludeUrls);
           const result = await buildCustomSourceContent({
             language,
             type: 'reading',
             level,
             source,
+            excludeUrls,
           });
           return sendJson(res, 200, [result]);
         }
         if (language === 'English') {
-          return sendJson(res, 200, [chooseCuratedItem(CURATED_READING_RESOURCES)]);
+          const source = chooseCustomSource(DEFAULT_READING_SOURCES, excludeUrls);
+          const result = await buildCustomSourceContent({
+            language,
+            type: 'reading',
+            level,
+            source,
+            excludeUrls,
+          });
+          return sendJson(res, 200, [result]);
         }
         const content = await callZhipu(
           [

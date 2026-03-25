@@ -79,10 +79,11 @@ async function callAI<T>(action: AiAction, payload: Record<string, unknown>): Pr
 export const getDailyListeningContent = async (
   language: string,
   seenTitles: string[] = [],
-  customSources: CustomContentSource[] = []
+  customSources: CustomContentSource[] = [],
+  excludeUrls: string[] = []
 ): Promise<DailyContent> => {
   try {
-    return await callAI<DailyContent>("dailyListening", { language, seenTitles, customSources });
+    return await callAI<DailyContent>("dailyListening", { language, seenTitles, customSources, excludeUrls });
   } catch {
     return {
       title: "The Art of Learning",
@@ -97,10 +98,12 @@ export const getDailyListeningContent = async (
 export const getReadingSuggestions = async (
   level: string,
   language: string,
-  customSources: CustomContentSource[] = []
+  customSources: CustomContentSource[] = [],
+  seenTitles: string[] = [],
+  excludeUrls: string[] = []
 ): Promise<DailyContent[]> => {
   try {
-    return await callAI<DailyContent[]>("readingSuggestions", { level, language, customSources });
+    return await callAI<DailyContent[]>("readingSuggestions", { level, language, customSources, seenTitles, excludeUrls });
   } catch {
     return [];
   }

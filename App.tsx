@@ -157,6 +157,36 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
   Japanese: 'ja-JP',
 };
 
+const READING_BOOKSHELF = [
+  { title: 'Inspired', author: 'Marty Cagan', note: '产品方法与 PM 思维' },
+  { title: 'The Mom Test', author: 'Rob Fitzpatrick', note: '用户访谈与验证' },
+  { title: 'Deep Work', author: 'Cal Newport', note: '深度工作与专注表达' },
+  { title: 'Atomic Habits', author: 'James Clear', note: '习惯、成长与日常非虚构' },
+  { title: 'Thinking, Fast and Slow', author: 'Daniel Kahneman', note: '思维模型与认知表达' },
+  { title: 'The Elements of Style', author: 'Strunk & White', note: '英文表达与写作基本功' },
+  { title: 'Word Power Made Easy', author: 'Norman Lewis', note: '词汇扩展与词根语感' },
+  { title: 'Steve Jobs', author: 'Walter Isaacson', note: '人物叙事与传记表达' },
+];
+
+const LISTENING_LADDER = [
+  {
+    title: 'VOA 慢速',
+    note: '先练能听懂主线，适合热身和建立信心。',
+  },
+  {
+    title: 'VOA 常速',
+    note: '开始接近真实新闻语速，练抓关键词。',
+  },
+  {
+    title: 'TED',
+    note: '结构清晰，适合练观点表达和演讲型英语。',
+  },
+  {
+    title: '母语者访谈 / 播客',
+    note: '最后进入真实聊天节奏，适合长期沉浸。',
+  },
+];
+
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const STORY_STORAGE_KEY = 'linguaflow-story-entries';
 const CONTENT_SOURCE_STORAGE_KEY = 'linguaflow-content-sources';
@@ -372,7 +402,10 @@ const App = () => {
   const [sentenceList, setSentenceList] = useState<SavedSentence[]>([]);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [dailyContent, setDailyContent] = useState<DailyContent | null>(null);
-  const [seenTitles, setSeenTitles] = useState<string[]>([]);
+  const [seenListeningTitles, setSeenListeningTitles] = useState<string[]>([]);
+  const [seenReadingTitles, setSeenReadingTitles] = useState<string[]>([]);
+  const [seenListeningUrls, setSeenListeningUrls] = useState<string[]>([]);
+  const [seenReadingUrls, setSeenReadingUrls] = useState<string[]>([]);
 
   const [writingInput, setWritingInput] = useState('');
   const [writingTopic, setWritingTopic] = useState('');
@@ -993,18 +1026,36 @@ const App = () => {
     );
     try {
       if (type === 'reading') {
-        const data = await AIService.getReadingSuggestions('Intermediate', language, customSourcesForType);
+        const data = await AIService.getReadingSuggestions(
+          'Intermediate',
+          language,
+          customSourcesForType,
+          seenReadingTitles,
+          dailyContent?.url ? [...seenReadingUrls, dailyContent.url] : seenReadingUrls
+        );
         const nextItem = Array.isArray(data) ? normalizeDailyContent(data.find(Boolean) || null) : null;
         setDailyContent(nextItem || null);
-        if (nextItem) queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
+        if (nextItem) {
+          setSeenReadingTitles((prev) => [...prev, nextItem.title || 'Untitled reading']);
+          setSeenReadingUrls((prev) => [...prev, nextItem.url || '']);
+          queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
+        }
       } else {
-        const data = normalizeDailyContent(await AIService.getDailyListeningContent(language, seenTitles, customSourcesForType));
+        const data = normalizeDailyContent(
+          await AIService.getDailyListeningContent(
+            language,
+            seenListeningTitles,
+            customSourcesForType,
+            dailyContent?.url ? [...seenListeningUrls, dailyContent.url] : seenListeningUrls
+          )
+        );
         if (!data) {
           setDailyContent(null);
           return;
         }
         setDailyContent(data);
-        setSeenTitles((prev) => [...prev, data.title || 'Untitled listening']);
+        setSeenListeningTitles((prev) => [...prev, data.title || 'Untitled listening']);
+        setSeenListeningUrls((prev) => [...prev, data.url || '']);
         queueUsageEvent('open_listening_content', { title: data.title || 'Untitled listening', source: data.source || 'Unknown source' });
       }
     } catch (error) {
@@ -2730,6 +2781,51 @@ const App = () => {
                     )}
                   </div>
                 </div>
+
+                {mode === AppMode.READING ? (
+                  <div className="mb-6 md:mb-8 rounded-[2rem] border border-orange-100 bg-orange-50/60 p-5 md:p-6">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-orange-500 mb-2">Reading bookshelf</p>
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900">英文书也给你留个入口</h3>
+                        <p className="mt-2 text-sm md:text-base font-semibold text-slate-500 max-w-2xl">
+                          这块先不做整本书抓取，先把适合你这类用户长期读的书挂出来，方便后面继续扩展成书单阅读。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {READING_BOOKSHELF.map((book) => (
+                        <div key={book.title} className="rounded-[1.5rem] bg-white px-4 py-4 border border-orange-100">
+                          <p className="text-sm font-black text-slate-900">{book.title}</p>
+                          <p className="mt-1 text-xs font-bold text-orange-500">{book.author}</p>
+                          <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">{book.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-6 md:mb-8 rounded-[2rem] border border-indigo-100 bg-indigo-50/60 p-5 md:p-6">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-indigo-500 mb-2">Listening ladder</p>
+                        <h3 className="text-xl md:text-2xl font-black text-slate-900">按难度往上走，会更有感觉</h3>
+                        <p className="mt-2 text-sm md:text-base font-semibold text-slate-500 max-w-2xl">
+                          你现在默认会抽真实播客和音频源。这条阶梯先帮用户知道自己大概在哪一档，不会一进来就迷路。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {LISTENING_LADDER.map((item, index) => (
+                        <div key={item.title} className="rounded-[1.5rem] bg-white px-4 py-4 border border-indigo-100">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-2">Level {index + 1}</p>
+                          <p className="text-sm font-black text-slate-900">{item.title}</p>
+                          <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">{item.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                   <div>
                     <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
