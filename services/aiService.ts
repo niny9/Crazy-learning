@@ -20,7 +20,7 @@ type AiAction =
 
 export const synthesizeSpeech = async (
   text: string,
-  voice = "sambert-zhide-v1"
+  voice = "sambert-eva-v1"
 ): Promise<{ audioBase64: string; mimeType: string }> => {
   const response = await fetch("/api/tts", {
     method: "POST",
@@ -137,8 +137,8 @@ export const generateFreeTalkReply = async (
 export const generateVocabContext = async (
   word: string,
   language: string
-): Promise<Pick<VocabItem, "definition" | "chineseDefinition" | "contextSentence">> => {
-  return callAI<Pick<VocabItem, "definition" | "chineseDefinition" | "contextSentence">>(
+): Promise<Pick<VocabItem, "definition" | "chineseDefinition" | "contextSentence" | "contextSentenceZh">> => {
+  return callAI<Pick<VocabItem, "definition" | "chineseDefinition" | "contextSentence" | "contextSentenceZh">>(
     "vocabContext",
     { word, language }
   );

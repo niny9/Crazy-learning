@@ -256,6 +256,7 @@ const normalizeVocabItem = (value: Partial<VocabItem> | null | undefined): Vocab
     definition: safeTrim(value.definition) || 'Definition pending.',
     chineseDefinition: safeTrim(value.chineseDefinition) || undefined,
     contextSentence: safeTrim(value.contextSentence) || 'No context sentence yet.',
+    contextSentenceZh: safeTrim(value.contextSentenceZh) || undefined,
     sourceUrl: safeTrim(value.sourceUrl) || undefined,
     dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
     imageUrl: safeTrim(value.imageUrl) || undefined,
@@ -604,6 +605,7 @@ const App = () => {
       definition: 'Fetching...',
       chineseDefinition: '获取中...',
       contextSentence: context,
+      contextSentenceZh: context ? '例句中文示意获取中...' : undefined,
       sourceUrl: safeTrim(sourceUrl) || dailyContent?.url || undefined,
       dateAdded: new Date().toISOString(),
       language,
@@ -1141,16 +1143,31 @@ const App = () => {
 
     const preferredNames =
       targetLang === 'en'
-        ? ['Samantha', 'Ava', 'Victoria', 'Karen', 'Allison', 'Google US English', 'Microsoft Aria']
+        ? ['Microsoft Aria', 'Samantha', 'Ava', 'Victoria', 'Karen', 'Allison', 'Jenny', 'Emma', 'Google US English']
         : targetLang === 'fr'
-          ? ['Amelie', 'Thomas', 'Google francais']
-          : ['Kyoko', 'Otoya'];
+          ? ['Amelie', 'Denise', 'Google francais']
+          : ['Kyoko', 'Nanami', 'Otoya'];
 
     return (
       voices.find((voice) => preferredNames.some((name) => voice.name.includes(name))) ||
       voices.find((voice) => /female|woman|girl/i.test(voice.name)) ||
       voices[0]
     );
+  };
+
+  const shapeSpokenText = (text: string) => {
+    const normalized = safeTrim(text)
+      .replace(/\s+/g, ' ')
+      .replace(/([.!?])(?=\S)/g, '$1 ')
+      .trim();
+
+    if (!normalized) return normalized;
+
+    return normalized
+      .replace(/,\s+/g, ', ')
+      .replace(/\.\s+/g, '. ')
+      .replace(/\?\s+/g, '? ')
+      .replace(/!\s+/g, '! ');
   };
 
   const playNativeSpeech = (text: string) =>
@@ -1163,8 +1180,9 @@ const App = () => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = language === 'French' ? 'fr-FR' : language === 'Japanese' ? 'ja-JP' : 'en-US';
       utterance.voice = pickPreferredNativeVoice();
-      utterance.rate = language === 'English' ? 0.97 : 0.95;
-      utterance.pitch = language === 'English' ? 1.08 : 1;
+      utterance.rate = language === 'English' ? 1.03 : 0.98;
+      utterance.pitch = language === 'English' ? 1.18 : 1.05;
+      utterance.volume = 1;
       utterance.onend = () => resolve();
       utterance.onerror = () => reject(new Error('Native speech playback failed'));
       window.speechSynthesis.cancel();
@@ -1173,9 +1191,10 @@ const App = () => {
 
   const playGeneratedSpeech = async (text: string) => {
     if (!isVoiceOutputEnabled || !safeTrim(text)) return;
+    const spokenText = shapeSpokenText(text);
 
     if (language === 'English') {
-      await playNativeSpeech(text).catch((nativeError) => {
+      await playNativeSpeech(spokenText).catch((nativeError) => {
         console.error('Native speech playback failed', nativeError);
       });
       return;
@@ -1183,7 +1202,7 @@ const App = () => {
 
     try {
       stopCurrentSpeechPlayback();
-      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(text, 'sambert-zhide-v1');
+      const { audioBase64, mimeType } = await AIService.synthesizeSpeech(spokenText, 'sambert-eva-v1');
       const binary = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
       const blob = new Blob([binary], { type: mimeType || 'audio/mpeg' });
       const objectUrl = URL.createObjectURL(blob);
@@ -1194,7 +1213,7 @@ const App = () => {
       await audio.play();
     } catch (error) {
       console.error('Voice playback failed', error);
-      await playNativeSpeech(text).catch((nativeError) => {
+      await playNativeSpeech(spokenText).catch((nativeError) => {
         console.error('Native speech playback failed', nativeError);
       });
     }
@@ -1825,13 +1844,22 @@ const App = () => {
                     </a>
                   )}
                   <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
-                    "
-                    {activeTab === 'vocab'
-                      ? (item as VocabItem).contextSentence
-                      : activeTab === 'sentences'
-                        ? (item as SavedSentence).text
-                        : (item as DiaryEntry).content}
-                    "
+                    {activeTab === 'vocab' ? (
+                      <div className="space-y-2 not-italic">
+                        <p className="text-sm font-semibold text-slate-700 leading-relaxed">“{(item as VocabItem).contextSentence}”</p>
+                        {(item as VocabItem).contextSentenceZh ? (
+                          <p className="text-xs font-semibold text-slate-500 leading-relaxed">{(item as VocabItem).contextSentenceZh}</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <>
+                        "
+                        {activeTab === 'sentences'
+                          ? (item as SavedSentence).text
+                          : (item as DiaryEntry).content}
+                        "
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

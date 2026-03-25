@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "LinguaFlow 划词助手",
+  "version": "0.1.0",
+  "description": "把任意网页里的单词和句子保存到 LinguaFlow。",
+  "permissions": ["contextMenus", "storage", "tabs", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "LinguaFlow 划词助手",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

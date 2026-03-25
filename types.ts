@@ -15,6 +15,7 @@ export interface VocabItem {
   definition: string;
   chineseDefinition?: string;
   contextSentence: string;
+  contextSentenceZh?: string;
   sourceUrl?: string;
   dateAdded: string;
   imageUrl?: string;

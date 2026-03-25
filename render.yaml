@@ -16,7 +16,7 @@ services:
       - key: ZHIPU_API_KEY
         sync: false
       - key: TTS_MODEL
-        value: sambert-zhide-v1
+        value: sambert-eva-v1
       - key: ASR_MODEL
         value: paraformer-v2
       - key: DASHSCOPE_API_KEY

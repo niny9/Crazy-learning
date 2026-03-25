@@ -16,7 +16,7 @@ const distDir = path.join(__dirname, 'dist');
 const ZHIPU_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const MODEL_NAME = process.env.ZHIPU_MODEL || 'glm-4-flash';
 const DASHSCOPE_WS_URL = 'wss://dashscope.aliyuncs.com/api-ws/v1/inference';
-const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-zhide-v1';
+const TTS_MODEL_NAME = process.env.TTS_MODEL || 'sambert-eva-v1';
 const ASR_MODEL_NAME = process.env.ASR_MODEL || 'paraformer-v2';
 const DASHSCOPE_ASR_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription';
 const uploadDir = path.join(os.tmpdir(), 'linguaflow-audio');
@@ -429,6 +429,7 @@ function buildClipperPayload({ text, type, source, sourceUrl, language }) {
         definition: 'Fetching...',
         chineseDefinition: '获取中...',
         contextSentence: source || 'Web Clip',
+        contextSentenceZh: '例句中文示意获取中...',
         sourceUrl: sourceUrl || null,
         dateAdded: now,
         language: normalizedLanguage,
@@ -872,7 +873,7 @@ Latest learner message: ${userMessage || 'Start the conversation and help me beg
             },
             {
               role: 'user',
-              content: `Define "${word}" for a student learning ${language}. Return JSON with definition, chineseDefinition, and contextSentence. Keep the context sentence natural and advanced.`,
+              content: `Define "${word}" for a student learning ${language}. Return JSON with definition, chineseDefinition, contextSentence, and contextSentenceZh. Keep the context sentence natural and useful, and make contextSentenceZh a short natural Chinese meaning of that example sentence.`,
             },
           ],
           true
