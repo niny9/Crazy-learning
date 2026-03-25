@@ -3,10 +3,11 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import os from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 import WebSocket from 'ws';
+import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -377,6 +378,224 @@ async function fetchDashscopeTranscript(transcriptionUrl) {
   }
 
   return transcript;
+}
+
+let serverSupabaseClient = null;
+
+function getServerSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  }
+  if (!serverSupabaseClient) {
+    serverSupabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+  return serverSupabaseClient;
+}
+
+async function resolveSupabaseUserIdByEmail(email) {
+  const client = getServerSupabaseClient();
+  const { data, error } = await client.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (error) {
+    throw error;
+  }
+
+  const user = data?.users?.find((item) => item.email?.toLowerCase() === email.toLowerCase());
+  if (!user?.id) {
+    throw new Error('No Supabase user found for this email');
+  }
+
+  return user.id;
+}
+
+function buildClipperPayload({ text, type, source, sourceUrl, language }) {
+  const now = new Date().toISOString();
+  const normalizedLanguage = language || 'English';
+
+  if (type === 'word') {
+    return {
+      item_type: 'vocab',
+      item_id: randomUUID(),
+      language: normalizedLanguage,
+      payload: {
+        id: randomUUID(),
+        word: text,
+        definition: 'Fetching...',
+        chineseDefinition: '获取中...',
+        contextSentence: source || 'Web Clip',
+        sourceUrl: sourceUrl || null,
+        dateAdded: now,
+        language: normalizedLanguage,
+      },
+    };
+  }
+
+  return {
+    item_type: 'sentence',
+    item_id: randomUUID(),
+    language: normalizedLanguage,
+    payload: {
+      id: randomUUID(),
+      text,
+      source: source || 'Web Clip',
+      sourceUrl: sourceUrl || null,
+      dateAdded: now,
+      language: normalizedLanguage,
+    },
+  };
+}
+
+function getClipperSecret() {
+  const secret = process.env.CLIPPER_SHARED_SECRET;
+  if (!secret) {
+    throw new Error('Missing CLIPPER_SHARED_SECRET');
+  }
+  return secret;
+}
+
+function createClipperToken({ userId, email }) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId,
+      email,
+      issuedAt: new Date().toISOString(),
+    }),
+    'utf8'
+  ).toString('base64url');
+
+  const signature = createHmac('sha256', getClipperSecret()).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifyClipperToken(token) {
+  const [payloadPart, signaturePart] = String(token || '').trim().split('.');
+  if (!payloadPart || !signaturePart) {
+    throw new Error('Invalid clipper token');
+  }
+
+  const expectedSignature = createHmac('sha256', getClipperSecret()).update(payloadPart).digest('base64url');
+  const provided = Buffer.from(signaturePart, 'utf8');
+  const expected = Buffer.from(expectedSignature, 'utf8');
+  if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+    throw new Error('Invalid clipper token');
+  }
+
+  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));
+  if (!payload?.userId || !payload?.email) {
+    throw new Error('Invalid clipper token');
+  }
+
+  return {
+    userId: String(payload.userId),
+    email: String(payload.email),
+  };
+}
+
+async function handleClipperTokenRequest(req, res) {
+  try {
+    const authHeader = String(req.headers.authorization || '');
+    const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!accessToken) {
+      return sendJson(res, 401, { error: 'Missing access token' });
+    }
+
+    const client = getServerSupabaseClient();
+    const {
+      data: { user },
+      error,
+    } = await client.auth.getUser(accessToken);
+
+    if (error || !user?.id || !user?.email) {
+      return sendJson(res, 401, { error: 'Invalid session' });
+    }
+
+    const clipperToken = createClipperToken({ userId: user.id, email: user.email });
+    return sendJson(res, 200, {
+      clipperToken,
+      email: user.email,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown clipper token error';
+    return sendJson(res, 500, { error: message });
+  }
+}
+
+async function handleClipperImportRequest(req, res) {
+  try {
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    const clipperKey = typeof body.clipperKey === 'string' ? body.clipperKey.trim() : '';
+    const clipperToken = typeof body.clipperToken === 'string' ? body.clipperToken.trim() : '';
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const text = typeof body.text === 'string' ? body.text.trim() : '';
+    const type = body.type === 'sentence' ? 'sentence' : body.type === 'word' ? 'word' : '';
+    const source = typeof body.source === 'string' ? body.source.trim() : 'Web Clip';
+    const sourceUrl = typeof body.sourceUrl === 'string' ? body.sourceUrl.trim() : '';
+    const language = typeof body.language === 'string' ? body.language.trim() : 'English';
+
+    if (!text) {
+      return sendJson(res, 400, { error: 'Missing text' });
+    }
+
+    if (!type) {
+      return sendJson(res, 400, { error: 'Invalid clip type' });
+    }
+
+    let resolvedUserId = '';
+    let resolvedEmail = email;
+
+    if (clipperToken) {
+      const verified = verifyClipperToken(clipperToken);
+      resolvedUserId = verified.userId;
+      resolvedEmail = verified.email;
+    } else {
+      if (!process.env.CLIPPER_SHARED_SECRET) {
+        return sendJson(res, 503, { error: 'Missing CLIPPER_SHARED_SECRET on server' });
+      }
+
+      if (!clipperKey || clipperKey !== process.env.CLIPPER_SHARED_SECRET) {
+        return sendJson(res, 401, { error: 'Invalid clipper key' });
+      }
+
+      if (!resolvedEmail) {
+        return sendJson(res, 400, { error: 'Missing email' });
+      }
+
+      resolvedUserId = await resolveSupabaseUserIdByEmail(resolvedEmail);
+    }
+
+    const payload = buildClipperPayload({ text, type, source, sourceUrl, language });
+    const client = getServerSupabaseClient();
+
+    const { error } = await client.from('learning_items').upsert(
+      {
+        user_id: resolvedUserId,
+        ...payload,
+      },
+      {
+        onConflict: 'user_id,item_type,item_id',
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return sendJson(res, 200, { ok: true, itemType: payload.item_type, itemId: payload.item_id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown clipper import error';
+    return sendJson(res, 500, { error: message });
+  }
 }
 
 function parseJson(value) {
@@ -751,6 +970,14 @@ const server = createServer(async (req, res) => {
 
   if (pathname === '/api/asr' && req.method === 'POST') {
     return handleAsrRequest(req, res);
+  }
+
+  if (pathname === '/api/clipper/token' && req.method === 'POST') {
+    return handleClipperTokenRequest(req, res);
+  }
+
+  if (pathname === '/api/clipper/import' && req.method === 'POST') {
+    return handleClipperImportRequest(req, res);
   }
 
   if (pathname.startsWith('/uploads/')) {

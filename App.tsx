@@ -43,6 +43,7 @@ import * as AIService from './services/aiService';
 import {
   ensureSupabaseUser,
   fetchLearningItems,
+  getSupabaseAccessToken,
   getSupabaseUser,
   isSupabaseConfigured,
   replaceLearningItems,
@@ -414,6 +415,9 @@ const App = () => {
   const [isEmailUser, setIsEmailUser] = useState(false);
   const [isAuthChecked, setIsAuthChecked] = useState(!isSupabaseConfigured());
   const [isOtpStage, setIsOtpStage] = useState(false);
+  const [clipperToken, setClipperToken] = useState('');
+  const [clipperTokenMessage, setClipperTokenMessage] = useState('');
+  const [isGeneratingClipperToken, setIsGeneratingClipperToken] = useState(false);
 
   const [isListening, setIsListening] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
@@ -865,6 +869,47 @@ const App = () => {
       console.error(error);
       setStoryNotice('复制失败，请手动复制。');
       window.setTimeout(() => setStoryNotice(''), 1800);
+    }
+  };
+
+  const generateClipperToken = async () => {
+    try {
+      setIsGeneratingClipperToken(true);
+      setClipperTokenMessage('');
+
+      const accessToken = await getSupabaseAccessToken();
+      if (!accessToken) {
+        throw new Error('Please sign in again before generating your plugin token.');
+      }
+
+      const response = await fetch('/api/clipper/token', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || typeof data?.clipperToken !== 'string') {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to generate plugin token');
+      }
+
+      setClipperToken(data.clipperToken);
+      setClipperTokenMessage('Plugin token is ready. Copy it into the Chrome extension.');
+    } catch (error) {
+      setClipperTokenMessage(error instanceof Error ? error.message : 'Failed to generate plugin token');
+    } finally {
+      setIsGeneratingClipperToken(false);
+    }
+  };
+
+  const copyClipperToken = async () => {
+    if (!clipperToken) return;
+    try {
+      await navigator.clipboard.writeText(clipperToken);
+      setClipperTokenMessage('Plugin token copied.');
+    } catch {
+      setClipperTokenMessage('Copy failed. Please copy it manually.');
     }
   };
 
@@ -1938,6 +1983,42 @@ const App = () => {
                 <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
                   <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Current account</p>
                   <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
+                </div>
+                <div className="mt-4 rounded-[1.75rem] bg-slate-50 px-5 py-4 border border-slate-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Chrome Clipper</p>
+                      <p className="text-sm text-slate-500 font-medium">
+                        Generate your personal plugin token once, then paste it into the extension popup.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => void generateClipperToken()}
+                      disabled={isGeneratingClipperToken}
+                      className="rounded-full bg-kitty-500 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                    >
+                      {isGeneratingClipperToken ? 'Generating...' : 'Generate token'}
+                    </button>
+                  </div>
+                  {clipperToken && (
+                    <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4 border border-kitty-100">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Plugin token</p>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                        <code className="flex-1 break-all text-xs leading-6 text-slate-600">{clipperToken}</code>
+                        <button
+                          onClick={() => void copyClipperToken()}
+                          className="rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {clipperTokenMessage && (
+                    <div className="mt-3 rounded-[1rem] bg-kitty-50 px-4 py-3 text-xs font-semibold text-kitty-700">
+                      {clipperTokenMessage}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => void handleSignOut()}

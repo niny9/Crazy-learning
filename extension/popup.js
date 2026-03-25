@@ -4,6 +4,7 @@ const clipTextInput = document.getElementById("clipText");
 const clipTypeInput = document.getElementById("clipType");
 const clipSourceInput = document.getElementById("clipSource");
 const targetUrlInput = document.getElementById("targetUrl");
+const clipperTokenInput = document.getElementById("clipperToken");
 const statusNode = document.getElementById("status");
 const saveWordButton = document.getElementById("saveWord");
 const saveSentenceButton = document.getElementById("saveSentence");
@@ -54,7 +55,10 @@ const readSelectionFromActiveTab = async () => {
 
 const bootstrap = async () => {
   const storage = await chrome.storage.local.get(["linguaflowLastSelection"]);
-  const syncStorage = await chrome.storage.sync.get(["linguaFlowTargetUrl"]);
+  const syncStorage = await chrome.storage.sync.get([
+    "linguaFlowTargetUrl",
+    "linguaFlowClipperToken",
+  ]);
   const liveSelection = await readSelectionFromActiveTab();
   const fallbackSelection = storage.linguaflowLastSelection || {};
   const text = liveSelection?.text || fallbackSelection.text || "";
@@ -62,6 +66,7 @@ const bootstrap = async () => {
   clipTypeInput.value = inferClipType(text);
   clipSourceInput.value = liveSelection?.source || fallbackSelection.source || "";
   targetUrlInput.value = syncStorage.linguaFlowTargetUrl || DEFAULT_TARGET_URL;
+  clipperTokenInput.value = syncStorage.linguaFlowClipperToken || "";
 
   if (liveSelection?.text) {
     await chrome.storage.local.set({
@@ -81,6 +86,12 @@ const saveTargetUrl = async () => {
   await chrome.storage.sync.set({ linguaFlowTargetUrl: nextValue });
 };
 
+const saveDirectImportConfig = async () => {
+  await chrome.storage.sync.set({
+    linguaFlowClipperToken: clipperTokenInput.value.trim(),
+  });
+};
+
 const sendSelection = async (type) => {
   const text = clipTextInput.value.trim();
   if (!text) {
@@ -89,6 +100,7 @@ const sendSelection = async (type) => {
   }
 
   await saveTargetUrl();
+  await saveDirectImportConfig();
 
   const local = await chrome.storage.local.get(["linguaflowLastSelection"]);
   const source = clipSourceInput.value.trim() || local.linguaflowLastSelection?.source || "Web Clip";
@@ -104,8 +116,16 @@ const sendSelection = async (type) => {
         url: sourceUrl,
       },
     },
-    () => {
-      setStatus(type === "word" ? "Word sent to LinguaFlow." : "Sentence sent to LinguaFlow.");
+    (response) => {
+      if (response?.ok && response?.mode === "direct") {
+        setStatus(type === "word" ? "Word saved directly." : "Sentence saved directly.");
+        return;
+      }
+      if (response?.ok) {
+        setStatus(type === "word" ? "Opened LinguaFlow to finish saving." : "Opened LinguaFlow to finish saving.");
+        return;
+      }
+      setStatus(`Save failed: ${response?.error || "unknown error"}`);
     }
   );
 };
@@ -121,6 +141,10 @@ clipTypeInput.addEventListener("change", () => {
 targetUrlInput.addEventListener("change", () => {
   void saveTargetUrl();
   setStatus("LinguaFlow URL updated.");
+});
+clipperTokenInput.addEventListener("change", () => {
+  void saveDirectImportConfig();
+  setStatus("Clipper token saved.");
 });
 
 document.addEventListener("keydown", (event) => {

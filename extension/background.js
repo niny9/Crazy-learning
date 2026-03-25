@@ -5,6 +5,18 @@ const getTargetUrl = async () => {
   return stored.linguaFlowTargetUrl || DEFAULT_TARGET_URL;
 };
 
+const getClipperSettings = async () => {
+  const stored = await chrome.storage.sync.get([
+    "linguaFlowTargetUrl",
+    "linguaFlowClipperToken",
+  ]);
+
+  return {
+    targetUrl: stored.linguaFlowTargetUrl || DEFAULT_TARGET_URL,
+    clipperToken: stored.linguaflowClipperToken || stored.linguaFlowClipperToken || "",
+  };
+};
+
 const getBestSourceTitle = async (tab) => {
   if (!tab?.id) {
     return tab?.title || DEFAULT_TARGET_URL;
@@ -67,6 +79,50 @@ const openLinguaFlowImport = async ({ text, type, source, url: sourceUrl }) => {
   await chrome.tabs.create({ url });
 };
 
+const tryDirectImport = async ({ text, type, source, url: sourceUrl }) => {
+  const settings = await getClipperSettings();
+  if (!settings.clipperToken) {
+    return { ok: false, reason: "missing-config" };
+  }
+
+  try {
+    const endpoint = new URL("/api/clipper/import", settings.targetUrl).toString();
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        clipperToken: settings.clipperToken,
+        text,
+        type,
+        source,
+        sourceUrl,
+        language: "English",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      return { ok: false, reason: errorBody?.error || `http-${response.status}` };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : "network-error" };
+  }
+};
+
+const saveSelectionToLinguaFlow = async ({ text, type, source, url: sourceUrl }) => {
+  const directResult = await tryDirectImport({ text, type, source, url: sourceUrl });
+  if (directResult.ok) {
+    return { ok: true, mode: "direct" };
+  }
+
+  await openLinguaFlowImport({ text, type, source, url: sourceUrl });
+  return { ok: true, mode: "page", reason: directResult.reason };
+};
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "linguaflow-save-word",
@@ -85,7 +141,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!text) return;
   const type = info.menuItemId === "linguaflow-save-word" ? "word" : "sentence";
   const source = await getBestSourceTitle(tab);
-  openLinguaFlowImport({
+  await saveSelectionToLinguaFlow({
     text,
     type,
     source,
@@ -95,7 +151,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "linguaflow-save-selection") {
-    openLinguaFlowImport(message.payload).then(() => sendResponse({ ok: true }));
+    saveSelectionToLinguaFlow(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : "save-failed" }));
     return true;
   }
   return false;

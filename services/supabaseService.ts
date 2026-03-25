@@ -122,6 +122,22 @@ export const signOutSupabase = async () => {
   }
 };
 
+export const getSupabaseAccessToken = async (): Promise<string | null> => {
+  const client = getClient();
+  if (!client) return null;
+
+  const {
+    data: { session },
+    error,
+  } = await client.auth.getSession();
+
+  if (error) {
+    throw error;
+  }
+
+  return session?.access_token ?? null;
+};
+
 export const subscribeToAuthChanges = (callback: (event: AuthChangeEvent, session: Session | null) => void) => {
   const client = getClient();
   if (!client) {

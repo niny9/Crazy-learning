@@ -117,6 +117,7 @@ export interface FreeTalkReply {
   followUp?: string;
   quickReplies?: string[];
   correction?: string;
+  improvements?: string[];
 }
 
 export interface DiaryEntry {
