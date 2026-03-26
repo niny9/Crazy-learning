@@ -432,6 +432,7 @@ const App = () => {
   const [manualSentenceInput, setManualSentenceInput] = useState('');
   const [manualDiaryTitle, setManualDiaryTitle] = useState('');
   const [manualDiaryInput, setManualDiaryInput] = useState('');
+  const [notebookNotice, setNotebookNotice] = useState('');
 
   const [vocabList, setVocabList] = useState<VocabItem[]>([]);
   const [sentenceList, setSentenceList] = useState<SavedSentence[]>([]);
@@ -765,6 +766,94 @@ const App = () => {
     setWritingSavedNotice(`${sourceLabel} saved to Diary.`);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
     queueUsageEvent('save_diary_variant', { sourceLabel, topic: entry.topic });
+  };
+
+  const playNotebookPronunciation = async (text: string) => {
+    const spoken = safeTrim(text);
+    if (!spoken) return;
+
+    try {
+      await playNativeSpeech(spoken);
+    } catch (error) {
+      console.error(error);
+      setNotebookNotice('这个词暂时没能播出来，再试一次。');
+      window.setTimeout(() => setNotebookNotice(''), 2200);
+    }
+  };
+
+  const getCurrentNotebookItems = () =>
+    (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter(
+      (item) => item && item.language === language
+    );
+
+  const getNotebookExportMarkdown = () => {
+    const items = getCurrentNotebookItems();
+    const groups = groupNotebookItemsByDate(items);
+    const tabTitle = activeTab === 'vocab' ? 'Words' : activeTab === 'sentences' ? 'Sentences' : 'Diary';
+    const lines: string[] = [`# LinguaFlow ${tabTitle}`, '', `Language: ${language}`, `Exported at: ${new Date().toLocaleString()}`, ''];
+
+    groups.forEach((group) => {
+      lines.push(`## ${group.title || 'Unknown date'}`, '');
+      group.items.forEach((item) => {
+        if (activeTab === 'vocab') {
+          const vocab = item as VocabItem;
+          lines.push(`### ${vocab.word}`);
+          lines.push(`- 中文释义：${vocab.chineseDefinition || '暂无'}`);
+          lines.push(`- 英文释义：${vocab.definition || '暂无'}`);
+          if (safeTrim(vocab.contextSentence)) lines.push(`- 例句：${vocab.contextSentence}`);
+          if (safeTrim(vocab.contextSentenceZh)) lines.push(`- 中文示意：${vocab.contextSentenceZh}`);
+          if (safeTrim(vocab.sourceUrl)) lines.push(`- Source: ${vocab.sourceUrl}`);
+          lines.push('');
+          return;
+        }
+
+        if (activeTab === 'sentences') {
+          const sentence = item as SavedSentence;
+          lines.push(`### ${sentence.source || 'Saved sentence'}`);
+          lines.push(sentence.text);
+          if (safeTrim(sentence.sourceUrl)) lines.push('', `Source: ${sentence.sourceUrl}`);
+          lines.push('');
+          return;
+        }
+
+        const diary = item as DiaryEntry;
+        lines.push(`### ${diary.title}`);
+        lines.push(`- 标签：${diary.sourceLabel}`);
+        lines.push('', diary.content, '');
+      });
+    });
+
+    return lines.join('\n').trim();
+  };
+
+  const copyNotebookExport = async () => {
+    const markdown = getNotebookExportMarkdown();
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setNotebookNotice('已复制成 Markdown，可以直接贴到 Notion。');
+      window.setTimeout(() => setNotebookNotice(''), 2200);
+    } catch (error) {
+      console.error(error);
+      setNotebookNotice('复制失败了，你再试一次。');
+      window.setTimeout(() => setNotebookNotice(''), 2200);
+    }
+  };
+
+  const downloadNotebookExport = () => {
+    const markdown = getNotebookExportMarkdown();
+    const tabTitle = activeTab === 'vocab' ? 'words' : activeTab === 'sentences' ? 'sentences' : 'diary';
+    const filename = `linguaflow-${tabTitle}-${language.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.md`;
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotebookNotice('Markdown 已下载，直接拖进 Obsidian 就行。');
+    window.setTimeout(() => setNotebookNotice(''), 2200);
   };
 
   const storyModeMeta: Record<TodayStoryMode, { title: string; description: string }> = {
@@ -1817,6 +1906,25 @@ const App = () => {
               </button>
             ))}
           </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => void copyNotebookExport()}
+              className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-kitty-600 border border-kitty-100 hover:border-kitty-200"
+            >
+              复制到 Notion
+            </button>
+            <button
+              onClick={downloadNotebookExport}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-xs font-black text-white hover:bg-slate-800"
+            >
+              下载 .md 到 Obsidian
+            </button>
+          </div>
+          {notebookNotice && (
+            <div className="mt-4 rounded-2xl bg-kitty-50 px-4 py-3 text-xs font-semibold text-kitty-700">
+              {notebookNotice}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
@@ -1897,13 +2005,30 @@ const App = () => {
               {group.items.filter(Boolean).map((item) => (
                 <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="font-black text-slate-800 text-xl tracking-tight">
-                      {activeTab === 'vocab'
-                        ? (item as VocabItem).word || 'Untitled word'
-                        : activeTab === 'sentences'
-                          ? `${((item as SavedSentence).text || 'Untitled sentence').substring(0, 30)}...`
-                          : (item as DiaryEntry).title || 'Untitled diary'}
-                    </span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="font-black text-slate-800 text-xl tracking-tight">
+                        {activeTab === 'vocab'
+                          ? (item as VocabItem).word || 'Untitled word'
+                          : activeTab === 'sentences'
+                            ? `${((item as SavedSentence).text || 'Untitled sentence').substring(0, 30)}...`
+                            : (item as DiaryEntry).title || 'Untitled diary'}
+                      </span>
+                      {(activeTab === 'vocab' || activeTab === 'sentences') && (
+                        <button
+                          onClick={() =>
+                            void playNotebookPronunciation(
+                              activeTab === 'vocab'
+                                ? (item as VocabItem).word
+                                : (item as SavedSentence).text
+                            )
+                          }
+                          className="shrink-0 rounded-full bg-kitty-50 p-2 text-kitty-600 hover:bg-kitty-100 transition-colors"
+                          title={activeTab === 'vocab' ? '播放发音' : '朗读整句'}
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                      )}
+                    </div>
                     <button
                       onClick={() =>
                         activeTab === 'vocab'
