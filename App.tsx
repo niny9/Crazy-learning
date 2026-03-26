@@ -188,6 +188,18 @@ const STORY_REMINDER_KEY = 'linguaflow-story-reminder';
 const WAV_MIME_TYPE = 'audio/wav';
 const safeTrim = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 const safeArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? value.filter(Boolean) as T[] : []);
+const stripMarkdownArtifacts = (value: unknown) =>
+  safeTrim(value)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+    .replace(/^\s*#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, (match) => match.replace(/\*/g, ''))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 const mergeById = <T extends { id: string }>(localItems: T[], remoteItems: T[]) => {
   const merged = new Map<string, T>();
   remoteItems.filter(Boolean).forEach((item) => {
@@ -236,11 +248,11 @@ const normalizeDailyContent = (value: Partial<DailyContent> | null | undefined):
   if (!value || typeof value !== 'object') return null;
 
   return {
-    title: safeTrim(value.title) || 'Untitled content',
-    summary: safeTrim(value.summary) || 'No summary yet.',
+    title: stripMarkdownArtifacts(value.title) || 'Untitled content',
+    summary: stripMarkdownArtifacts(value.summary) || 'No summary yet.',
     url: safeTrim(value.url) || '#',
-    content: safeTrim(value.content) || 'No content available yet.',
-    source: safeTrim(value.source) || 'LinguaFlow',
+    content: stripMarkdownArtifacts(value.content) || 'No content available yet.',
+    source: stripMarkdownArtifacts(value.source) || 'LinguaFlow',
   };
 };
 
@@ -2734,105 +2746,111 @@ const App = () => {
 
           {(mode === AppMode.LISTENING || mode === AppMode.READING) && (
             <div className="h-full overflow-y-auto no-scrollbar p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className={`bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-10 lg:p-16 shadow-2xl min-h-full flex flex-col border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'}`}>
-                <div className="mb-6 md:mb-8 rounded-[2rem] border border-slate-100 bg-slate-50/80 p-5 md:p-6">
-                  <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">My sources</p>
-                      <h3 className="text-xl md:text-2xl font-black text-slate-900">
-                        {mode === AppMode.LISTENING ? '自定义你的听力信息源' : '自定义你的阅读信息源'}
-                      </h3>
-                      <p className="mt-2 text-sm md:text-base font-semibold text-slate-500 max-w-2xl">
-                        加上你自己常看的播客、网站或专栏之后，后面的每日素材会优先从这些源里抽，不再只用默认推荐。
-                      </p>
-                    </div>
-                    <div className="rounded-[1.5rem] bg-white px-4 py-3 text-sm font-bold text-slate-500 border border-slate-100">
-                      当前自定义 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个 · 默认 {mode === AppMode.LISTENING ? DEFAULT_LISTENING_SOURCE_NAMES.length : DEFAULT_READING_SOURCE_NAMES.length} 个
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1.2fr_0.9fr_auto]">
-                    <input
-                      value={sourceNameInput}
-                      onChange={(event) => setSourceNameInput(event.target.value)}
-                      placeholder={mode === AppMode.LISTENING ? '比如 Lenny’s Podcast' : '比如 Stratechery'}
-                      className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
-                    />
-                    <input
-                      value={sourceUrlInput}
-                      onChange={(event) => setSourceUrlInput(event.target.value)}
-                      placeholder="https://..."
-                      className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
-                    />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <select
-                        value={sourceTypeInput}
-                        onChange={(event) => setSourceTypeInput(event.target.value as ContentSourceType)}
-                        className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
-                      >
-                        <option value="both">读 + 听</option>
-                        <option value="reading">只给阅读</option>
-                        <option value="listening">只给听力</option>
-                      </select>
-                      <input
-                        value={sourceDescriptionInput}
-                        onChange={(event) => setSourceDescriptionInput(event.target.value)}
-                        placeholder="补一句主题，比如 AI / 商业 / 影视"
-                        className="rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
-                      />
-                    </div>
-                    <button
-                      onClick={addContentSource}
-                      disabled={!safeTrim(sourceNameInput) || !safeTrim(sourceUrlInput)}
-                      className="rounded-[1.25rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
-                    >
-                      添加源
-                    </button>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {(mode === AppMode.LISTENING ? listeningSources : readingSources).map((item) => (
-                      <div key={item.id} className="inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-100">
-                        <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-kitty-600 transition-colors">
-                          {item.name}
-                        </a>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-kitty-500">{item.type}</span>
-                        <button onClick={() => removeContentSource(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                          <X size={14} />
+              <div className={`bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-10 lg:p-16 shadow-2xl min-h-full border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'}`}>
+                <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
+                      <div>
+                        <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
+                          {dailyContent?.source || 'Curated Content'}
+                        </div>
+                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
+                        {dailyContent?.url && dailyContent.url !== '#' && (
+                          <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
+                            Open original source <ArrowRight size={16} />
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex gap-4">
+                        <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
+                          {isTTSLoading ? <RefreshCw className="animate-spin" /> : <Volume2 />}
+                        </button>
+                        <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
+                          <RefreshCw />
                         </button>
                       </div>
-                    ))}
-                    {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
-                      <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
-                        还没有自定义源，当前会直接从默认源池里抽内容。
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
-                  <div>
-                    <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
-                      {dailyContent?.source || 'Curated Content'}
                     </div>
-                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
-                    {dailyContent?.url && dailyContent.url !== '#' && (
-                      <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
-                        Open original source <ArrowRight size={16} />
-                      </a>
-                    )}
+                    <div className="overflow-y-auto no-scrollbar text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
+                      {dailyContent?.content || 'Synchronizing with external libraries...'}
+                    </div>
                   </div>
-                  <div className="flex gap-4">
-                    <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
-                      {isTTSLoading ? <RefreshCw className="animate-spin" /> : <Volume2 />}
-                    </button>
-                    <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
-                      <RefreshCw />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto pr-0 md:pr-4 lg:pr-6 no-scrollbar text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200" onMouseUp={handleTextSelection}>
-                  {dailyContent?.content || 'Synchronizing with external libraries...'}
+
+                  <aside className="space-y-5 xl:sticky xl:top-6">
+                    <div className="rounded-[2rem] border border-slate-100 bg-slate-50/80 p-5 md:p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">My sources</p>
+                          <h3 className="text-lg md:text-xl font-black text-slate-900">
+                            {mode === AppMode.LISTENING ? '自定义你的听力信息源' : '自定义你的阅读信息源'}
+                          </h3>
+                          <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">
+                            这块只是设置区。你加过之后，后面的内容会优先从这里抽。
+                          </p>
+                        </div>
+                        <div className="rounded-[1.25rem] bg-white px-3 py-2 text-xs font-bold text-slate-500 border border-slate-100">
+                          当前自定义 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个
+                          <br />
+                          默认 {mode === AppMode.LISTENING ? DEFAULT_LISTENING_SOURCE_NAMES.length : DEFAULT_READING_SOURCE_NAMES.length} 个
+                        </div>
+                      </div>
+
+                      <div className="mt-5 space-y-3">
+                        <input
+                          value={sourceNameInput}
+                          onChange={(event) => setSourceNameInput(event.target.value)}
+                          placeholder={mode === AppMode.LISTENING ? '比如 Lenny’s Podcast' : '比如 Stratechery'}
+                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                        />
+                        <input
+                          value={sourceUrlInput}
+                          onChange={(event) => setSourceUrlInput(event.target.value)}
+                          placeholder="https://..."
+                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                        />
+                        <select
+                          value={sourceTypeInput}
+                          onChange={(event) => setSourceTypeInput(event.target.value as ContentSourceType)}
+                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
+                        >
+                          <option value="both">读 + 听</option>
+                          <option value="reading">只给阅读</option>
+                          <option value="listening">只给听力</option>
+                        </select>
+                        <input
+                          value={sourceDescriptionInput}
+                          onChange={(event) => setSourceDescriptionInput(event.target.value)}
+                          placeholder="补一句主题，比如 AI / 商业 / 影视"
+                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                        />
+                        <button
+                          onClick={addContentSource}
+                          disabled={!safeTrim(sourceNameInput) || !safeTrim(sourceUrlInput)}
+                          className="w-full rounded-[1.25rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
+                        >
+                          添加源
+                        </button>
+                      </div>
+
+                      <div className="mt-4 flex max-h-48 flex-wrap gap-3 overflow-y-auto no-scrollbar">
+                        {(mode === AppMode.LISTENING ? listeningSources : readingSources).map((item) => (
+                          <div key={item.id} className="inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-100">
+                            <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-kitty-600 transition-colors">
+                              {item.name}
+                            </a>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-kitty-500">{item.type}</span>
+                            <button onClick={() => removeContentSource(item.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                        {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
+                          <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
+                            还没有自定义源，当前会直接从默认源池里抽内容。
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </aside>
                 </div>
               </div>
             </div>

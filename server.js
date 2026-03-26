@@ -745,6 +745,7 @@ Rules:
 - The learner level is ${level || 'Intermediate'}.
 - Keep it practical and reusable for English learners.
 - ${learnerGoal}
+- All fields must be plain text only. Do not use markdown, bold markers, asterisks, headings, or bullet symbols.
 - Do not mention that you are inventing or simulating anything.
 - Do not switch to a different website or source.`,
       },
@@ -801,7 +802,7 @@ async function handleAiRequest(req, res) {
             },
             {
               role: 'user',
-              content: `Find an educational, news, or TED Talk style listening practice item in ${language} suitable for intermediate-advanced learners. Avoid topics similar to: ${seenTitles || 'none'}. Return JSON with: title, summary, url, content, source. The content field should be a learner-friendly transcript or excerpt around 250-400 words.`,
+              content: `Find an educational, news, or TED Talk style listening practice item in ${language} suitable for intermediate-advanced learners. Avoid topics similar to: ${seenTitles || 'none'}. Return JSON with: title, summary, url, content, source. The content field should be a learner-friendly transcript or excerpt around 250-400 words. All fields must be plain text only with no markdown, no **, no headings, and no bullet symbols.`,
             },
           ],
           true
@@ -843,7 +844,7 @@ async function handleAiRequest(req, res) {
             },
             {
               role: 'user',
-              content: `Provide a JSON array with exactly one reading suggestion in ${language} for ${level} learners. Each item must include title, source, url, summary, and content. The content should be an original short article or adapted passage around 250-350 words.`,
+              content: `Provide a JSON array with exactly one reading suggestion in ${language} for ${level} learners. Each item must include title, source, url, summary, and content. The content should be an original short article or adapted passage around 250-350 words. All fields must be plain text only with no markdown, no **, no headings, and no bullet symbols.`,
             },
           ],
           true
