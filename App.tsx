@@ -187,6 +187,27 @@ const LISTENING_LADDER = [
   },
 ];
 
+const DEFAULT_READING_SOURCE_NAMES = [
+  'Stratechery',
+  'First Round Review',
+  'SVPG Articles',
+  'Harvard Business Review',
+  'Farnam Street',
+  'James Clear',
+  'Medium PM',
+  'Indie Hackers',
+];
+
+const DEFAULT_LISTENING_SOURCE_NAMES = [
+  "Lenny's Podcast",
+  'Masters of Scale',
+  'Tim Ferriss Show',
+  'a16z Podcast',
+  'The Journal',
+  'How I Built This',
+  'Look & Sound of Leadership',
+];
+
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const STORY_STORAGE_KEY = 'linguaflow-story-entries';
 const CONTENT_SOURCE_STORAGE_KEY = 'linguaflow-content-sources';
@@ -385,6 +406,38 @@ const normalizeStoryEntry = (value: Partial<TodayStoryEntry> | null | undefined)
     comment: safeTrim(value.comment) || undefined,
     tags: safeArray<string>(value.tags).map((item) => safeTrim(item)).filter(Boolean),
     language: safeTrim(value.language) || undefined,
+  };
+};
+
+const buildLocalFallbackContent = (
+  type: 'reading' | 'listening',
+  language: string,
+  sourceNames: string[]
+): DailyContent => {
+  const source = sourceNames[Math.floor(Math.random() * sourceNames.length)] || 'LinguaFlow';
+
+  if (type === 'listening') {
+    return {
+      title: `${source} · Quick listening fallback`,
+      source,
+      url: '#',
+      summary: 'A lightweight backup listening card while the live source refreshes.',
+      content:
+        language === 'English'
+          ? `Today’s listening fallback comes from your default source pool. Try this: listen once for the main idea, then replay and shadow one or two lines aloud. After that, summarize the speaker’s point in your own English.`
+          : `Here is a temporary listening card while we refresh your live source. Listen once for the main idea, then replay and summarize it in ${language}.`,
+    };
+  }
+
+  return {
+    title: `${source} · Quick reading fallback`,
+    source,
+    url: '#',
+    summary: 'A lightweight backup reading card while the live source refreshes.',
+    content:
+      language === 'English'
+        ? `Today’s reading fallback comes from your default source pool. Read this slowly, find three useful expressions, and then say what the main idea is in one or two sentences. The goal is not to finish fast, but to turn input into reusable English.`
+        : `Here is a temporary reading card while we refresh your live source. Read it slowly, collect a few useful phrases, and summarize the main idea in ${language}.`,
   };
 };
 
@@ -1060,6 +1113,11 @@ const App = () => {
       }
     } catch (error) {
       console.error(error);
+      const fallback =
+        type === 'reading'
+          ? buildLocalFallbackContent('reading', language, DEFAULT_READING_SOURCE_NAMES)
+          : buildLocalFallbackContent('listening', language, DEFAULT_LISTENING_SOURCE_NAMES);
+      setDailyContent(fallback);
     }
   };
 
@@ -2719,7 +2777,7 @@ const App = () => {
                       </p>
                     </div>
                     <div className="rounded-[1.5rem] bg-white px-4 py-3 text-sm font-bold text-slate-500 border border-slate-100">
-                      当前已启用 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个源
+                      当前自定义 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个 · 默认 {mode === AppMode.LISTENING ? DEFAULT_LISTENING_SOURCE_NAMES.length : DEFAULT_READING_SOURCE_NAMES.length} 个
                     </div>
                   </div>
 
@@ -2776,7 +2834,7 @@ const App = () => {
                     ))}
                     {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
                       <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
-                        还没有自定义源，当前先使用默认推荐。
+                        还没有自定义源，当前会直接从默认源池里抽内容。
                       </div>
                     )}
                   </div>
