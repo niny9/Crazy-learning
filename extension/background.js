@@ -124,15 +124,17 @@ const saveSelectionToLinguaFlow = async ({ text, type, source, url: sourceUrl })
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "linguaflow-save-word",
-    title: "保存到 LinguaFlow 单词本",
-    contexts: ["selection"],
-  });
-  chrome.contextMenus.create({
-    id: "linguaflow-save-sentence",
-    title: "保存到 LinguaFlow 句子库",
-    contexts: ["selection"],
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "linguaflow-save-word",
+      title: "保存到 LinguaFlow 单词本",
+      contexts: ["selection"],
+    });
+    chrome.contextMenus.create({
+      id: "linguaflow-save-sentence",
+      title: "保存到 LinguaFlow 句子库",
+      contexts: ["selection"],
+    });
   });
 });
 

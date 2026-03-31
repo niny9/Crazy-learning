@@ -3,7 +3,7 @@
   "name": "LinguaFlow 划词助手",
   "version": "0.1.0",
   "description": "把任意网页里的单词和句子保存到 LinguaFlow。",
-  "permissions": ["contextMenus", "storage", "tabs", "activeTab", "scripting"],
+  "permissions": ["contextMenus", "storage", "tabs", "activeTab", "scripting", "windows"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
