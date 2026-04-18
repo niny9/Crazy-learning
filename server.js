@@ -21,7 +21,8 @@ const ASR_MODEL_NAME = process.env.ASR_MODEL || 'paraformer-v2';
 const DASHSCOPE_ASR_URL = 'https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription';
 const uploadDir = path.join(os.tmpdir(), 'linguaflow-audio');
 
-const DEFAULT_READING_SOURCES = [
+const DEFAULT_READING_SOURCES = {
+  English: [
   { name: 'Stratechery', url: 'https://stratechery.com/', type: 'reading', description: 'Deep strategy, tech, and business analysis for product-minded readers.' },
   { name: 'First Round Review', url: 'https://review.firstround.com/', type: 'reading', description: 'Startup, product, hiring, and operator essays with practical takeaways.' },
   { name: 'SVPG Articles', url: 'https://www.svpg.com/articles/', type: 'reading', description: 'Product management, discovery, and product leadership writing by SVPG.' },
@@ -30,9 +31,23 @@ const DEFAULT_READING_SOURCES = [
   { name: 'James Clear', url: 'https://jamesclear.com/articles', type: 'reading', description: 'Clear nonfiction about habits, growth, and self-improvement.' },
   { name: 'Medium PM', url: 'https://medium.com/tag/product-management', type: 'reading', description: 'Product management writing and practical PM perspectives.' },
   { name: 'Indie Hackers', url: 'https://www.indiehackers.com/', type: 'reading', description: 'Founder stories, startups, and internet business discussions.' },
-];
+  ],
+  French: [
+    { name: 'RFI Savoirs', url: 'https://savoirs.rfi.fr/fr', type: 'reading', description: 'French learning articles, exercises, and current affairs reading.' },
+    { name: 'Le Monde', url: 'https://www.lemonde.fr/', type: 'reading', description: 'General French news and society reading at native level.' },
+    { name: 'France Culture', url: 'https://www.radiofrance.fr/franceculture', type: 'reading', description: 'Culture, ideas, and commentary in French.' },
+    { name: 'TV5MONDE Langue Française', url: 'https://langue-francaise.tv5monde.com/', type: 'reading', description: 'French-learning articles and comprehension materials.' },
+  ],
+  Japanese: [
+    { name: 'NHK Web Easy', url: 'https://www3.nhk.or.jp/news/easy/', type: 'reading', description: 'Easy Japanese news articles for learners.' },
+    { name: 'NHK News', url: 'https://www3.nhk.or.jp/news/', type: 'reading', description: 'Standard Japanese news reading.' },
+    { name: 'Matcha', url: 'https://matcha-jp.com/jp', type: 'reading', description: 'Japanese lifestyle, travel, and culture reading.' },
+    { name: 'Hiragana Times', url: 'https://hiraganatimes.com/', type: 'reading', description: 'Japanese culture and bilingual reading support.' },
+  ],
+};
 
-const DEFAULT_LISTENING_SOURCES = [
+const DEFAULT_LISTENING_SOURCES = {
+  English: [
   { name: "Lenny's Podcast", url: 'https://www.lennyspodcast.com/', type: 'listening', description: 'Product, growth, career, and startup interviews in conversational English.' },
   { name: 'Masters of Scale', url: 'https://mastersofscale.com/', type: 'listening', description: 'Business, leadership, and company-building stories from founders and operators.' },
   { name: 'Tim Ferriss Show', url: 'https://tim.blog/podcast', type: 'listening', description: 'Long-form interviews about performance, habits, work, and life.' },
@@ -40,7 +55,25 @@ const DEFAULT_LISTENING_SOURCES = [
   { name: 'The Journal', url: 'https://www.wsj.com/podcasts/the-journal', type: 'listening', description: 'News and business storytelling for stronger listening comprehension.' },
   { name: 'How I Built This', url: 'https://www.npr.org/podcasts/510313/how-i-built-this', type: 'listening', description: 'Founder stories and company journeys in a strong interview format.' },
   { name: 'Look & Sound of Leadership', url: 'https://essentialcomm.com/podcast/', type: 'listening', description: 'Leadership communication and workplace speaking patterns.' },
-];
+  ],
+  French: [
+    { name: 'Journal en français facile', url: 'https://francaisfacile.rfi.fr/fr/podcasts/journal-en-fran%C3%A7ais-facile/', type: 'listening', description: 'Slow and learner-friendly French news listening.' },
+    { name: 'InnerFrench', url: 'https://innerfrench.com/podcast/', type: 'listening', description: 'Natural French podcast for intermediate learners.' },
+    { name: 'Français Authentique', url: 'https://www.francaisauthentique.com/podcasts/', type: 'listening', description: 'Everyday spoken French listening.' },
+    { name: 'Easy French', url: 'https://www.easyfrench.fm/', type: 'listening', description: 'Conversational French listening practice.' },
+  ],
+  Japanese: [
+    { name: 'NHK World Easy Japanese', url: 'https://www.nhk.or.jp/lesson/en/', type: 'listening', description: 'Structured Japanese listening for learners.' },
+    { name: 'JapanesePod101', url: 'https://www.japanesepod101.com/', type: 'listening', description: 'Japanese listening and speaking practice episodes.' },
+    { name: 'Nihongo Con Teppei', url: 'https://nihongoconteppei.com/', type: 'listening', description: 'Natural Japanese podcast for learners.' },
+    { name: 'Matcha Podcast', url: 'https://matcha-jp.com/easy', type: 'listening', description: 'Easy Japanese culture and everyday topics.' },
+  ],
+};
+
+function getDefaultSourcesForLanguage(language, type) {
+  const sourceMap = type === 'reading' ? DEFAULT_READING_SOURCES : DEFAULT_LISTENING_SOURCES;
+  return sourceMap[language] || sourceMap.English;
+}
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -784,8 +817,9 @@ async function handleAiRequest(req, res) {
           });
           return sendJson(res, 200, result);
         }
-        if (language === 'English') {
-          const source = chooseCustomSource(DEFAULT_LISTENING_SOURCES, excludeUrls);
+        const defaultListeningSources = getDefaultSourcesForLanguage(language, 'listening');
+        if (defaultListeningSources.length) {
+          const source = chooseCustomSource(defaultListeningSources, excludeUrls);
           const result = await buildCustomSourceContent({
             language,
             type: 'listening',
@@ -825,8 +859,9 @@ async function handleAiRequest(req, res) {
           });
           return sendJson(res, 200, [result]);
         }
-        if (language === 'English') {
-          const source = chooseCustomSource(DEFAULT_READING_SOURCES, excludeUrls);
+        const defaultReadingSources = getDefaultSourcesForLanguage(language, 'reading');
+        if (defaultReadingSources.length) {
+          const source = chooseCustomSource(defaultReadingSources, excludeUrls);
           const result = await buildCustomSourceContent({
             language,
             type: 'reading',
@@ -931,7 +966,7 @@ Rules:
           [
             {
               role: 'system',
-              content: `You are LinguaFlow Free Talk Coach. Have a warm, natural, low-pressure spoken English conversation with a Chinese learner.
+              content: `You are LinguaFlow Free Talk Coach. Have a warm, natural, low-pressure spoken ${language} conversation with a Chinese learner.
 Return strict JSON only with:
 - reply
 - followUp
@@ -951,8 +986,8 @@ Rules:
   2. give one more upgraded version or one especially useful sentence chunk
 - If the learner message is long, improvements must still cover the main errors and awkward phrasing, not just one tiny point.
 - Keep each improvement concise but meaningful, usually 1 to 2 sentences.
-- quickReplies should be short, everyday prompts like "Tell me about your day" or "What are you working on?".
-- The main conversation language should be English, but correction can use a little Chinese if helpful.
+- quickReplies should be short, everyday prompts in ${language}.
+- The main conversation language should be ${language}, but correction can use a little Chinese if helpful.
 - The learner UI language is ${language}.`,
             },
             {
@@ -976,7 +1011,16 @@ Latest learner message: ${userMessage || 'Start the conversation and help me beg
             },
             {
               role: 'user',
-              content: `Define "${word}" for a student learning ${language}. Return JSON with definition, chineseDefinition, contextSentence, and contextSentenceZh. Keep the context sentence natural and useful, and make contextSentenceZh a short natural Chinese meaning of that example sentence.`,
+              content: `Define "${word}" for a Chinese-speaking student learning ${language}. Return JSON with definition, chineseDefinition, contextSentence, and contextSentenceZh.
+
+Rules:
+- If the target language is English, definition and contextSentence must be in English.
+- If the target language is French, definition and contextSentence must be in French.
+- If the target language is Japanese, definition and contextSentence must be in Japanese.
+- chineseDefinition must always be a short natural Chinese explanation.
+- contextSentenceZh must always be a short natural Chinese meaning of the example sentence.
+- Keep the example sentence practical and reusable.
+- Return plain text only inside the JSON fields.`,
             },
           ],
           true

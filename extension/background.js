@@ -1,8 +1,18 @@
 const DEFAULT_TARGET_URL = "https://crazy-learning.onrender.com";
 
+const normalizeTargetUrl = (value) => {
+  const candidate = (value || "").trim() || DEFAULT_TARGET_URL;
+  try {
+    const url = new URL(candidate);
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return DEFAULT_TARGET_URL;
+  }
+};
+
 const getTargetUrl = async () => {
   const stored = await chrome.storage.sync.get(["linguaFlowTargetUrl"]);
-  return stored.linguaFlowTargetUrl || DEFAULT_TARGET_URL;
+  return normalizeTargetUrl(stored.linguaFlowTargetUrl);
 };
 
 const getClipperSettings = async () => {
@@ -12,9 +22,24 @@ const getClipperSettings = async () => {
   ]);
 
   return {
-    targetUrl: stored.linguaFlowTargetUrl || DEFAULT_TARGET_URL,
+    targetUrl: normalizeTargetUrl(stored.linguaFlowTargetUrl),
     clipperToken: stored.linguaflowClipperToken || stored.linguaFlowClipperToken || "",
   };
+};
+
+const ensureContextMenus = () => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "linguaflow-save-word",
+      title: "保存到 LinguaFlow 单词本",
+      contexts: ["selection"],
+    });
+    chrome.contextMenus.create({
+      id: "linguaflow-save-sentence",
+      title: "保存到 LinguaFlow 句子库",
+      contexts: ["selection"],
+    });
+  });
 };
 
 const getBestSourceTitle = async (tab) => {
@@ -124,38 +149,39 @@ const saveSelectionToLinguaFlow = async ({ text, type, source, url: sourceUrl })
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: "linguaflow-save-word",
-      title: "保存到 LinguaFlow 单词本",
-      contexts: ["selection"],
-    });
-    chrome.contextMenus.create({
-      id: "linguaflow-save-sentence",
-      title: "保存到 LinguaFlow 句子库",
-      contexts: ["selection"],
-    });
-  });
+  ensureContextMenus();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureContextMenus();
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  const text = (info.selectionText || "").trim();
-  if (!text) return;
-  const type = info.menuItemId === "linguaflow-save-word" ? "word" : "sentence";
-  const source = await getBestSourceTitle(tab);
-  await saveSelectionToLinguaFlow({
-    text,
-    type,
-    source,
-    url: tab?.url,
-  });
+  try {
+    const text = (info.selectionText || "").trim();
+    if (!text) return;
+    const type = info.menuItemId === "linguaflow-save-word" ? "word" : "sentence";
+    const source = await getBestSourceTitle(tab);
+    await saveSelectionToLinguaFlow({
+      text,
+      type,
+      source,
+      url: tab?.url,
+    });
+  } catch (error) {
+    console.error("LinguaFlow context menu save failed", error);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "linguaflow-save-selection") {
-    saveSelectionToLinguaFlow(message.payload)
+    Promise.resolve()
+      .then(() => saveSelectionToLinguaFlow(message.payload))
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : "save-failed" }));
+      .catch((error) => {
+        console.error("LinguaFlow popup save failed", error);
+        sendResponse({ ok: false, error: error instanceof Error ? error.message : "save-failed" });
+      });
     return true;
   }
   return false;

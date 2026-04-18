@@ -82,7 +82,13 @@ const bootstrap = async () => {
 };
 
 const saveTargetUrl = async () => {
-  const nextValue = targetUrlInput.value.trim() || DEFAULT_TARGET_URL;
+  let nextValue = targetUrlInput.value.trim() || DEFAULT_TARGET_URL;
+  try {
+    nextValue = new URL(nextValue).toString().replace(/\/$/, "");
+  } catch {
+    nextValue = DEFAULT_TARGET_URL;
+  }
+  targetUrlInput.value = nextValue;
   await chrome.storage.sync.set({ linguaFlowTargetUrl: nextValue });
 };
 

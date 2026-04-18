@@ -9,7 +9,9 @@ import {
   GraduationCap,
   Headphones,
   Mic,
+  Pause,
   PenTool,
+  Play,
   Plus,
   RefreshCw,
   ShoppingBag,
@@ -140,6 +142,40 @@ const UI_LABELS: Record<string, any> = {
     connecting: 'Getting your scene ready...',
     errorMic: 'Microphone access is needed to start speaking.',
   },
+  French: {
+    welcome: 'Bienvenue 👋',
+    sub: 'Prêt(e) à pratiquer aujourd’hui ?',
+    speaking: 'Speaking',
+    listening: 'Listening',
+    reading: 'Reading',
+    writing: 'Writing',
+    exams: 'Exams',
+    notebook: 'Notebook',
+    words: 'Mots',
+    sentences: 'Phrases',
+    inspire: 'Inspire-moi',
+    check: 'Vérifier et améliorer',
+    narrate: 'Lire à voix haute',
+    connecting: 'Préparation de ton espace...',
+    errorMic: 'L’accès au micro est nécessaire pour commencer.',
+  },
+  Japanese: {
+    welcome: 'ようこそ 👋',
+    sub: '今日はどの練習から始めますか？',
+    speaking: 'Speaking',
+    listening: 'Listening',
+    reading: 'Reading',
+    writing: 'Writing',
+    exams: 'Exams',
+    notebook: 'Notebook',
+    words: '単語',
+    sentences: '文',
+    inspire: 'お題を出す',
+    check: 'チェックして整える',
+    narrate: '読み上げ',
+    connecting: '準備しています...',
+    errorMic: '話し始めるにはマイクの許可が必要です。',
+  },
 };
 
 const EXAM_RESOURCES: Record<string, any[]> = {
@@ -151,32 +187,32 @@ const EXAM_RESOURCES: Record<string, any[]> = {
   French: [{ name: 'RFI Savoirs', desc: 'Apprendre le francais', url: 'https://savoirs.rfi.fr/fr', icon: Globe, color: 'blue' }],
 };
 
+const LANGUAGE_SOURCE_HINTS: Record<string, { readingNames: string[]; listeningNames: string[]; readingPlaceholder: string; listeningPlaceholder: string }> = {
+  English: {
+    readingNames: ['Stratechery', 'First Round Review', 'SVPG Articles', 'Harvard Business Review', 'Farnam Street', 'James Clear', 'Medium PM', 'Indie Hackers'],
+    listeningNames: ["Lenny's Podcast", 'Masters of Scale', 'Tim Ferriss Show', 'a16z Podcast', 'The Journal', 'How I Built This', 'Look & Sound of Leadership'],
+    readingPlaceholder: '比如 Stratechery',
+    listeningPlaceholder: '比如 Lenny’s Podcast',
+  },
+  French: {
+    readingNames: ['RFI Savoirs', 'Le Monde', 'France Culture', 'TV5MONDE Langue Française'],
+    listeningNames: ['Journal en français facile', 'InnerFrench', 'Français Authentique', 'Easy French'],
+    readingPlaceholder: '比如 RFI Savoirs',
+    listeningPlaceholder: '比如 InnerFrench',
+  },
+  Japanese: {
+    readingNames: ['NHK Web Easy', 'NHK News', 'Matcha', 'Hiragana Times'],
+    listeningNames: ['NHK World Easy Japanese', 'JapanesePod101', 'Nihongo Con Teppei', 'Matcha Podcast'],
+    readingPlaceholder: '比如 NHK Web Easy',
+    listeningPlaceholder: '比如 Nihongo Con Teppei',
+  },
+};
+
 const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
   English: 'en-US',
   French: 'fr-FR',
   Japanese: 'ja-JP',
 };
-
-const DEFAULT_READING_SOURCE_NAMES = [
-  'Stratechery',
-  'First Round Review',
-  'SVPG Articles',
-  'Harvard Business Review',
-  'Farnam Street',
-  'James Clear',
-  'Medium PM',
-  'Indie Hackers',
-];
-
-const DEFAULT_LISTENING_SOURCE_NAMES = [
-  "Lenny's Podcast",
-  'Masters of Scale',
-  'Tim Ferriss Show',
-  'a16z Podcast',
-  'The Journal',
-  'How I Built This',
-  'Look & Sound of Leadership',
-];
 
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const STORY_STORAGE_KEY = 'linguaflow-story-entries';
@@ -398,28 +434,602 @@ const buildLocalFallbackContent = (
 ): DailyContent => {
   const source = sourceNames[Math.floor(Math.random() * sourceNames.length)] || 'LinguaFlow';
 
+  const fallbackCopy = {
+    English: {
+      listeningTitle: `${source} · Quick listening fallback`,
+      listeningSummary: 'A lightweight backup listening card while the live source refreshes.',
+      listeningContent:
+        'Today’s listening fallback comes from your default source pool. Try this: listen once for the main idea, then replay and shadow one or two lines aloud. After that, summarize the speaker’s point in your own English.',
+      readingTitle: `${source} · Quick reading fallback`,
+      readingSummary: 'A lightweight backup reading card while the live source refreshes.',
+      readingContent:
+        'Today’s reading fallback comes from your default source pool. Read this slowly, find three useful expressions, and then say what the main idea is in one or two sentences. The goal is not to finish fast, but to turn input into reusable English.',
+    },
+    French: {
+      listeningTitle: `${source} · Écoute de secours`,
+      listeningSummary: 'Une carte d’écoute provisoire pendant que nous rechargeons une source en direct.',
+      listeningContent:
+        "Voici un court support d’écoute en français pendant que nous rechargeons une vraie source. Écoute une première fois pour l’idée générale, puis une deuxième fois pour noter deux expressions utiles.",
+      readingTitle: `${source} · Lecture de secours`,
+      readingSummary: 'Une carte de lecture provisoire pendant que nous rechargeons une source en direct.',
+      readingContent:
+        "Voici un court support de lecture en français pendant que nous rechargeons une vraie source. Lis lentement, repère deux expressions utiles, puis résume l’idée principale avec une ou deux phrases simples.",
+    },
+    Japanese: {
+      listeningTitle: `${source} ・聞く練習の予備カード`,
+      listeningSummary: '実際の素材を再取得している間の一時的な聞く練習カードです。',
+      listeningContent:
+        '実際の音声素材を読み込み直している間、短い日本語の聞く練習を表示します。まず全体の意味をつかみ、そのあとでもう一度聞いて使えそうな表現を二つ拾ってみましょう。',
+      readingTitle: `${source} ・読む練習の予備カード`,
+      readingSummary: '実際の素材を再取得している間の一時的な読む練習カードです。',
+      readingContent:
+        '実際の読み物を読み込み直している間、短い日本語の読む練習を表示します。ゆっくり読んで使えそうな表現を二つ見つけ、最後に一文か二文で要点をまとめてみましょう。',
+    },
+  }[language] || {
+    listeningTitle: `${source} · Quick listening fallback`,
+    listeningSummary: 'A lightweight backup listening card while the live source refreshes.',
+    listeningContent:
+      'Here is a temporary listening card while we refresh your live source. Listen once for the main idea, then replay and summarize it in the current language.',
+    readingTitle: `${source} · Quick reading fallback`,
+    readingSummary: 'A lightweight backup reading card while the live source refreshes.',
+    readingContent:
+      'Here is a temporary reading card while we refresh your live source. Read it slowly, collect a few useful phrases, and summarize the main idea in the current language.',
+  };
+
   if (type === 'listening') {
     return {
-      title: `${source} · Quick listening fallback`,
+      title: fallbackCopy.listeningTitle,
       source,
       url: '#',
-      summary: 'A lightweight backup listening card while the live source refreshes.',
-      content:
-        language === 'English'
-          ? `Today’s listening fallback comes from your default source pool. Try this: listen once for the main idea, then replay and shadow one or two lines aloud. After that, summarize the speaker’s point in your own English.`
-          : `Here is a temporary listening card while we refresh your live source. Listen once for the main idea, then replay and summarize it in ${language}.`,
+      summary: fallbackCopy.listeningSummary,
+      content: fallbackCopy.listeningContent,
     };
   }
 
   return {
-    title: `${source} · Quick reading fallback`,
+    title: fallbackCopy.readingTitle,
     source,
     url: '#',
-    summary: 'A lightweight backup reading card while the live source refreshes.',
-    content:
-      language === 'English'
-        ? `Today’s reading fallback comes from your default source pool. Read this slowly, find three useful expressions, and then say what the main idea is in one or two sentences. The goal is not to finish fast, but to turn input into reusable English.`
-        : `Here is a temporary reading card while we refresh your live source. Read it slowly, collect a few useful phrases, and summarize the main idea in ${language}.`,
+    summary: fallbackCopy.readingSummary,
+    content: fallbackCopy.readingContent,
+  };
+};
+
+const getLanguageSourceHints = (language: string) => LANGUAGE_SOURCE_HINTS[language] || LANGUAGE_SOURCE_HINTS.English;
+
+const getFreeTalkUiText = (language: string) => {
+  if (language === 'French') {
+    return {
+      title: 'On parle librement, sans pression',
+      description: 'Tu peux parler aussi longtemps que tu veux. Quand tu as fini, clique sur arrêter et je te répondrai.',
+      placeholder: 'Dis quelque chose de simple... par exemple : Aujourd’hui, j’étais un peu fatigué, mais je voulais quand même pratiquer.',
+      startButton: 'Commencer à parler',
+      stopButton: "Arrêter et recevoir une réponse",
+      sendButton: 'Envoyer',
+      startHere: 'Pour commencer',
+      betterWays: 'Façons plus naturelles de le dire',
+      betterWaysEmpty: 'Après ton message, je te proposerai 1 ou 2 versions plus naturelles à réutiliser.',
+      coachNote: 'Petit conseil',
+      rules: [
+        'Commence par des phrases courtes.',
+        'Si tu bloques, dis simplement la version la plus facile.',
+        'Le plus important, c’est de garder le rythme du dialogue.',
+      ],
+      rulesTitle: 'Règle simple',
+      replying: 'Je te réponds...',
+    };
+  }
+
+  if (language === 'Japanese') {
+    return {
+      title: '気軽に話そう。うまくまとまっていなくても大丈夫',
+      description: '長めに話しても大丈夫です。話し終わったら停止を押してください。そのあと私が返します。',
+      placeholder: '気軽に話してみてください。例えば：今日は少し疲れていたけど、それでも練習したかったです。',
+      startButton: '話し始める',
+      stopButton: '止めて返信をもらう',
+      sendButton: '送信',
+      startHere: '最初のひと言',
+      betterWays: 'もっと自然な言い方',
+      betterWaysEmpty: '送信すると、次に使いやすい言い換えを 1〜2 個返します。',
+      coachNote: 'ワンポイント',
+      rules: [
+        'まずは短い文で大丈夫です。',
+        '詰まったら一番簡単な言い方で続けましょう。',
+        '大事なのは会話のリズムを止めないことです。',
+      ],
+      rulesTitle: '気楽にいくルール',
+      replying: '返信を考えています...',
+    };
+  }
+
+  return {
+    title: 'Just chat. It is okay if you do not know what to say yet.',
+    description: 'You can speak for as long as you want. When you finish, tap stop and I will reply right away.',
+    placeholder: 'Say something simple... for example: Today was busy, I am a little tired, but I still wanted to practice.',
+    startButton: 'Start speaking',
+    stopButton: 'Stop and let AI reply',
+    sendButton: 'Send',
+    startHere: 'Start here',
+    betterWays: 'Better ways to say it',
+    betterWaysEmpty: 'Once you send a message, I will give you 1 to 2 stronger versions so you can reuse them next time.',
+    coachNote: 'Coach note',
+    rules: [
+      'Start with short sentences.',
+      'If you get stuck, say the simplest version first.',
+      'The goal is to keep the back-and-forth going.',
+    ],
+    rulesTitle: 'Good enough rule',
+    replying: 'Replying...',
+  };
+};
+
+const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.READING) => {
+  const isListening = mode === AppMode.LISTENING;
+
+  if (language === 'French') {
+    return {
+      badgeFallback: isListening ? 'Contenu audio du jour' : 'Lecture du jour',
+      loadingTitle: isListening ? 'Recherche d’un bon support audio...' : 'Recherche d’un bon texte...',
+      loadingBody: isListening ? 'Synchronisation avec tes sources audio...' : 'Synchronisation avec tes sources de lecture...',
+      openSource: 'Ouvrir la source originale',
+      sourcePanelLabel: 'Mes sources',
+      sourcePanelTitle: isListening ? 'Tes sources audio personnalisées' : 'Tes sources de lecture personnalisées',
+      sourcePanelDesc: 'Cette zone sert à régler tes sources. Si tu en ajoutes, les prochaines recommandations viendront d’abord d’ici.',
+      sourceTypeBoth: 'Lire + écouter',
+      sourceTypeReading: 'Lecture seulement',
+      sourceTypeListening: 'Audio seulement',
+      sourceDescPlaceholder: 'Ajoute un thème, par exemple IA / business / culture',
+      addSource: 'Ajouter cette source',
+      noCustomSource: 'Aucune source personnalisée pour l’instant. Nous utiliserons directement le pool par défaut.',
+      pauseTitle: 'Pause',
+      resumeTitle: 'Reprendre',
+      playTitle: 'Lancer la lecture',
+    };
+  }
+
+  if (language === 'Japanese') {
+    return {
+      badgeFallback: isListening ? '今日の聞く素材' : '今日の読む素材',
+      loadingTitle: isListening ? 'ぴったりの音声素材を探しています...' : 'ぴったりの読み物を探しています...',
+      loadingBody: isListening ? '音声ソースと同期しています...' : '読み物ソースと同期しています...',
+      openSource: '元の記事を開く',
+      sourcePanelLabel: 'My sources',
+      sourcePanelTitle: isListening ? '聞く素材の情報源を自分で追加' : '読む素材の情報源を自分で追加',
+      sourcePanelDesc: 'ここは設定エリアです。追加すると、次回以降はここから優先して素材を選びます。',
+      sourceTypeBoth: '読む + 聞く',
+      sourceTypeReading: '読むだけ',
+      sourceTypeListening: '聞くだけ',
+      sourceDescPlaceholder: 'テーマを一言、例えば AI / ビジネス / 文化',
+      addSource: '情報源を追加',
+      noCustomSource: 'まだ自分の情報源はありません。今はデフォルトの情報源から直接選びます。',
+      pauseTitle: '一時停止',
+      resumeTitle: '再開',
+      playTitle: '再生',
+    };
+  }
+
+  return {
+    badgeFallback: 'Curated Content',
+    loadingTitle: 'Finding the best material...',
+    loadingBody: 'Synchronizing with external libraries...',
+    openSource: 'Open original source',
+    sourcePanelLabel: 'My sources',
+    sourcePanelTitle: isListening ? 'Customize your listening sources' : 'Customize your reading sources',
+    sourcePanelDesc: 'This area is just for setup. Once you add sources, future recommendations will pull from here first.',
+    sourceTypeBoth: 'Read + Listen',
+    sourceTypeReading: 'Reading only',
+    sourceTypeListening: 'Listening only',
+    sourceDescPlaceholder: 'Add a theme, for example AI / business / culture',
+    addSource: 'Add source',
+    noCustomSource: 'No custom sources yet. We will pull directly from the default pool for now.',
+    pauseTitle: 'Pause',
+    resumeTitle: 'Resume',
+    playTitle: 'Play',
+  };
+};
+
+const getGeneralUiText = (language: string) => {
+  if (language === 'French') {
+    return {
+      dashboardBadge: 'Today Story',
+      dashboardTitle: 'Raconte une chose de ta journée dans la langue que tu apprends',
+      dashboardDesc:
+        'Pas besoin de préparer un sujet parfait. Raconte simplement ce qui t’est arrivé aujourd’hui, et LinguaFlow t’aide à le reformuler plus naturellement.',
+      storyButton: 'Commencer Today Story',
+      freeTalkButton: 'Parler librement',
+      libraryButton: 'Ma bibliothèque',
+      otherModules: 'Les autres modules sont toujours là',
+      storyLibraryTitle: 'Ma bibliothèque d’histoires',
+      storyLibraryDesc: 'Tes histoires personnelles s’accumulent ici pour être réutilisées plus tard en entretien, en examen ou dans une vraie conversation.',
+      backHome: 'Retour à l’accueil',
+      writingTitle: 'Atelier d’écriture',
+      saveDiary: 'Enregistrer dans Diary',
+      saveDraft: 'Enregistrer le brouillon',
+      savedDiaries: 'Diaries enregistrés',
+      feedbackPlaceholder: 'Le retour IA apparaîtra ici après ton envoi.',
+      examTitle: 'Exam Hub',
+      examDesc: 'Des ressources externes pour renforcer ta préparation.',
+      accountTitle: 'Compte',
+      cloudAccount: 'Compte cloud',
+      accountDesc: 'Connecte-toi d’abord, puis ton notebook, ton diary et ton historique resteront attachés à ton compte.',
+      accountSynced: 'Ton notebook est maintenant lié à ton compte et se synchronise entre les sessions.',
+      signInTitle: 'Se connecter par e-mail',
+      emailPlaceholder: 'vous@example.com',
+      verificationCode: 'Code de vérification',
+      sendVerificationCode: 'Envoyer le code',
+      sendingCode: 'Envoi...',
+      changeEmail: "Changer d'e-mail",
+      verifyCode: 'Vérifier le code',
+      verifyingCode: 'Vérification...',
+      emailLogin: 'Connexion e-mail',
+      currentAccount: 'Compte actuel',
+      clipperTitle: 'Chrome Clipper',
+      generateToken: 'Générer le code',
+      generatingToken: 'Génération...',
+      copy: 'Copier',
+      signOut: 'Se déconnecter',
+      signingOut: 'Déconnexion...',
+      myStoriesBadge: 'Mes histoires',
+      corrected: 'Corrigé',
+      proUpgrade: 'Version avancée',
+      modelEssay: 'Version modèle',
+      saveToDiary: 'Enregistrer dans Diary',
+    };
+  }
+
+  if (language === 'Japanese') {
+    return {
+      dashboardBadge: 'Today Story',
+      dashboardTitle: 'その日にあったことを、学習中の言語で少しずつ話してみよう',
+      dashboardDesc:
+        '完璧なテーマはなくて大丈夫です。今日あったことを話すだけで、LinguaFlow があとで自然な形に整えます。',
+      storyButton: 'Today Story を始める',
+      freeTalkButton: 'そのまま会話する',
+      libraryButton: 'ストーリー集',
+      otherModules: '読む / 聞く / 書く / 試験対策も使えます',
+      storyLibraryTitle: '私のストーリー集',
+      storyLibraryDesc: 'あとで面接や試験、普段の会話で使い回せる、自分だけのストーリーをここにためていきます。',
+      backHome: 'ホームへ戻る',
+      writingTitle: 'Writing Studio',
+      saveDiary: 'Diary に保存',
+      saveDraft: '下書きを保存',
+      savedDiaries: '保存した Diary',
+      feedbackPlaceholder: '送信すると、ここに AI のフィードバックが表示されます。',
+      examTitle: 'Exam Hub',
+      examDesc: '学習を支える外部リソース集です。',
+      accountTitle: 'アカウント',
+      cloudAccount: 'クラウドアカウント',
+      accountDesc: '先にログインすると、Notebook・Diary・学習履歴があなたのアカウントにひも付きます。',
+      accountSynced: 'Notebook はアカウントにひも付けられ、次回以降も同期されます。',
+      signInTitle: 'メールでログイン',
+      emailPlaceholder: 'you@example.com',
+      verificationCode: '認証コード',
+      sendVerificationCode: 'コードを送る',
+      sendingCode: '送信中...',
+      changeEmail: 'メールを変更',
+      verifyCode: 'コードを確認',
+      verifyingCode: '確認中...',
+      emailLogin: 'メールログイン',
+      currentAccount: '現在のアカウント',
+      clipperTitle: 'Chrome Clipper',
+      generateToken: '接続コードを生成',
+      generatingToken: '生成中...',
+      copy: 'コピー',
+      signOut: 'ログアウト',
+      signingOut: 'ログアウト中...',
+      myStoriesBadge: '私のストーリー',
+      corrected: '修正版',
+      proUpgrade: '表現を強めた版',
+      modelEssay: '模範版',
+      saveToDiary: 'Diary に保存',
+    };
+  }
+
+  return {
+    dashboardBadge: 'Today Story',
+    dashboardTitle: '每天用英语讲清楚今天的一件事',
+    dashboardDesc:
+      '不用背模板，不用准备话题。你只要讲今天发生在你身上的一件事，我来帮你整理成一篇更自然、以后也能复用的英语故事。',
+    storyButton: '开始今天的故事',
+    freeTalkButton: '直接聊几句英语',
+    libraryButton: '我的故事库',
+    otherModules: '听 / 读 / 写 / 考试都还在',
+    storyLibraryTitle: '我的故事库',
+    storyLibraryDesc: '这里会慢慢长出你自己的英语故事素材。以后面试、考试、聊天，都可以从这里复述和调用。',
+    backHome: '返回首页',
+    writingTitle: 'Writing Studio',
+    saveDiary: 'Save Diary',
+    saveDraft: 'Save Draft',
+    savedDiaries: 'Saved Diaries',
+    feedbackPlaceholder: 'AI feedback will appear here once you submit.',
+    examTitle: 'Exam Hub',
+    examDesc: 'External resources to supercharge your official preparation.',
+    accountTitle: 'Account',
+    cloudAccount: 'Cloud Account',
+    accountDesc: 'Sign in first, then your notebook, diary, and study history will stay attached to your account.',
+    accountSynced: 'Your notebook is now tied to your account and will sync across sessions.',
+    signInTitle: 'Sign in with email',
+    emailPlaceholder: 'you@example.com',
+    verificationCode: 'Verification code',
+    sendVerificationCode: 'Send verification code',
+    sendingCode: 'Sending code...',
+    changeEmail: 'Change email',
+    verifyCode: 'Verify code',
+    verifyingCode: 'Verifying...',
+    emailLogin: 'Email login',
+    currentAccount: 'Current account',
+    clipperTitle: 'Chrome Clipper',
+    generateToken: '生成连接码',
+    generatingToken: '生成中...',
+    copy: '复制',
+    signOut: 'Sign out',
+    signingOut: 'Signing out...',
+    myStoriesBadge: 'My Stories',
+    corrected: 'Corrected',
+    proUpgrade: 'Pro Upgrade',
+    modelEssay: 'Model Essay',
+    saveToDiary: 'Save to Diary',
+  };
+};
+
+const getNotebookUiText = (language: string) => {
+  if (language === 'French') {
+    return {
+      diaryTab: 'Diary',
+      copyToNotion: 'Copier vers Notion',
+      downloadObsidian: 'Télécharger en .md',
+      addWordPlaceholder: 'Ajouter un mot manuellement...',
+      addSentencePlaceholder: 'Ajouter une phrase utile...',
+      diaryTitlePlaceholder: 'Titre du diary...',
+      diaryInputPlaceholder: 'Ajouter une note de diary manuellement...',
+      add: 'Ajouter',
+      addToDiary: 'Ajouter au Diary',
+      untitledWord: 'Mot sans titre',
+      untitledSentence: 'Phrase sans titre',
+      untitledDiary: 'Diary sans titre',
+      languageClip: 'Extrait linguistique',
+      savedSentence: 'Phrase enregistrée',
+      openSource: 'Ouvrir la source',
+      playWord: 'Prononcer le mot',
+      playSentence: 'Lire la phrase',
+      pronunciationFailed: "La lecture n'a pas marché. Réessaie encore.",
+      copiedNotice: 'Copié en Markdown. Tu peux le coller directement dans Notion.',
+      copyFailed: 'La copie a échoué. Réessaie encore.',
+      downloadedNotice: 'Le Markdown est téléchargé. Tu peux le glisser dans Obsidian.',
+      manualNote: 'Note manuelle',
+      manualDiaryNote: 'Note de diary manuelle',
+      freeWriting: 'Écriture libre',
+      writingDraft: "Brouillon d'écriture",
+      unknownDate: 'Date inconnue',
+      exportedAt: 'Exporté le',
+      source: 'Source',
+      chineseDefinition: 'Définition chinoise',
+      targetDefinition: language === 'French' ? 'Définition française' : 'Définition',
+      exampleSentence: 'Exemple',
+      chineseHint: 'Indice chinois',
+      tag: 'Étiquette',
+    };
+  }
+
+  if (language === 'Japanese') {
+    return {
+      diaryTab: 'Diary',
+      copyToNotion: 'Notion にコピー',
+      downloadObsidian: '.md をダウンロード',
+      addWordPlaceholder: '単語を手動で追加...',
+      addSentencePlaceholder: '文を手動で追加...',
+      diaryTitlePlaceholder: 'Diary のタイトル...',
+      diaryInputPlaceholder: 'Diary メモを手動で追加...',
+      add: '追加',
+      addToDiary: 'Diary に追加',
+      untitledWord: '無題の単語',
+      untitledSentence: '無題の文',
+      untitledDiary: '無題の Diary',
+      languageClip: '言語クリップ',
+      savedSentence: '保存した文',
+      openSource: '元ソースを開く',
+      playWord: '単語を再生',
+      playSentence: '文を読み上げ',
+      pronunciationFailed: '再生に失敗しました。もう一度試してください。',
+      copiedNotice: 'Markdown をコピーしました。Notion にそのまま貼れます。',
+      copyFailed: 'コピーに失敗しました。もう一度試してください。',
+      downloadedNotice: 'Markdown を保存しました。Obsidian に入れられます。',
+      manualNote: '手動メモ',
+      manualDiaryNote: '手動 Diary メモ',
+      freeWriting: '自由作文',
+      writingDraft: 'Writing Draft',
+      unknownDate: '日付不明',
+      exportedAt: '書き出し日時',
+      source: 'Source',
+      chineseDefinition: '中国語の意味',
+      targetDefinition: language === 'Japanese' ? '日本語の意味' : '意味',
+      exampleSentence: '例文',
+      chineseHint: '中国語ヒント',
+      tag: 'タグ',
+    };
+  }
+
+  return {
+    diaryTab: 'Diary',
+    copyToNotion: '复制到 Notion',
+    downloadObsidian: '下载 .md 到 Obsidian',
+    addWordPlaceholder: 'Add a new word manually...',
+    addSentencePlaceholder: 'Add a useful sentence manually...',
+    diaryTitlePlaceholder: 'Diary title...',
+    diaryInputPlaceholder: 'Add a diary note manually...',
+    add: 'Add',
+    addToDiary: 'Add to Diary',
+    untitledWord: 'Untitled word',
+    untitledSentence: 'Untitled sentence',
+    untitledDiary: 'Untitled diary',
+    languageClip: 'Language Clip',
+    savedSentence: 'Saved sentence',
+    openSource: 'Open source',
+    playWord: '播放发音',
+    playSentence: '朗读整句',
+    pronunciationFailed: '这个词暂时没能播出来，再试一次。',
+    copiedNotice: '已复制成 Markdown，可以直接贴到 Notion。',
+    copyFailed: '复制失败了，你再试一次。',
+    downloadedNotice: 'Markdown 已下载，直接拖进 Obsidian 就行。',
+    manualNote: 'Manual note',
+    manualDiaryNote: 'Manual diary note',
+    freeWriting: 'Free writing',
+    writingDraft: 'Writing Draft',
+    unknownDate: 'Unknown date',
+    exportedAt: 'Exported at',
+    source: 'Source',
+    chineseDefinition: '中文释义',
+    targetDefinition: language === 'English' ? '英文释义' : '目标语言释义',
+    exampleSentence: '例句',
+    chineseHint: '中文示意',
+    tag: '标签',
+  };
+};
+
+const getStoryUiText = (language: string) => {
+  if (language === 'French') {
+    return {
+      step1: 'Étape 1',
+      chooseTitle: 'Choisis le type de pratique orale dont tu as besoin aujourd’hui',
+      chooseDesc: 'Si tu sais déjà quoi raconter, prends Today Story. Si tu veux juste parler librement, prends Free Talk.',
+      freeTalkDesc: 'Même si tu ne sais pas quoi dire, commence par quelques phrases avec l’IA.',
+      whatYouGet: 'Ce que tu obtiens',
+      whatYouGetList: [
+        'Une version remise au propre de ce que tu viens de dire',
+        'Une histoire plus claire que tu pourras réutiliser plus tard',
+        '3 expressions utiles à reprendre en entretien, en examen ou en conversation',
+      ],
+      reminder: 'Rappel quotidien',
+      reminderDesc: 'Quand tu ouvres la page, on peut te rappeler que tu n’as pas encore raconté ton histoire du jour.',
+      recordHint: '3 à 5 minutes recommandées',
+      recordTitle: 'Raconte une chose qui t’est arrivée aujourd’hui',
+      recordDesc: 'Cela peut être une conversation, une émotion, une petite joie, une décision, ou simplement le moment que tu veux garder en tête.',
+      transcriptPlaceholder: 'La transcription apparaîtra ici. Tu peux aussi corriger ou compléter à la main.',
+      startRecording: 'Commencer à enregistrer',
+      pauseAndTranscribe: 'Pause et transcription',
+      finishStep: 'Terminer et passer à l’étape suivante',
+      lightGuidance: 'Guidance légère',
+      guidanceList: [
+        'Dis d’abord ce qui s’est passé, puis ce que tu en as pensé.',
+        'Si tu bloques, tu peux compléter avec un peu de chinois.',
+        'Pas besoin d’être parfait. L’IA t’aidera à remettre le tout en ordre.',
+      ],
+      generateStory: 'Générer mon histoire',
+      storyResultLabel: "Today’s Story",
+      copyEnglish: 'Copier le texte optimisé',
+      goLibrary: 'Voir ma bibliothèque',
+      originalVersion: 'Version de départ',
+      rewrittenVersion: 'Version optimisée',
+      keyPhrases: 'Expressions clés',
+      summary: 'Retour global',
+      next: 'Et ensuite',
+      retry: 'Refaire une version plus fluide',
+      restart: 'Recommencer avec un autre mode',
+      emptyLibrary: 'Tu n’as encore aucune histoire enregistrée. Commence par la première.',
+      sortByDate: 'Du plus récent au plus ancien',
+      noStoryYet: 'Commence par générer ta première histoire Today Story.',
+      originalStory: 'Histoire brute',
+      optimizedStory: 'Histoire optimisée',
+      copy: 'Copier',
+      comment: 'Commentaire',
+      countSuffix: ' histoires',
+    };
+  }
+
+  if (language === 'Japanese') {
+    return {
+      step1: 'STEP 1',
+      chooseTitle: '今日はどの口語練習が合っているか選びましょう',
+      chooseDesc: '話したい内容が決まっていれば Today Story、まず気軽に話したいなら Free Talk です。',
+      freeTalkDesc: '何を話せばいいかわからなくても大丈夫。まずは AI と数往復してみましょう。',
+      whatYouGet: '得られるもの',
+      whatYouGetList: [
+        '今話した内容を整理した版',
+        'あとでそのまま使いやすい、より自然なストーリー',
+        '面接や試験、会話で再利用しやすい 3 つの表現',
+      ],
+      reminder: '毎日のリマインド',
+      reminderDesc: 'ページを開いたときに、今日まだ話していないことを軽く知らせます。',
+      recordHint: '3〜5 分くらいが目安です',
+      recordTitle: '今日あったことをひとつ話してみましょう',
+      recordDesc: '会話、感情、小さなうれしいこと、決めたこと、今日いちばん残したい場面など何でも大丈夫です。',
+      transcriptPlaceholder: 'ここに音声の文字起こしが出ます。必要なら手動で直しても大丈夫です。',
+      startRecording: '録音を始める',
+      pauseAndTranscribe: '止めて文字にする',
+      finishStep: '終えて次へ進む',
+      lightGuidance: '軽いガイド',
+      guidanceList: [
+        'まず何があったかを話し、そのあと自分の気持ちを足しましょう。',
+        '詰まったら中国語を少し混ぜても大丈夫です。',
+        '完璧でなくて大丈夫。AI が流れを整えます。',
+      ],
+      generateStory: 'ストーリーを作る',
+      storyResultLabel: 'Today’s Story',
+      copyEnglish: '整えた文章をコピー',
+      goLibrary: 'ストーリー集を見る',
+      originalVersion: '元の内容',
+      rewrittenVersion: '整えたバージョン',
+      keyPhrases: '使える表現',
+      summary: '今回のまとめ',
+      next: '次にやること',
+      retry: 'もう一度、もっと自然に言い直す',
+      restart: '別のモードで最初からやり直す',
+      emptyLibrary: 'まだ保存されたストーリーがありません。最初の 1 本から始めましょう。',
+      sortByDate: '新しい順',
+      noStoryYet: 'まず最初の Today Story を作ってみましょう。',
+      originalStory: '元のストーリー',
+      optimizedStory: '整えたストーリー',
+      copy: 'コピー',
+      comment: 'コメント',
+      countSuffix: ' 件',
+    };
+  }
+
+  return {
+    step1: 'Step 1',
+    chooseTitle: '先选你今天更需要哪种口语练习',
+    chooseDesc: '如果你已经知道今天想讲什么，就走 Today Story；如果你只是想找个人直接聊几句英语，就走 Free Talk。',
+    freeTalkDesc: '不知道说什么也没关系，先和 AI 直接聊几句英语。',
+    whatYouGet: 'What you get',
+    whatYouGetList: [
+      '一版整理后的原话，让你知道自己刚刚到底讲了什么',
+      '一篇更清晰、以后可以直接复述的英文故事',
+      '3 个重点表达，方便以后面试、口语考试和聊天复用',
+    ],
+    reminder: 'Daily reminder',
+    reminderDesc: '打开页面时会提醒你：今天还没讲故事哦。',
+    recordHint: '建议录 3–5 分钟',
+    recordTitle: '讲讲今天发生在你身上的一件事',
+    recordDesc: '可以是一次沟通、一个情绪、一件小开心、一个决定，或者今天最想记住的一幕。',
+    transcriptPlaceholder: '这里会出现语音转写结果。你也可以直接手动输入，先把故事讲顺最重要。',
+    startRecording: '开始录音',
+    pauseAndTranscribe: '暂停并转写',
+    finishStep: '结束并进入下一步',
+    lightGuidance: 'Light guidance',
+    guidanceList: [
+      '先讲发生了什么，再讲你当时怎么想。',
+      '如果卡壳，就先用中文补一句。',
+      '不需要太完整，AI 会帮你理顺结构。',
+    ],
+    generateStory: '生成我的故事',
+    storyResultLabel: 'Today’s Story',
+    copyEnglish: '复制英文故事',
+    goLibrary: '去我的故事库',
+    originalVersion: '原话整理版',
+    rewrittenVersion: '优化后的英文版本',
+    keyPhrases: '重点表达',
+    summary: '今天的总评',
+    next: 'Next',
+    retry: '再讲一版，把故事说得更顺',
+    restart: '换一种模式重新开始',
+    emptyLibrary: '你还没有保存任何故事。今天先讲第一篇吧。',
+    sortByDate: '按日期倒序',
+    noStoryYet: '先去生成你的第一篇 Today Story。',
+    originalStory: '原始故事',
+    optimizedStory: '优化后的英文故事',
+    copy: '复制',
+    comment: '点评',
+    countSuffix: ' stories',
   };
 };
 
@@ -463,8 +1073,8 @@ const App = () => {
   const [freeTalkInput, setFreeTalkInput] = useState('');
   const [freeTalkQuickReplies, setFreeTalkQuickReplies] = useState<string[]>([
     'Tell me about your day.',
-    'What are you working on lately?',
-    'How are you feeling right now?',
+    'What are you doing right now?',
+    'What made you smile today?',
   ]);
   const [freeTalkCorrection, setFreeTalkCorrection] = useState('');
   const [freeTalkImprovements, setFreeTalkImprovements] = useState<string[]>([]);
@@ -495,6 +1105,8 @@ const App = () => {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isVoiceOutputEnabled, setIsVoiceOutputEnabled] = useState(true);
   const [isTTSLoading, setIsTTSLoading] = useState(false);
+  const [isPlaybackActive, setIsPlaybackActive] = useState(false);
+  const [isPlaybackPaused, setIsPlaybackPaused] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
@@ -518,8 +1130,20 @@ const App = () => {
   const usageQueueRef = useRef<UsageEventPayload[]>([]);
   const listeningAutoplayRef = useRef<string | null>(null);
   const cloudRetryTimerRef = useRef<number | null>(null);
+  const languageSourceHints = getLanguageSourceHints(language);
+  const freeTalkUiText = getFreeTalkUiText(language);
+  const contentUiText = getContentUiText(language, mode === AppMode.LISTENING ? AppMode.LISTENING : AppMode.READING);
+  const generalUiText = getGeneralUiText(language);
+  const storyUiText = getStoryUiText(language);
+  const notebookUiText = getNotebookUiText(language);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
+  const formatDiarySourceLabel = (value: string) => {
+    if (value === 'Corrected') return generalUiText.corrected;
+    if (value === 'Pro Upgrade') return generalUiText.proUpgrade;
+    if (value === 'Model Essay') return generalUiText.modelEssay;
+    return value;
+  };
   const selectedStory = storyEntries.find((entry) => entry.id === selectedStoryId) || storyEntries[0] || null;
   const readingSources = contentSources.filter((item) => item.language === language && (item.type === 'reading' || item.type === 'both'));
   const listeningSources = contentSources.filter((item) => item.language === language && (item.type === 'listening' || item.type === 'both'));
@@ -714,8 +1338,8 @@ const App = () => {
     const entry: DiaryEntry = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
-      topic: manualDiaryTitle || 'Manual note',
-      title: manualDiaryTitle || 'Manual diary note',
+      topic: manualDiaryTitle || notebookUiText.manualNote,
+      title: manualDiaryTitle || notebookUiText.manualDiaryNote,
       content,
       sourceLabel: 'Model Essay',
       language,
@@ -730,19 +1354,36 @@ const App = () => {
   };
 
   const saveWritingEntry = () => {
-    if (!writingResult || !safeTrim(writingInput)) return;
+    if (!safeTrim(writingInput)) return;
 
     const entry: WritingEntry = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
-      topic: writingTopic || 'Free writing',
+      topic: writingTopic || notebookUiText.freeWriting,
       original: writingInput,
-      feedback: writingResult,
+      feedback: writingResult || {
+        original: writingInput,
+        corrected: writingInput,
+        upgraded: writingInput,
+        modelEssay: writingInput,
+      },
       language,
     };
 
     setWritingEntries((prev) => [entry, ...prev].slice(0, 20));
-    setWritingSavedNotice('Today’s diary is saved.');
+    setDiaryEntries((prev) => [
+      {
+        id: `${entry.id}-draft`,
+        date: entry.date,
+        topic: entry.topic,
+        title: `${notebookUiText.writingDraft} · ${entry.topic}`,
+        content: writingResult?.corrected || writingInput,
+        sourceLabel: writingResult ? 'Corrected' : 'Model Essay',
+        language,
+      },
+      ...prev,
+    ].slice(0, 50));
+    setWritingSavedNotice(writingResult ? generalUiText.saveDiary : generalUiText.saveDraft);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
     queueUsageEvent('save_writing_entry', { topic: entry.topic });
   };
@@ -753,8 +1394,8 @@ const App = () => {
     const entry: DiaryEntry = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
-      topic: writingTopic || 'Free writing',
-      title: `${sourceLabel} · ${writingTopic || 'Free writing'}`,
+      topic: writingTopic || notebookUiText.freeWriting,
+      title: `${formatDiarySourceLabel(sourceLabel)} · ${writingTopic || notebookUiText.freeWriting}`,
       content,
       sourceLabel,
       language,
@@ -763,7 +1404,7 @@ const App = () => {
     setDiaryEntries((prev) => [entry, ...prev].slice(0, 50));
     setSidebarOpen(true);
     setActiveTab('diary');
-    setWritingSavedNotice(`${sourceLabel} saved to Diary.`);
+    setWritingSavedNotice(`${formatDiarySourceLabel(sourceLabel)} · ${generalUiText.saveToDiary}`);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
     queueUsageEvent('save_diary_variant', { sourceLabel, topic: entry.topic });
   };
@@ -776,7 +1417,7 @@ const App = () => {
       await playNativeSpeech(spoken);
     } catch (error) {
       console.error(error);
-      setNotebookNotice('这个词暂时没能播出来，再试一次。');
+      setNotebookNotice(notebookUiText.pronunciationFailed);
       window.setTimeout(() => setNotebookNotice(''), 2200);
     }
   };
@@ -789,36 +1430,36 @@ const App = () => {
   const getNotebookExportMarkdown = () => {
     const items = getCurrentNotebookItems();
     const groups = groupNotebookItemsByDate(items);
-    const tabTitle = activeTab === 'vocab' ? 'Words' : activeTab === 'sentences' ? 'Sentences' : 'Diary';
-    const lines: string[] = [`# LinguaFlow ${tabTitle}`, '', `Language: ${language}`, `Exported at: ${new Date().toLocaleString()}`, ''];
+    const tabTitle = activeTab === 'vocab' ? labels.words : activeTab === 'sentences' ? labels.sentences : notebookUiText.diaryTab;
+    const lines: string[] = [`# LinguaFlow ${tabTitle}`, '', `Language: ${language}`, `${notebookUiText.exportedAt}: ${new Date().toLocaleString()}`, ''];
 
     groups.forEach((group) => {
-      lines.push(`## ${group.title || 'Unknown date'}`, '');
+      lines.push(`## ${group.title || notebookUiText.unknownDate}`, '');
       group.items.forEach((item) => {
         if (activeTab === 'vocab') {
           const vocab = item as VocabItem;
           lines.push(`### ${vocab.word}`);
-          lines.push(`- 中文释义：${vocab.chineseDefinition || '暂无'}`);
-          lines.push(`- 英文释义：${vocab.definition || '暂无'}`);
-          if (safeTrim(vocab.contextSentence)) lines.push(`- 例句：${vocab.contextSentence}`);
-          if (safeTrim(vocab.contextSentenceZh)) lines.push(`- 中文示意：${vocab.contextSentenceZh}`);
-          if (safeTrim(vocab.sourceUrl)) lines.push(`- Source: ${vocab.sourceUrl}`);
+          lines.push(`- ${notebookUiText.chineseDefinition}：${vocab.chineseDefinition || '—'}`);
+          lines.push(`- ${notebookUiText.targetDefinition}：${vocab.definition || '—'}`);
+          if (safeTrim(vocab.contextSentence)) lines.push(`- ${notebookUiText.exampleSentence}：${vocab.contextSentence}`);
+          if (safeTrim(vocab.contextSentenceZh)) lines.push(`- ${notebookUiText.chineseHint}：${vocab.contextSentenceZh}`);
+          if (safeTrim(vocab.sourceUrl)) lines.push(`- ${notebookUiText.source}: ${vocab.sourceUrl}`);
           lines.push('');
           return;
         }
 
         if (activeTab === 'sentences') {
           const sentence = item as SavedSentence;
-          lines.push(`### ${sentence.source || 'Saved sentence'}`);
+          lines.push(`### ${sentence.source || notebookUiText.savedSentence}`);
           lines.push(sentence.text);
-          if (safeTrim(sentence.sourceUrl)) lines.push('', `Source: ${sentence.sourceUrl}`);
+          if (safeTrim(sentence.sourceUrl)) lines.push('', `${notebookUiText.source}: ${sentence.sourceUrl}`);
           lines.push('');
           return;
         }
 
         const diary = item as DiaryEntry;
         lines.push(`### ${diary.title}`);
-        lines.push(`- 标签：${diary.sourceLabel}`);
+        lines.push(`- ${notebookUiText.tag}：${formatDiarySourceLabel(diary.sourceLabel)}`);
         lines.push('', diary.content, '');
       });
     });
@@ -830,11 +1471,11 @@ const App = () => {
     const markdown = getNotebookExportMarkdown();
     try {
       await navigator.clipboard.writeText(markdown);
-      setNotebookNotice('已复制成 Markdown，可以直接贴到 Notion。');
+      setNotebookNotice(notebookUiText.copiedNotice);
       window.setTimeout(() => setNotebookNotice(''), 2200);
     } catch (error) {
       console.error(error);
-      setNotebookNotice('复制失败了，你再试一次。');
+      setNotebookNotice(notebookUiText.copyFailed);
       window.setTimeout(() => setNotebookNotice(''), 2200);
     }
   };
@@ -852,7 +1493,7 @@ const App = () => {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setNotebookNotice('Markdown 已下载，直接拖进 Obsidian 就行。');
+    setNotebookNotice(notebookUiText.downloadedNotice);
     window.setTimeout(() => setNotebookNotice(''), 2200);
   };
 
@@ -864,11 +1505,45 @@ const App = () => {
 
   const storyModeLabel = (value: TodayStoryMode) => storyModeMeta[value].title;
 
+  const getFreeTalkDefaults = () => {
+    if (language === 'French') {
+      return {
+        opener: 'Salut, je suis là. Comment se passe ta journée ?',
+        quickReplies: [
+          'Parle-moi de ta journée.',
+          'Qu’est-ce que tu fais maintenant ?',
+          'Qu’est-ce qui t’a fait sourire aujourd’hui ?',
+        ],
+      };
+    }
+
+    if (language === 'Japanese') {
+      return {
+        opener: 'こんにちは。今日はどんな一日でしたか？',
+        quickReplies: [
+          '今日のことを少し話してみて。',
+          '今は何をしていますか？',
+          '今日は何が一番印象に残りましたか？',
+        ],
+      };
+    }
+
+    return {
+      opener: 'Hey, I am here. How was your day today?',
+      quickReplies: [
+        'Tell me about your day.',
+        'What are you doing right now?',
+        'What made you smile today?',
+      ],
+    };
+  };
+
   const beginFreeTalk = async () => {
+    const defaults = getFreeTalkDefaults();
     const opener: FreeTalkMessage = {
       id: `assistant-${Date.now()}`,
       role: 'assistant',
-      text: 'Hey, I am here. How was your day today?',
+      text: defaults.opener,
     };
 
     setSpeakingTrack('chat');
@@ -878,11 +1553,7 @@ const App = () => {
     setStoryNotice('');
     setErrorMsg(null);
     setSpeechDraft('');
-    setFreeTalkQuickReplies([
-      'Tell me about your day.',
-      'What are you doing right now?',
-      'What made you smile today?',
-    ]);
+    setFreeTalkQuickReplies(defaults.quickReplies);
     queueUsageEvent('free_talk_started', { language });
     await playGeneratedSpeech(opener.text);
   };
@@ -1158,12 +1829,15 @@ const App = () => {
           dailyContent?.url ? [...seenReadingUrls, dailyContent.url] : seenReadingUrls
         );
         const nextItem = Array.isArray(data) ? normalizeDailyContent(data.find(Boolean) || null) : null;
-        setDailyContent(nextItem || null);
-        if (nextItem) {
-          setSeenReadingTitles((prev) => [...prev, nextItem.title || 'Untitled reading']);
-          setSeenReadingUrls((prev) => [...prev, nextItem.url || '']);
-          queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
+        if (!nextItem) {
+          const fallback = buildLocalFallbackContent('reading', language, languageSourceHints.readingNames);
+          setDailyContent(fallback);
+          return;
         }
+        setDailyContent(nextItem);
+        setSeenReadingTitles((prev) => [...prev, nextItem.title || 'Untitled reading']);
+        setSeenReadingUrls((prev) => [...prev, nextItem.url || '']);
+        queueUsageEvent('open_reading_content', { title: nextItem.title || 'Untitled reading', source: nextItem.source || 'Unknown source' });
       } else {
         const data = normalizeDailyContent(
           await AIService.getDailyListeningContent(
@@ -1174,7 +1848,8 @@ const App = () => {
           )
         );
         if (!data) {
-          setDailyContent(null);
+          const fallback = buildLocalFallbackContent('listening', language, languageSourceHints.listeningNames);
+          setDailyContent(fallback);
           return;
         }
         setDailyContent(data);
@@ -1186,8 +1861,8 @@ const App = () => {
       console.error(error);
       const fallback =
         type === 'reading'
-          ? buildLocalFallbackContent('reading', language, DEFAULT_READING_SOURCE_NAMES)
-          : buildLocalFallbackContent('listening', language, DEFAULT_LISTENING_SOURCE_NAMES);
+          ? buildLocalFallbackContent('reading', language, languageSourceHints.readingNames)
+          : buildLocalFallbackContent('listening', language, languageSourceHints.listeningNames);
       setDailyContent(fallback);
     }
   };
@@ -1204,6 +1879,38 @@ const App = () => {
     } finally {
       setIsTTSLoading(false);
     }
+  };
+
+  const handleToggleTTSPlayback = async () => {
+    if (!dailyContent?.content) return;
+
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setIsPlaybackPaused(false);
+        setIsPlaybackActive(true);
+      } else {
+        window.speechSynthesis.pause();
+        setIsPlaybackPaused(true);
+      }
+      return;
+    }
+
+    if (currentAudioRef.current) {
+      if (currentAudioRef.current.paused) {
+        await currentAudioRef.current.play().catch((error) => {
+          console.error('Audio resume failed', error);
+        });
+        setIsPlaybackPaused(false);
+        setIsPlaybackActive(true);
+      } else {
+        currentAudioRef.current.pause();
+        setIsPlaybackPaused(true);
+      }
+      return;
+    }
+
+    await handleTTS();
   };
 
   const handleWritingSubmit = async () => {
@@ -1246,6 +1953,8 @@ const App = () => {
       URL.revokeObjectURL(currentAudioUrlRef.current);
       currentAudioUrlRef.current = null;
     }
+    setIsPlaybackActive(false);
+    setIsPlaybackPaused(false);
   };
 
   const stopRecorder = async () => {
@@ -1363,8 +2072,20 @@ const App = () => {
       utterance.rate = language === 'English' ? 1.03 : 0.98;
       utterance.pitch = language === 'English' ? 1.18 : 1.05;
       utterance.volume = 1;
-      utterance.onend = () => resolve();
-      utterance.onerror = () => reject(new Error('Native speech playback failed'));
+      utterance.onstart = () => {
+        setIsPlaybackActive(true);
+        setIsPlaybackPaused(false);
+      };
+      utterance.onend = () => {
+        setIsPlaybackActive(false);
+        setIsPlaybackPaused(false);
+        resolve();
+      };
+      utterance.onerror = () => {
+        setIsPlaybackActive(false);
+        setIsPlaybackPaused(false);
+        reject(new Error('Native speech playback failed'));
+      };
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     });
@@ -1373,11 +2094,11 @@ const App = () => {
     if (!isVoiceOutputEnabled || !safeTrim(text)) return;
     const spokenText = shapeSpokenText(text);
 
-    if (language === 'English') {
-      await playNativeSpeech(spokenText).catch((nativeError) => {
-        console.error('Native speech playback failed', nativeError);
-      });
+    try {
+      await playNativeSpeech(spokenText);
       return;
+    } catch (nativeError) {
+      console.error('Native speech playback failed', nativeError);
     }
 
     try {
@@ -1389,13 +2110,19 @@ const App = () => {
       const audio = new Audio(objectUrl);
       currentAudioRef.current = audio;
       currentAudioUrlRef.current = objectUrl;
+      audio.onplay = () => {
+        setIsPlaybackActive(true);
+        setIsPlaybackPaused(false);
+      };
+      audio.onpause = () => {
+        if (currentAudioRef.current) {
+          setIsPlaybackPaused(true);
+        }
+      };
       audio.onended = () => stopCurrentSpeechPlayback();
       await audio.play();
     } catch (error) {
       console.error('Voice playback failed', error);
-      await playNativeSpeech(spokenText).catch((nativeError) => {
-        console.error('Native speech playback failed', nativeError);
-      });
     }
   };
 
@@ -1411,11 +2138,7 @@ const App = () => {
     setFreeTalkMessages([]);
     setFreeTalkInput('');
     setFreeTalkCorrection('');
-    setFreeTalkQuickReplies([
-      'Tell me about your day.',
-      'What are you working on lately?',
-      'How are you feeling right now?',
-    ]);
+    setFreeTalkQuickReplies(getFreeTalkDefaults().quickReplies);
     setStoryStage('choose_mode');
     setStoryTranscript('');
     setStoryResult(null);
@@ -1466,9 +2189,9 @@ const App = () => {
         mode === AppMode.SPEAKING
           ? speakingTrack === 'story'
             ? storyMode === 'en'
-              ? 'English'
+              ? language
               : 'Chinese'
-            : 'English'
+            : language
           : language;
       const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, asrLanguage);
       const finalText = safeTrim(transcript);
@@ -1549,22 +2272,16 @@ const App = () => {
       zeroGain,
     };
 
-    const scheduleChatAutoStop = () => {
-      if (mode !== AppMode.SPEAKING || speakingTrack !== 'chat') return;
-      clearSilenceTimer();
-      silenceTimerRef.current = window.setTimeout(() => {
-        if (recorderRef.current && speechDetectedRef.current) {
-          void stopVoiceInput('chat');
-        }
-      }, 1200);
-    };
-
     setErrorMsg(null);
     setIsListening(true);
     setSpeechDraft(
       mode === AppMode.SPEAKING
         ? speakingTrack === 'chat'
-          ? 'Listening... speak naturally and I will reply right after you stop.'
+          ? language === 'French'
+            ? "Je t’écoute. Tu peux parler librement. Quand tu as fini, appuie sur arrêter et je transcrirai tout."
+            : language === 'Japanese'
+              ? '聞いています。好きなだけ話してください。話し終わったら停止を押すと、そのあとで全部を文字にします。'
+              : '正在听你说。你可以一直说，等你点“停止并让 AI 回复”后我再转写。'
           : '正在录音，讲讲今天发生的一件事...'
         : 'Listening...'
     );
@@ -1581,7 +2298,6 @@ const App = () => {
         const rms = Math.sqrt(energy / channelData.length);
         if (rms > 0.015) {
           speechDetectedRef.current = true;
-          scheduleChatAutoStop();
         }
       };
       return;
@@ -1862,6 +2578,28 @@ const App = () => {
   }, [mode]);
 
   useEffect(() => {
+    if (mode === AppMode.LISTENING) {
+      void loadDailyContent('listening');
+      return;
+    }
+
+    if (mode === AppMode.READING) {
+      void loadDailyContent('reading');
+      return;
+    }
+
+    if (mode === AppMode.SPEAKING && speakingTrack === 'chat' && freeTalkMessages.length <= 1) {
+      const defaults = getFreeTalkDefaults();
+      setFreeTalkMessages((prev) =>
+        prev.length && prev[0]?.role === 'assistant'
+          ? [{ ...prev[0], text: defaults.opener }]
+          : prev
+      );
+      setFreeTalkQuickReplies(defaults.quickReplies);
+    }
+  }, [language]);
+
+  useEffect(() => {
     if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== (dailyContent.title || dailyContent.source || 'listening')) {
       listeningAutoplayRef.current = dailyContent.title || dailyContent.source || 'listening';
       void handleTTS();
@@ -1902,7 +2640,7 @@ const App = () => {
           <div className="flex bg-kitty-100/50 p-1.5 rounded-2xl border border-kitty-100">
             {['vocab', 'sentences', 'diary'].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-400'}`}>
-                {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : 'Diary'}
+                {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : notebookUiText.diaryTab}
               </button>
             ))}
           </div>
@@ -1911,13 +2649,13 @@ const App = () => {
               onClick={() => void copyNotebookExport()}
               className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-kitty-600 border border-kitty-100 hover:border-kitty-200"
             >
-              复制到 Notion
+              {notebookUiText.copyToNotion}
             </button>
             <button
               onClick={downloadNotebookExport}
               className="rounded-2xl bg-slate-900 px-4 py-3 text-xs font-black text-white hover:bg-slate-800"
             >
-              下载 .md 到 Obsidian
+              {notebookUiText.downloadObsidian}
             </button>
           </div>
           {notebookNotice && (
@@ -1934,7 +2672,7 @@ const App = () => {
                 <input
                   value={manualVocabInput}
                   onChange={(event) => setManualVocabInput(event.target.value)}
-                  placeholder="Add a new word manually..."
+                  placeholder={notebookUiText.addWordPlaceholder}
                   className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
                 />
                 <button
@@ -1946,7 +2684,7 @@ const App = () => {
                   }}
                   className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
                 >
-                  Add
+                  {notebookUiText.add}
                 </button>
               </div>
             )}
@@ -1955,7 +2693,7 @@ const App = () => {
                 <input
                   value={manualSentenceInput}
                   onChange={(event) => setManualSentenceInput(event.target.value)}
-                  placeholder="Add a useful sentence manually..."
+                  placeholder={notebookUiText.addSentencePlaceholder}
                   className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
                 />
                 <button
@@ -1967,7 +2705,7 @@ const App = () => {
                   }}
                   className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
                 >
-                  Add
+                  {notebookUiText.add}
                 </button>
               </div>
             )}
@@ -1976,20 +2714,20 @@ const App = () => {
                 <input
                   value={manualDiaryTitle}
                   onChange={(event) => setManualDiaryTitle(event.target.value)}
-                  placeholder="Diary title..."
+                  placeholder={notebookUiText.diaryTitlePlaceholder}
                   className="w-full rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
                 />
                 <textarea
                   value={manualDiaryInput}
                   onChange={(event) => setManualDiaryInput(event.target.value)}
-                  placeholder="Add a diary note manually..."
+                  placeholder={notebookUiText.diaryInputPlaceholder}
                   className="w-full min-h-28 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 resize-none"
                 />
                 <button
                   onClick={addManualDiary}
                   className="w-full rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
                 >
-                  Add to Diary
+                  {notebookUiText.addToDiary}
                 </button>
               </div>
             )}
@@ -2000,7 +2738,7 @@ const App = () => {
           ).map((group) => (
             <div key={group.title || 'untitled-group'} className="space-y-4">
               <div className="inline-flex rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 shadow-sm border border-kitty-100">
-                {group.title || 'Unknown date'}
+                {group.title || notebookUiText.unknownDate}
               </div>
               {group.items.filter(Boolean).map((item) => (
                 <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
@@ -2008,10 +2746,10 @@ const App = () => {
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="font-black text-slate-800 text-xl tracking-tight">
                         {activeTab === 'vocab'
-                          ? (item as VocabItem).word || 'Untitled word'
+                          ? (item as VocabItem).word || notebookUiText.untitledWord
                           : activeTab === 'sentences'
-                            ? `${((item as SavedSentence).text || 'Untitled sentence').substring(0, 30)}...`
-                            : (item as DiaryEntry).title || 'Untitled diary'}
+                            ? `${((item as SavedSentence).text || notebookUiText.untitledSentence).substring(0, 30)}...`
+                            : (item as DiaryEntry).title || notebookUiText.untitledDiary}
                       </span>
                       {(activeTab === 'vocab' || activeTab === 'sentences') && (
                         <button
@@ -2023,7 +2761,7 @@ const App = () => {
                             )
                           }
                           className="shrink-0 rounded-full bg-kitty-50 p-2 text-kitty-600 hover:bg-kitty-100 transition-colors"
-                          title={activeTab === 'vocab' ? '播放发音' : '朗读整句'}
+                          title={activeTab === 'vocab' ? notebookUiText.playWord : notebookUiText.playSentence}
                         >
                           <Volume2 size={14} />
                         </button>
@@ -2044,20 +2782,20 @@ const App = () => {
                   </div>
                   <p className="text-sm text-kitty-500 mb-3 font-bold">
                     {activeTab === 'vocab'
-                      ? (item as VocabItem).chineseDefinition || 'Language Clip'
+                      ? (item as VocabItem).chineseDefinition || notebookUiText.languageClip
                       : activeTab === 'sentences'
-                        ? 'Saved sentence'
-                        : `${(item as DiaryEntry).sourceLabel} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
+                        ? notebookUiText.savedSentence
+                        : `${formatDiarySourceLabel((item as DiaryEntry).sourceLabel)} · ${new Date((item as DiaryEntry).date).toLocaleDateString()}`}
                   </p>
                   {activeTab !== 'diary' && (((item as VocabItem).sourceUrl) || ((item as SavedSentence).sourceUrl)) && (
                     <a
                       href={((item as VocabItem).sourceUrl || (item as SavedSentence).sourceUrl)}
                       target="_blank"
-                      rel="noreferrer"
-                      className="mb-3 inline-flex items-center gap-2 text-xs font-black text-kitty-600 hover:text-kitty-700"
-                    >
-                      Open source <ArrowRight size={14} />
-                    </a>
+                    rel="noreferrer"
+                    className="mb-3 inline-flex items-center gap-2 text-xs font-black text-kitty-600 hover:text-kitty-700"
+                  >
+                      {notebookUiText.openSource} <ArrowRight size={14} />
+                  </a>
                   )}
                   <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
                     {activeTab === 'vocab' ? (
@@ -2097,7 +2835,7 @@ const App = () => {
           <div className="flex flex-wrap items-center gap-3 md:gap-4 lg:justify-end">
             <div className="flex w-full sm:w-auto bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm overflow-x-auto">
               {SUPPORTED_LANGUAGES.map((item) => (
-                <button key={item.code} onClick={() => { setLanguage(item.code); setMode(AppMode.DASHBOARD); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
+                <button key={item.code} onClick={() => { setLanguage(item.code); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
                   <span>{item.flag}</span>
                   <span>{item.label}</span>
                 </button>
@@ -2128,7 +2866,7 @@ const App = () => {
                 onClick={() => setIsAuthModalOpen(true)}
                 className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 border border-kitty-100 shadow-sm hover:border-kitty-200 max-w-full"
               >
-                <span className="truncate">{isEmailUser ? `Signed in · ${currentUserEmail}` : 'Email login'}</span>
+                <span className="truncate">{isEmailUser ? `Signed in · ${currentUserEmail}` : generalUiText.emailLogin}</span>
               </button>
             )}
             <button onClick={() => setSidebarOpen(true)} className="relative p-3.5 bg-white rounded-2xl shadow-sm text-kitty-500 hover:scale-105 border border-kitty-100 transition-all">
@@ -2148,10 +2886,10 @@ const App = () => {
               <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">Cloud Account</p>
-                    <h3 className="text-3xl font-black text-slate-900">Sign in with email</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
+                    <h3 className="text-3xl font-black text-slate-900">{generalUiText.signInTitle}</h3>
                     <p className="mt-2 text-sm text-slate-500 font-medium">
-                      Sign in first, then your notebook, diary, and study history will stay attached to your account.
+                      {generalUiText.accountDesc}
                     </p>
                   </div>
                 </div>
@@ -2161,7 +2899,7 @@ const App = () => {
                       type="email"
                       value={authEmail}
                       onChange={(event) => setAuthEmail(event.target.value)}
-                      placeholder="you@example.com"
+                      placeholder={generalUiText.emailPlaceholder}
                       className="w-full bg-transparent outline-none text-lg text-slate-700 placeholder:text-slate-300"
                     />
                   </div>
@@ -2172,7 +2910,7 @@ const App = () => {
                         inputMode="numeric"
                         value={authOtp}
                         onChange={(event) => setAuthOtp(event.target.value.replace(/\D/g, '').slice(0, 12))}
-                        placeholder="Verification code"
+                        placeholder={generalUiText.verificationCode}
                         className="w-full bg-transparent outline-none text-lg tracking-[0.35em] text-slate-700 placeholder:text-slate-300"
                       />
                     </div>
@@ -2183,7 +2921,7 @@ const App = () => {
                       disabled={isAuthLoading || !safeTrim(authEmail)}
                       className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
                     >
-                      {isAuthLoading ? 'Sending code...' : 'Send verification code'}
+                      {isAuthLoading ? generalUiText.sendingCode : generalUiText.sendVerificationCode}
                     </button>
                   ) : (
                     <div className="grid grid-cols-2 gap-3">
@@ -2196,14 +2934,14 @@ const App = () => {
                         disabled={isAuthLoading}
                         className="rounded-[1.75rem] bg-slate-100 px-6 py-4 text-slate-600 font-black disabled:opacity-50"
                       >
-                        Change email
+                        {generalUiText.changeEmail}
                       </button>
                       <button
                         onClick={() => void handleOtpVerify()}
                         disabled={isAuthLoading || safeTrim(authOtp).length < 4}
                         className="rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
                       >
-                        {isAuthLoading ? 'Verifying...' : 'Verify code'}
+                        {isAuthLoading ? generalUiText.verifyingCode : generalUiText.verifyCode}
                       </button>
                     </div>
                   )}
@@ -2222,10 +2960,10 @@ const App = () => {
               <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">Cloud Account</p>
-                    <h3 className="text-3xl font-black text-slate-900">Account</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
+                    <h3 className="text-3xl font-black text-slate-900">{generalUiText.accountTitle}</h3>
                     <p className="mt-2 text-sm text-slate-500 font-medium">
-                      Your notebook is now tied to your account and will sync across sessions.
+                      {generalUiText.accountSynced}
                     </p>
                   </div>
                   <button onClick={() => setIsAuthModalOpen(false)} className="p-2 rounded-full hover:bg-kitty-50 text-slate-400">
@@ -2233,13 +2971,13 @@ const App = () => {
                   </button>
                 </div>
                 <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
-                  <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Current account</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.currentAccount}</p>
                   <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
                 </div>
                 <div className="mt-4 rounded-[1.75rem] bg-slate-50 px-5 py-4 border border-slate-100">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Chrome Clipper</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.clipperTitle}</p>
                       <p className="text-sm text-slate-500 font-medium">
                         先生成你的插件连接码，再粘到 Chrome 插件里。之后插件就能直接把单词和句子存进你的账号。
                       </p>
@@ -2249,7 +2987,7 @@ const App = () => {
                       disabled={isGeneratingClipperToken}
                       className="rounded-full bg-kitty-500 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
                     >
-                      {isGeneratingClipperToken ? '生成中...' : '生成连接码'}
+                      {isGeneratingClipperToken ? generalUiText.generatingToken : generalUiText.generateToken}
                     </button>
                   </div>
                   {clipperToken && (
@@ -2261,7 +2999,7 @@ const App = () => {
                           onClick={() => void copyClipperToken()}
                           className="rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white"
                         >
-                          复制
+                          {generalUiText.copy}
                         </button>
                       </div>
                     </div>
@@ -2277,7 +3015,7 @@ const App = () => {
                   disabled={isAuthLoading}
                   className="mt-4 w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
                 >
-                  {isAuthLoading ? 'Signing out...' : 'Sign out'}
+                  {isAuthLoading ? generalUiText.signingOut : generalUiText.signOut}
                 </button>
                 {authMessage && (
                   <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700">
@@ -2301,17 +3039,15 @@ const App = () => {
             <div className="h-full p-5 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
               <div className="rounded-[2.5rem] md:rounded-[4rem] bg-white p-8 md:p-12 lg:p-16 shadow-2xl border border-kitty-100">
                 <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
-                  <Mic size={16} /> Today Story
+                  <Mic size={16} /> {generalUiText.dashboardBadge}
                 </div>
                 <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
                     <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[0.95]">
-                      每天用英语讲清楚
-                      <br />
-                      今天的一件事
+                      {generalUiText.dashboardTitle}
                     </h2>
                     <p className="mt-6 text-lg md:text-xl text-slate-500 font-medium leading-relaxed max-w-2xl">
-                      不用背模板，不用准备话题。你只要讲今天发生在你身上的一件事，我来帮你整理成一篇更自然、以后也能复用的英语故事。
+                      {generalUiText.dashboardDesc}
                     </p>
                     <div className="mt-8 flex flex-wrap gap-3">
                       {['门槛低：中文 / 中英 / 全英文都可以', '结果感强：立刻看到优化版故事', '积累可见：每天自动进入故事库'].map((item) => (
@@ -2325,25 +3061,25 @@ const App = () => {
                         onClick={() => void enterSpeakingMode()}
                         className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-kitty-500 px-8 py-5 text-white text-lg font-black shadow-xl hover:bg-kitty-600 transition-all"
                       >
-                        <Mic size={22} /> 开始今天的故事
+                        <Mic size={22} /> {generalUiText.storyButton}
                       </button>
                       <button
                         onClick={() => void enterFreeTalkMode()}
                         className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-indigo-50 px-8 py-5 text-indigo-700 text-lg font-black hover:bg-indigo-100 transition-all"
                       >
-                        <Headphones size={22} /> 直接聊几句英语
+                        <Headphones size={22} /> {generalUiText.freeTalkButton}
                       </button>
                       <button
                         onClick={openStoryLibrary}
                         className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-slate-100 px-8 py-5 text-slate-700 text-lg font-black hover:bg-slate-200 transition-all"
                       >
-                        <BookOpen size={22} /> 我的故事库
+                        <BookOpen size={22} /> {generalUiText.libraryButton}
                       </button>
                     </div>
                     <div className="mt-10">
                       <div className="flex items-center justify-between gap-4 mb-4">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Other Modules</p>
-                        <p className="text-sm font-semibold text-slate-400">听 / 读 / 写 / 考试都还在</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">{generalUiText.otherModules}</p>
+                        <p className="text-sm font-semibold text-slate-400">{generalUiText.otherModules}</p>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         {SECONDARY_MODULES.map((item) => {
@@ -2409,15 +3145,15 @@ const App = () => {
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
                   <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
-                    <Mic size={16} /> Today Story
+                    <Mic size={16} /> {generalUiText.dashboardBadge}
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">每天讲清楚今天的一件事</h2>
+                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{generalUiText.dashboardTitle}</h2>
                   <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
-                    不用准备模板。你只要把今天的事讲出来，我帮你整理成一篇更自然、更容易复述的英文故事。
+                    {generalUiText.dashboardDesc}
                   </p>
                 </div>
                 <button onClick={() => endSpeakingSession('user_exit')} className="self-start rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm border border-slate-100 flex items-center gap-3">
-                  <X size={16} /> 返回首页
+                  <X size={16} /> {generalUiText.backHome}
                 </button>
               </div>
 
@@ -2427,10 +3163,10 @@ const App = () => {
               {speakingTrack === null && storyStage === 'choose_mode' && (
                 <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">Step 1</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">先选你今天更需要哪种口语练习</h3>
+                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.step1}</p>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{storyUiText.chooseTitle}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
-                      如果你已经知道今天想讲什么，就走 Today Story；如果你只是想找个人直接聊几句英语，就走 Free Talk。
+                      {storyUiText.chooseDesc}
                     </p>
                     <div className="mt-8 grid gap-4">
                       <button
@@ -2440,7 +3176,7 @@ const App = () => {
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <p className="text-lg font-black text-slate-900">Free Talk</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-500">不知道说什么也没关系，先和 AI 直接聊几句英语。</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">{storyUiText.freeTalkDesc}</p>
                           </div>
                           <ArrowRight className="text-indigo-500 shrink-0" />
                         </div>
@@ -2465,20 +3201,16 @@ const App = () => {
                     </div>
                   </div>
                   <div className="rounded-[2.5rem] bg-kitty-50 p-7 md:p-10 border border-kitty-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">What you get</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.whatYouGet}</p>
                     <div className="space-y-3">
-                      {[
-                        '一版整理后的原话，让你知道自己刚刚到底讲了什么',
-                        '一篇更清晰、以后可以直接复述的英文故事',
-                        '3 个重点表达，方便以后面试、口语考试和聊天复用',
-                      ].map((item) => (
+                      {storyUiText.whatYouGetList.map((item) => (
                         <div key={item} className="rounded-[1.5rem] bg-white px-5 py-4 text-sm font-bold text-slate-700">
                           {item}
                         </div>
                       ))}
                     </div>
                     <div className="mt-6 rounded-[1.75rem] bg-white px-5 py-4">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Daily reminder</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.reminder}</p>
                       <div className="flex items-center gap-3">
                         <input
                           type="time"
@@ -2486,7 +3218,7 @@ const App = () => {
                           onChange={(event) => setStoryReminder(event.target.value)}
                           className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700"
                         />
-                        <p className="text-sm font-semibold text-slate-500">打开页面时会提醒你：今天还没讲故事哦。</p>
+                        <p className="text-sm font-semibold text-slate-500">{storyUiText.reminderDesc}</p>
                       </div>
                     </div>
                   </div>
@@ -2498,15 +3230,15 @@ const App = () => {
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
                       <span className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
-                        Step 2 · {storyModeLabel(storyMode)}
+                        STEP 2 · {storyModeLabel(storyMode)}
                       </span>
                       <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
-                        建议录 3–5 分钟
+                        {storyUiText.recordHint}
                       </span>
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">讲讲今天发生在你身上的一件事</h3>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{storyUiText.recordTitle}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
-                      可以是一次沟通、一个情绪、一件小开心、一个决定，或者今天最想记住的一幕。
+                      {storyUiText.recordDesc}
                     </p>
                     <div className="mt-8 rounded-[2rem] bg-slate-50 p-5 md:p-6">
                       {speechDraft ? (
@@ -2515,17 +3247,17 @@ const App = () => {
                       <textarea
                         value={storyTranscript}
                         onChange={(event) => setStoryTranscript(event.target.value)}
-                        placeholder="这里会出现语音转写结果。你也可以直接手动输入，先把故事讲顺最重要。"
+                        placeholder={storyUiText.transcriptPlaceholder}
                         className="w-full min-h-[260px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
                       />
                       <div className="mt-4 flex flex-wrap gap-3">
                         {!isListening ? (
                           <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
-                            <Mic size={18} /> 开始录音
+                            <Mic size={18} /> {storyUiText.startRecording}
                           </button>
                         ) : (
                           <button onClick={() => void stopVoiceInput('story_pause')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
-                            <Square size={18} /> 暂停并转写
+                            <Square size={18} /> {storyUiText.pauseAndTranscribe}
                           </button>
                         )}
                         <button
@@ -2539,19 +3271,15 @@ const App = () => {
                           disabled={!isListening && !safeTrim(storyTranscript)}
                           className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
                         >
-                          结束并进入下一步
+                          {storyUiText.finishStep}
                         </button>
                       </div>
                     </div>
                   </div>
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Light guidance</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.lightGuidance}</p>
                     <div className="space-y-3">
-                      {[
-                        '先讲发生了什么，再讲你当时怎么想。',
-                        '如果卡壳，就先用中文补一句。',
-                        '不需要太完整，AI 会帮你理顺结构。',
-                      ].map((item) => (
+                      {storyUiText.guidanceList.map((item) => (
                         <div key={item} className="rounded-[1.5rem] bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-600">
                           {item}
                         </div>
@@ -2560,7 +3288,7 @@ const App = () => {
                     {storyStage === 'review' && (
                       <button onClick={() => void handleGenerateTodayStory()} disabled={isStoryGenerating || !safeTrim(storyTranscript)} className="mt-6 w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50 flex items-center justify-center gap-3">
                         {isStoryGenerating ? <RefreshCw className="animate-spin" size={18} /> : <Sparkles size={18} />}
-                        生成我的故事
+                        {storyUiText.generateStory}
                       </button>
                     )}
                   </div>
@@ -2578,9 +3306,9 @@ const App = () => {
                         Say one thing, get one reply
                       </span>
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">直接聊，不知道说什么也可以</h3>
+                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{freeTalkUiText.title}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
-                      你说一句，我就回一句，并自动用英文播报。重点是把聊天节奏跑起来，不需要先想一个完整故事。
+                      {freeTalkUiText.description}
                     </p>
 
                     <div className="mt-8 space-y-4 max-h-[46vh] overflow-y-auto pr-2 no-scrollbar">
@@ -2599,7 +3327,7 @@ const App = () => {
                       ))}
                       {isFreeTalkLoading && (
                         <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm font-black text-slate-500">
-                          Replying...
+                          {freeTalkUiText.replying}
                         </div>
                       )}
                     </div>
@@ -2611,17 +3339,17 @@ const App = () => {
                       <textarea
                         value={freeTalkInput}
                         onChange={(event) => setFreeTalkInput(event.target.value)}
-                        placeholder="Say something simple... for example: Today was busy, I am a little tired, but I still wanted to practice."
+                        placeholder={freeTalkUiText.placeholder}
                         className="w-full min-h-[120px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
                       />
                       <div className="mt-4 flex flex-wrap gap-3">
                         {!isListening ? (
                           <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
-                            <Mic size={18} /> 开始说话
+                            <Mic size={18} /> {freeTalkUiText.startButton}
                           </button>
                         ) : (
                           <button onClick={() => void stopVoiceInput('chat')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
-                            <Square size={18} /> 停止并让 AI 回复
+                            <Square size={18} /> {freeTalkUiText.stopButton}
                           </button>
                         )}
                         <button
@@ -2629,7 +3357,7 @@ const App = () => {
                           disabled={isFreeTalkLoading || !safeTrim(freeTalkInput)}
                           className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
                         >
-                          Send
+                          {freeTalkUiText.sendButton}
                         </button>
                       </div>
                     </div>
@@ -2637,7 +3365,7 @@ const App = () => {
 
                   <div className="space-y-6">
                     <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">Start here</h4>
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.startHere}</h4>
                       <div className="flex flex-wrap gap-3">
                         {freeTalkQuickReplies.map((item) => (
                           <button
@@ -2651,7 +3379,7 @@ const App = () => {
                       </div>
                     </div>
                     <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">Better ways to say it</h4>
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.betterWays}</h4>
                       <div className="space-y-4">
                         {freeTalkImprovements.length ? (
                           freeTalkImprovements.map((item, index) => (
@@ -2662,25 +3390,21 @@ const App = () => {
                           ))
                         ) : (
                           <p className="text-base font-semibold text-slate-600 leading-relaxed">
-                            Once you send a message, I will give you 1 to 2 stronger versions so you can reuse them next time.
+                            {freeTalkUiText.betterWaysEmpty}
                           </p>
                         )}
                         {freeTalkCorrection ? (
                           <div className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
-                            <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">Coach note</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{freeTalkUiText.coachNote}</p>
                             <p className="text-sm font-semibold text-kitty-700 leading-relaxed">{freeTalkCorrection}</p>
                           </div>
                         ) : null}
                       </div>
                     </div>
                     <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Good enough rule</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{freeTalkUiText.rulesTitle}</p>
                       <div className="space-y-3">
-                        {[
-                          '先说短句，不要追求完整。',
-                          '卡住时就先说最简单的版本。',
-                          '重点是把一来一回跑起来。',
-                        ].map((item) => (
+                        {freeTalkUiText.rules.map((item) => (
                           <div key={item} className="rounded-[1.5rem] bg-white px-4 py-4 text-sm font-semibold text-slate-600">
                             {item}
                           </div>
@@ -2696,33 +3420,33 @@ const App = () => {
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">Today’s Story · {new Date().toLocaleDateString()}</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.storyResultLabel} · {new Date().toLocaleDateString()}</p>
                         <h3 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{storyResult.title}</h3>
                         <p className="mt-3 text-sm font-semibold text-slate-500">{storyModeLabel(storyMode)}</p>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <button onClick={() => void copyStoryText(storyResult.rewritten)} className="rounded-full bg-slate-100 px-5 py-3 text-sm font-black text-slate-700">
-                          复制英文故事
+                          {storyUiText.copyEnglish}
                         </button>
                         <button onClick={openStoryLibrary} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
-                          去我的故事库
+                          {storyUiText.goLibrary}
                         </button>
                       </div>
                     </div>
                     <div className="mt-8 grid gap-5">
                       <div className="rounded-[2rem] bg-slate-50 px-5 py-5">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">原话整理版</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.originalVersion}</p>
                         <p className="text-base md:text-lg leading-relaxed text-slate-600 whitespace-pre-wrap">{storyResult.original}</p>
                       </div>
                       <div className="rounded-[2rem] bg-emerald-50 px-5 py-5 border border-emerald-100">
-                        <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-3">优化后的英文版本</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-3">{storyUiText.rewrittenVersion}</p>
                         <p className="text-base md:text-lg leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{storyResult.rewritten}</p>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-6">
                     <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">重点表达</h4>
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">{storyUiText.keyPhrases}</h4>
                       <div className="space-y-4">
                         {storyResult.keyPhrases.map((phrase, index) => (
                           <div key={`${phrase.original}-${index}`} className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
@@ -2734,7 +3458,7 @@ const App = () => {
                       </div>
                     </div>
                     <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">今天的总评</h4>
+                      <h4 className="text-2xl font-black text-slate-900 mb-4">{storyUiText.summary}</h4>
                       <p className="text-base font-semibold text-slate-600 leading-relaxed">
                         {storyResult.comment || '今天这段故事已经有内容了。下一次继续练习“发生了什么 + 你怎么想”。'}
                       </p>
@@ -2749,13 +3473,13 @@ const App = () => {
                       ) : null}
                     </div>
                     <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Next</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.next}</p>
                       <div className="grid gap-3">
                         <button onClick={() => { setStoryStage('record'); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
-                          再讲一版，把故事说得更顺
+                          {storyUiText.retry}
                         </button>
                         <button onClick={() => { setStoryStage('choose_mode'); setStoryTranscript(''); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
-                          换一种模式重新开始
+                          {storyUiText.restart}
                         </button>
                       </div>
                     </div>
@@ -2770,19 +3494,19 @@ const App = () => {
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
                   <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
-                    <BookOpen size={16} /> My Stories
+                    <BookOpen size={16} /> {generalUiText.myStoriesBadge}
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">我的故事库</h2>
+                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{generalUiText.storyLibraryTitle}</h2>
                   <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
-                    这里会慢慢长出你自己的英语故事素材。以后面试、考试、聊天，都可以从这里复述和调用。
+                    {generalUiText.storyLibraryDesc}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <button onClick={() => void enterSpeakingMode()} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
-                    开始今天的故事
+                    {generalUiText.storyButton}
                   </button>
                   <button onClick={() => setMode(AppMode.DASHBOARD)} className="rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 border border-slate-100">
-                    返回首页
+                    {generalUiText.backHome}
                   </button>
                 </div>
               </div>
@@ -2790,8 +3514,8 @@ const App = () => {
               <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="rounded-[2.5rem] bg-white p-6 md:p-8 shadow-xl border border-slate-100">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-black text-slate-900">按日期倒序</h3>
-                    <span className="text-sm font-black text-slate-400">{storyEntries.filter((item) => item.language === language).length} stories</span>
+                    <h3 className="text-xl font-black text-slate-900">{storyUiText.sortByDate}</h3>
+                    <span className="text-sm font-black text-slate-400">{storyEntries.filter((item) => item.language === language).length}{storyUiText.countSuffix}</span>
                   </div>
                   <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-2 no-scrollbar">
                     {groupNotebookItemsByDate<TodayStoryEntry>(storyEntries.filter((item) => item.language === language)).map((group) => (
@@ -2814,7 +3538,7 @@ const App = () => {
                     ))}
                     {!storyEntries.filter((item) => item.language === language).length && (
                       <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm font-semibold text-slate-500">
-                        你还没有保存任何故事。今天先讲第一篇吧。
+                        {storyUiText.emptyLibrary}
                       </div>
                     )}
                   </div>
@@ -2827,20 +3551,20 @@ const App = () => {
                       <h3 className="text-3xl font-black text-slate-900 tracking-tight">{selectedStory.title}</h3>
                       <div className="mt-6 grid gap-5">
                         <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">原始故事</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.originalStory}</p>
                           <p className="text-base leading-relaxed text-slate-600 whitespace-pre-wrap">{selectedStory.originalText}</p>
                         </div>
                         <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4 border border-emerald-100">
                           <div className="flex items-center justify-between gap-3 mb-2">
-                            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">优化后的英文故事</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-500">{storyUiText.optimizedStory}</p>
                             <button onClick={() => void copyStoryText(selectedStory.rewrittenText)} className="text-xs font-black text-kitty-600">
-                              复制
+                              {storyUiText.copy}
                             </button>
                           </div>
                           <p className="text-base leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{selectedStory.rewrittenText}</p>
                         </div>
                         <div className="rounded-[1.75rem] bg-white border border-slate-100 px-5 py-4">
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">重点表达</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.keyPhrases}</p>
                           <div className="space-y-3">
                             {selectedStory.keyPhrases.map((phrase, index) => (
                               <div key={`${phrase.original}-${index}`} className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
@@ -2853,7 +3577,7 @@ const App = () => {
                         </div>
                         {selectedStory.comment && (
                           <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
-                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">点评</p>
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.comment}</p>
                             <p className="text-sm font-semibold text-slate-600">{selectedStory.comment}</p>
                           </div>
                         )}
@@ -2861,7 +3585,7 @@ const App = () => {
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center rounded-[2rem] bg-slate-50 text-slate-500 font-semibold">
-                      先去生成你的第一篇 Today Story。
+                      {storyUiText.noStoryYet}
                     </div>
                   )}
                 </div>
@@ -2877,12 +3601,12 @@ const App = () => {
                     <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                       <div>
                         <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
-                          {dailyContent?.source || 'Curated Content'}
+                          {dailyContent?.source || contentUiText.badgeFallback}
                         </div>
-                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || 'Finding the best material...'}</h2>
+                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || contentUiText.loadingTitle}</h2>
                         {dailyContent?.url && dailyContent.url !== '#' && (
                           <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
-                            Open original source <ArrowRight size={16} />
+                            {contentUiText.openSource} <ArrowRight size={16} />
                           </a>
                         )}
                       </div>
@@ -2890,13 +3614,23 @@ const App = () => {
                         <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
                           {isTTSLoading ? <RefreshCw className="animate-spin" /> : <Volume2 />}
                         </button>
+                        {mode === AppMode.LISTENING && (
+                          <button
+                            onClick={() => void handleToggleTTSPlayback()}
+                            disabled={!dailyContent?.content || (!isPlaybackActive && !isPlaybackPaused && isTTSLoading)}
+                            className="w-16 h-16 flex items-center justify-center bg-white text-slate-500 rounded-2xl border border-slate-100 hover:bg-slate-50 hover:text-kitty-500 transition-all disabled:opacity-40"
+                            title={isPlaybackPaused ? contentUiText.resumeTitle : isPlaybackActive ? contentUiText.pauseTitle : contentUiText.playTitle}
+                          >
+                            {isPlaybackPaused ? <Play /> : <Pause />}
+                          </button>
+                        )}
                         <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
                           <RefreshCw />
                         </button>
                       </div>
                     </div>
                     <div className="overflow-y-auto no-scrollbar text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
-                      {dailyContent?.content || 'Synchronizing with external libraries...'}
+                      {dailyContent?.content || contentUiText.loadingBody}
                     </div>
                   </div>
 
@@ -2904,18 +3638,18 @@ const App = () => {
                     <div className="rounded-[2rem] border border-slate-100 bg-slate-50/80 p-5 md:p-6">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">My sources</p>
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{contentUiText.sourcePanelLabel}</p>
                           <h3 className="text-lg md:text-xl font-black text-slate-900">
-                            {mode === AppMode.LISTENING ? '自定义你的听力信息源' : '自定义你的阅读信息源'}
+                            {contentUiText.sourcePanelTitle}
                           </h3>
                           <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">
-                            这块只是设置区。你加过之后，后面的内容会优先从这里抽。
+                            {contentUiText.sourcePanelDesc}
                           </p>
                         </div>
                         <div className="rounded-[1.25rem] bg-white px-3 py-2 text-xs font-bold text-slate-500 border border-slate-100">
                           当前自定义 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个
                           <br />
-                          默认 {mode === AppMode.LISTENING ? DEFAULT_LISTENING_SOURCE_NAMES.length : DEFAULT_READING_SOURCE_NAMES.length} 个
+                          默认 {mode === AppMode.LISTENING ? languageSourceHints.listeningNames.length : languageSourceHints.readingNames.length} 个
                         </div>
                       </div>
 
@@ -2923,7 +3657,7 @@ const App = () => {
                         <input
                           value={sourceNameInput}
                           onChange={(event) => setSourceNameInput(event.target.value)}
-                          placeholder={mode === AppMode.LISTENING ? '比如 Lenny’s Podcast' : '比如 Stratechery'}
+                          placeholder={mode === AppMode.LISTENING ? languageSourceHints.listeningPlaceholder : languageSourceHints.readingPlaceholder}
                           className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
                         />
                         <input
@@ -2937,14 +3671,14 @@ const App = () => {
                           onChange={(event) => setSourceTypeInput(event.target.value as ContentSourceType)}
                           className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
                         >
-                          <option value="both">读 + 听</option>
-                          <option value="reading">只给阅读</option>
-                          <option value="listening">只给听力</option>
+                          <option value="both">{contentUiText.sourceTypeBoth}</option>
+                          <option value="reading">{contentUiText.sourceTypeReading}</option>
+                          <option value="listening">{contentUiText.sourceTypeListening}</option>
                         </select>
                         <input
                           value={sourceDescriptionInput}
                           onChange={(event) => setSourceDescriptionInput(event.target.value)}
-                          placeholder="补一句主题，比如 AI / 商业 / 影视"
+                          placeholder={contentUiText.sourceDescPlaceholder}
                           className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
                         />
                         <button
@@ -2952,7 +3686,7 @@ const App = () => {
                           disabled={!safeTrim(sourceNameInput) || !safeTrim(sourceUrlInput)}
                           className="w-full rounded-[1.25rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
                         >
-                          添加源
+                          {contentUiText.addSource}
                         </button>
                       </div>
 
@@ -2970,7 +3704,7 @@ const App = () => {
                         ))}
                         {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
                           <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
-                            还没有自定义源，当前会直接从默认源池里抽内容。
+                            {contentUiText.noCustomSource}
                           </div>
                         )}
                       </div>
@@ -2985,13 +3719,13 @@ const App = () => {
             <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-6 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
               <div className="flex-1 flex flex-col bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-8 lg:p-12 shadow-2xl border border-pink-100 relative overflow-hidden min-h-[520px]">
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
-                  <h2 className="text-2xl md:text-3xl font-black text-slate-800">Writing Studio</h2>
+                  <h2 className="text-2xl md:text-3xl font-black text-slate-800">{generalUiText.writingTitle}</h2>
                   <div className="flex flex-wrap items-center gap-3">
                     <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
                     </button>
-                    <button onClick={saveWritingEntry} disabled={!writingResult || !safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-50">
-                      <Bookmark size={18} /> Save Diary
+                    <button onClick={saveWritingEntry} disabled={!safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-40">
+                      <Bookmark size={18} /> {writingResult ? generalUiText.saveDiary : generalUiText.saveDraft}
                     </button>
                   </div>
                 </div>
@@ -3006,15 +3740,15 @@ const App = () => {
                 {writingResult ? (
                   <div className="space-y-6 animate-in slide-in-from-right-8 duration-500" onMouseUp={handleTextSelection}>
                     {[
-                      { label: 'Corrected', text: writingResult.corrected, color: 'emerald' },
-                      { label: 'Pro Upgrade', text: writingResult.upgraded, color: 'indigo' },
-                      { label: 'Model Essay', text: writingResult.modelEssay, color: 'slate' },
+                      { label: 'Corrected', title: generalUiText.corrected, text: writingResult.corrected, color: 'emerald' },
+                      { label: 'Pro Upgrade', title: generalUiText.proUpgrade, text: writingResult.upgraded, color: 'indigo' },
+                      { label: 'Model Essay', title: generalUiText.modelEssay, text: writingResult.modelEssay, color: 'slate' },
                     ].map((result, index) => (
                       <div key={index} className={`bg-${result.color}-50 p-6 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
                         <div className="flex items-center justify-between gap-3 mb-4">
-                          <span className={`text-[10px] font-black uppercase tracking-widest text-${result.color}-600`}>{result.label}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest text-${result.color}-600`}>{result.title}</span>
                           <button onClick={() => saveDiaryVariant(result.label as 'Corrected' | 'Pro Upgrade' | 'Model Essay', result.text)} className="text-xs font-black text-kitty-600 hover:text-kitty-700">
-                            Save to Diary
+                            {generalUiText.saveToDiary}
                           </button>
                         </div>
                         <p className="text-slate-800 text-base md:text-lg leading-relaxed font-bold break-words">{result.text}</p>
@@ -3024,12 +3758,12 @@ const App = () => {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-16 glass rounded-[4rem] border-2 border-dashed border-slate-200">
                     <PenTool size={64} className="text-slate-200 mb-6" />
-                    <p className="text-lg text-slate-400 font-black">AI feedback will appear here once you submit.</p>
+                    <p className="text-lg text-slate-400 font-black">{generalUiText.feedbackPlaceholder}</p>
                   </div>
                 )}
                 {writingEntries.length > 0 && (
                   <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm">
-                    <h3 className="text-xl font-black text-slate-800 mb-5">Saved Diaries</h3>
+                    <h3 className="text-xl font-black text-slate-800 mb-5">{generalUiText.savedDiaries}</h3>
                     <div className="space-y-4">
                       {writingEntries.slice(0, 3).map((entry) => (
                         <div key={entry.id} className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
@@ -3047,8 +3781,8 @@ const App = () => {
           {mode === AppMode.EXAM_PORTAL && (
             <div className="h-full p-16 max-w-6xl mx-auto overflow-y-auto no-scrollbar animate-in fade-in duration-1000">
               <div className="text-center mb-16">
-                <h2 className="text-5xl font-black text-slate-900 mb-4">Exam Hub</h2>
-                <p className="text-slate-400 text-xl font-medium">External resources to supercharge your official preparation.</p>
+                <h2 className="text-5xl font-black text-slate-900 mb-4">{generalUiText.examTitle}</h2>
+                <p className="text-slate-400 text-xl font-medium">{generalUiText.examDesc}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {(EXAM_RESOURCES[language] || []).map((resource, index) => (
