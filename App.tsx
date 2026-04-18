@@ -195,14 +195,14 @@ const LANGUAGE_SOURCE_HINTS: Record<string, { readingNames: string[]; listeningN
     listeningPlaceholder: '比如 Lenny’s Podcast',
   },
   French: {
-    readingNames: ['RFI Savoirs', 'Le Monde', 'France Culture', 'TV5MONDE Langue Française'],
-    listeningNames: ['Journal en français facile', 'InnerFrench', 'Français Authentique', 'Easy French'],
+    readingNames: ['RFI Savoirs', 'Le Monde', 'France Culture', 'TV5MONDE Langue Française', 'Le Figaro', 'Courrier International', 'Les Echos Start', 'Usbek & Rica'],
+    listeningNames: ['Journal en français facile', 'InnerFrench', 'Français Authentique', 'Easy French', 'Louis French Lessons', 'Transfert', 'Code source', 'La Story'],
     readingPlaceholder: '比如 RFI Savoirs',
     listeningPlaceholder: '比如 InnerFrench',
   },
   Japanese: {
-    readingNames: ['NHK Web Easy', 'NHK News', 'Matcha', 'Hiragana Times'],
-    listeningNames: ['NHK World Easy Japanese', 'JapanesePod101', 'Nihongo Con Teppei', 'Matcha Podcast'],
+    readingNames: ['NHK Web Easy', 'NHK News', 'Matcha', 'Hiragana Times', 'NewsPicks', 'ITmedia', 'President Online', 'Toyokeizai Online'],
+    listeningNames: ['NHK World Easy Japanese', 'JapanesePod101', 'Nihongo Con Teppei', 'Matcha Podcast', 'Let’s Talk in Japanese', '4989 American Life', 'News Connect', 'Rebuild'],
     readingPlaceholder: '比如 NHK Web Easy',
     listeningPlaceholder: '比如 Nihongo Con Teppei',
   },
@@ -500,6 +500,8 @@ const getLanguageSourceHints = (language: string) => LANGUAGE_SOURCE_HINTS[langu
 const getFreeTalkUiText = (language: string) => {
   if (language === 'French') {
     return {
+      badge: 'Free Talk',
+      microMode: 'Une phrase, une réponse',
       title: 'On parle librement, sans pression',
       description: 'Tu peux parler aussi longtemps que tu veux. Quand tu as fini, clique sur arrêter et je te répondrai.',
       placeholder: 'Dis quelque chose de simple... par exemple : Aujourd’hui, j’étais un peu fatigué, mais je voulais quand même pratiquer.',
@@ -517,11 +519,20 @@ const getFreeTalkUiText = (language: string) => {
       ],
       rulesTitle: 'Règle simple',
       replying: 'Je te réponds...',
+      recording: 'Enregistrement en cours... continue jusqu’à ce que tu appuies sur stop.',
+      transcribing: 'Transcription en cours...',
+      transcribingPart: 'Transcription de la partie',
+      liveLabel: 'En direct',
+      assistantRole: 'Partenaire IA',
+      userRole: 'Toi',
+      transcriptReady: 'Ta transcription est prête. Relis-la, ajuste si besoin, puis envoie.',
     };
   }
 
   if (language === 'Japanese') {
     return {
+      badge: 'Free Talk',
+      microMode: '一言話したら、一言返す',
       title: '気軽に話そう。うまくまとまっていなくても大丈夫',
       description: '長めに話しても大丈夫です。話し終わったら停止を押してください。そのあと私が返します。',
       placeholder: '気軽に話してみてください。例えば：今日は少し疲れていたけど、それでも練習したかったです。',
@@ -539,10 +550,19 @@ const getFreeTalkUiText = (language: string) => {
       ],
       rulesTitle: '気楽にいくルール',
       replying: '返信を考えています...',
+      recording: '録音中です。話し終わったら停止を押してください。',
+      transcribing: '音声を文字にしています...',
+      transcribingPart: 'パートを文字にしています',
+      liveLabel: '録音中',
+      assistantRole: 'AI パートナー',
+      userRole: 'あなた',
+      transcriptReady: '文字起こしが入りました。必要なら少し直してから送信してください。',
     };
   }
 
   return {
+    badge: 'Free Talk',
+    microMode: 'Say one thing, get one reply',
     title: 'Just chat. It is okay if you do not know what to say yet.',
     description: 'You can speak for as long as you want. When you finish, tap stop and I will reply right away.',
     placeholder: 'Say something simple... for example: Today was busy, I am a little tired, but I still wanted to practice.',
@@ -560,6 +580,13 @@ const getFreeTalkUiText = (language: string) => {
     ],
     rulesTitle: 'Good enough rule',
     replying: 'Replying...',
+    recording: 'Recording... keep talking until you press stop.',
+    transcribing: 'Transcribing your speech...',
+    transcribingPart: 'Transcribing part',
+    liveLabel: 'Live',
+    assistantRole: 'AI partner',
+    userRole: 'You',
+    transcriptReady: 'Your transcript is ready. Check it, tweak it if needed, then send.',
   };
 };
 
@@ -933,6 +960,12 @@ const getStoryUiText = (language: string) => {
       copy: 'Copier',
       comment: 'Commentaire',
       countSuffix: ' histoires',
+      reviewTitle: 'Relis rapidement avant de générer',
+      reviewDesc: 'Vérifie si ton histoire est complète. Tu peux encore corriger, ajouter une phrase, ou reprendre un peu de voix.',
+      transcriptStats: 'Aperçu du brouillon',
+      wordCount: 'Nombre de mots',
+      keepAdding: 'Continuer à ajouter',
+      clearDraft: 'Effacer et recommencer',
     };
   }
 
@@ -982,6 +1015,12 @@ const getStoryUiText = (language: string) => {
       copy: 'コピー',
       comment: 'コメント',
       countSuffix: ' 件',
+      reviewTitle: '生成前にざっと見直しましょう',
+      reviewDesc: '話の流れが足りているか確認して、必要なら少し直したり、音声を追加したりできます。',
+      transcriptStats: '下書きメモ',
+      wordCount: '語数',
+      keepAdding: '続きを足す',
+      clearDraft: '消してやり直す',
     };
   }
 
@@ -1030,6 +1069,12 @@ const getStoryUiText = (language: string) => {
     copy: '复制',
     comment: '点评',
     countSuffix: ' stories',
+    reviewTitle: 'Review it once before generating',
+    reviewDesc: 'Make sure the story feels complete. You can still edit it, add one more detail, or record another short part.',
+    transcriptStats: 'Draft snapshot',
+    wordCount: 'Word count',
+    keepAdding: 'Keep adding',
+    clearDraft: 'Clear and restart',
   };
 };
 
@@ -1102,6 +1147,7 @@ const App = () => {
 
   const [isListening, setIsListening] = useState(false);
   const [speechDraft, setSpeechDraft] = useState('');
+  const [recordingDurationSec, setRecordingDurationSec] = useState(0);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isVoiceOutputEnabled, setIsVoiceOutputEnabled] = useState(true);
   const [isTTSLoading, setIsTTSLoading] = useState(false);
@@ -1122,6 +1168,8 @@ const App = () => {
   const recordingSampleRateRef = useRef(16000);
   const freeTalkTurnIdRef = useRef(0);
   const silenceTimerRef = useRef<number | null>(null);
+  const recordingTimerRef = useRef<number | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const speechDetectedRef = useRef(false);
   const cloudUserIdRef = useRef<string | null>(null);
   const hasBootstrappedCloudRef = useRef(false);
@@ -1138,6 +1186,11 @@ const App = () => {
   const notebookUiText = getNotebookUiText(language);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
+  const formatRecordingDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  };
   const formatDiarySourceLabel = (value: string) => {
     if (value === 'Corrected') return generalUiText.corrected;
     if (value === 'Pro Upgrade') return generalUiText.proUpgrade;
@@ -1497,11 +1550,24 @@ const App = () => {
     window.setTimeout(() => setNotebookNotice(''), 2200);
   };
 
-  const storyModeMeta: Record<TodayStoryMode, { title: string; description: string }> = {
-    zh: { title: '我先用中文讲', description: '适合完全不敢开口，先把今天的事情讲顺。' },
-    mixed: { title: '我用中英夹杂讲', description: '适合已经能说一点英语，但会自然夹中文。' },
-    en: { title: '我尝试全英文讲', description: '适合想挑战自己，用英文讲清楚今天的一件事。' },
-  };
+  const storyModeMeta: Record<TodayStoryMode, { title: string; description: string }> =
+    language === 'French'
+      ? {
+          zh: { title: 'Je commence en chinois', description: 'Pour celles et ceux qui n’osent pas encore parler, afin de raconter d’abord l’histoire sans pression.' },
+          mixed: { title: 'Je parle en chinois + anglais', description: 'Pour celles et ceux qui peuvent déjà dire un peu d’anglais mais passent naturellement au chinois.' },
+          en: { title: 'Je tente en anglais', description: 'Pour te challenger et raconter clairement un événement du jour en anglais.' },
+        }
+      : language === 'Japanese'
+        ? {
+            zh: { title: 'まず中国語で話す', description: 'まだ口を開くのが不安なときに、まず今日の出来事を順番に話すためのモードです。' },
+            mixed: { title: '中国語と英語を混ぜて話す', description: '少し英語は出るけれど、自然に中国語も混ざる人向けです。' },
+            en: { title: '英語だけで話してみる', description: '少し背伸びして、今日の出来事を英語で伝える練習をしたい人向けです。' },
+          }
+        : {
+            zh: { title: '我先用中文讲', description: '适合完全不敢开口，先把今天的事情讲顺。' },
+            mixed: { title: '我用中英夹杂讲', description: '适合已经能说一点英语，但会自然夹中文。' },
+            en: { title: '我尝试全英文讲', description: '适合想挑战自己，用英文讲清楚今天的一件事。' },
+          };
 
   const storyModeLabel = (value: TodayStoryMode) => storyModeMeta[value].title;
 
@@ -1653,6 +1719,7 @@ const App = () => {
     freeTalkTurnIdRef.current = turnId;
     setFreeTalkMessages(nextHistory);
     setFreeTalkInput('');
+    setSpeechDraft('');
     setFreeTalkCorrection('');
     setFreeTalkImprovements([]);
     setIsFreeTalkLoading(true);
@@ -1941,6 +2008,14 @@ const App = () => {
     }
   };
 
+  const clearRecordingTimer = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    recordingStartedAtRef.current = null;
+  };
+
   const stopCurrentSpeechPlayback = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -1959,6 +2034,7 @@ const App = () => {
 
   const stopRecorder = async () => {
     clearSilenceTimer();
+    clearRecordingTimer();
     const recorder = recorderRef.current;
     recorderRef.current = null;
     if (!recorder) return;
@@ -2009,7 +2085,7 @@ const App = () => {
     return btoa(binary);
   };
 
-  const getRecordedAudioBase64 = () => {
+  const getRecordedSamples = () => {
     const totalLength = recordedChunksRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
     const combined = new Float32Array(totalLength);
     let offset = 0;
@@ -2017,7 +2093,47 @@ const App = () => {
       combined.set(chunk, offset);
       offset += chunk.length;
     });
-    return encodeWavBase64(combined, recordingSampleRateRef.current);
+    return combined;
+  };
+
+  const splitSamplesForTranscription = (samples: Float32Array, sampleRate: number, maxSeconds = 24) => {
+    const segmentLength = Math.max(sampleRate * maxSeconds, sampleRate * 4);
+    if (samples.length <= segmentLength) {
+      return [samples];
+    }
+
+    const segments: Float32Array[] = [];
+    for (let offset = 0; offset < samples.length; offset += segmentLength) {
+      segments.push(samples.slice(offset, Math.min(offset + segmentLength, samples.length)));
+    }
+    return segments;
+  };
+
+  const transcribeRecordedAudio = async (asrLanguage: string) => {
+    const samples = getRecordedSamples();
+    if (!samples.length) {
+      return '';
+    }
+
+    const segments = splitSamplesForTranscription(samples, recordingSampleRateRef.current);
+    const transcripts: string[] = [];
+
+    for (let index = 0; index < segments.length; index += 1) {
+      if (segments.length > 1) {
+        setSpeechDraft(`${freeTalkUiText.transcribingPart} ${index + 1}/${segments.length}...`);
+      } else {
+        setSpeechDraft(freeTalkUiText.transcribing);
+      }
+
+      const audioBase64 = encodeWavBase64(segments[index], recordingSampleRateRef.current);
+      const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, asrLanguage);
+      const finalText = safeTrim(transcript);
+      if (finalText) {
+        transcripts.push(finalText);
+      }
+    }
+
+    return transcripts.join('\n').trim();
   };
 
   const pickPreferredNativeVoice = () => {
@@ -2131,6 +2247,7 @@ const App = () => {
     stopMediaStream();
     stopCurrentSpeechPlayback();
     setIsListening(false);
+    setRecordingDurationSec(0);
     setSpeechDraft('');
     setSpeakingTrack(null);
     speechDetectedRef.current = false;
@@ -2174,7 +2291,8 @@ const App = () => {
     clearSilenceTimer();
     speechDetectedRef.current = false;
     setIsListening(false);
-    setSpeechDraft(hasRecording ? 'Transcribing your speech...' : '');
+    setRecordingDurationSec(0);
+    setSpeechDraft(hasRecording ? freeTalkUiText.transcribing : '');
 
     await stopRecorder();
 
@@ -2184,7 +2302,6 @@ const App = () => {
     }
 
     try {
-      const audioBase64 = getRecordedAudioBase64();
       const asrLanguage =
         mode === AppMode.SPEAKING
           ? speakingTrack === 'story'
@@ -2193,8 +2310,7 @@ const App = () => {
               : 'Chinese'
             : language
           : language;
-      const { transcript } = await AIService.transcribeSpeech(audioBase64, recordingSampleRateRef.current, asrLanguage);
-      const finalText = safeTrim(transcript);
+      const finalText = await transcribeRecordedAudio(asrLanguage);
       setSpeechDraft('');
       recordedChunksRef.current = [];
       if (finalText) {
@@ -2205,7 +2321,8 @@ const App = () => {
               setStoryStage('review');
             }
           } else if (speakingTrack === 'chat') {
-            void handleSubmitFreeTalk(finalText);
+            setFreeTalkInput((prev) => [safeTrim(prev), finalText].filter(Boolean).join(' ').trim());
+            setSpeechDraft(freeTalkUiText.transcriptReady);
           }
         }
       }
@@ -2272,16 +2389,21 @@ const App = () => {
       zeroGain,
     };
 
+    clearRecordingTimer();
+    recordingStartedAtRef.current = Date.now();
+    setRecordingDurationSec(0);
+    recordingTimerRef.current = window.setInterval(() => {
+      if (!recordingStartedAtRef.current) return;
+      const seconds = Math.max(0, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000));
+      setRecordingDurationSec(seconds);
+    }, 1000);
+
     setErrorMsg(null);
     setIsListening(true);
     setSpeechDraft(
       mode === AppMode.SPEAKING
         ? speakingTrack === 'chat'
-          ? language === 'French'
-            ? "Je t’écoute. Tu peux parler librement. Quand tu as fini, appuie sur arrêter et je transcrirai tout."
-            : language === 'Japanese'
-              ? '聞いています。好きなだけ話してください。話し終わったら停止を押すと、そのあとで全部を文字にします。'
-              : '正在听你说。你可以一直说，等你点“停止并让 AI 回复”后我再转写。'
+          ? freeTalkUiText.recording
           : '正在录音，讲讲今天发生的一件事...'
         : 'Listening...'
     );
@@ -2613,6 +2735,7 @@ const App = () => {
     void stopRecorder();
     stopMediaStream();
     stopCurrentSpeechPlayback();
+    clearRecordingTimer();
   }, []);
 
   return (
@@ -3238,12 +3361,28 @@ const App = () => {
                     </div>
                     <h3 className="text-2xl md:text-3xl font-black text-slate-900">{storyUiText.recordTitle}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
-                      {storyUiText.recordDesc}
+                      {storyStage === 'review' ? storyUiText.reviewDesc : storyUiText.recordDesc}
                     </p>
                     <div className="mt-8 rounded-[2rem] bg-slate-50 p-5 md:p-6">
                       {speechDraft ? (
                         <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
                       ) : null}
+                      {storyStage === 'review' && (
+                        <div className="mb-4 grid gap-3 md:grid-cols-3">
+                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.transcriptStats}</p>
+                            <p className="text-sm font-semibold text-slate-600">{storyModeLabel(storyMode)}</p>
+                          </div>
+                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.wordCount}</p>
+                            <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).split(/\s+/).filter(Boolean).length}</p>
+                          </div>
+                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.recordHint}</p>
+                            <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).length} chars</p>
+                          </div>
+                        </div>
+                      )}
                       <textarea
                         value={storyTranscript}
                         onChange={(event) => setStoryTranscript(event.target.value)}
@@ -3253,7 +3392,7 @@ const App = () => {
                       <div className="mt-4 flex flex-wrap gap-3">
                         {!isListening ? (
                           <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
-                            <Mic size={18} /> {storyUiText.startRecording}
+                            <Mic size={18} /> {storyStage === 'review' ? storyUiText.keepAdding : storyUiText.startRecording}
                           </button>
                         ) : (
                           <button onClick={() => void stopVoiceInput('story_pause')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
@@ -3273,13 +3412,34 @@ const App = () => {
                         >
                           {storyUiText.finishStep}
                         </button>
+                        {storyStage === 'review' && (
+                          <button
+                            onClick={() => {
+                              setStoryTranscript('');
+                              setStoryStage('record');
+                              setSpeechDraft('');
+                            }}
+                            className="rounded-[1.5rem] bg-white px-6 py-4 text-slate-700 font-black border border-slate-200"
+                          >
+                            {storyUiText.clearDraft}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.lightGuidance}</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
+                      {storyStage === 'review' ? storyUiText.reviewTitle : storyUiText.lightGuidance}
+                    </p>
                     <div className="space-y-3">
-                      {storyUiText.guidanceList.map((item) => (
+                      {(storyStage === 'review'
+                        ? [
+                            storyUiText.reviewDesc,
+                            storyUiText.keepAdding,
+                            storyUiText.generateStory,
+                          ]
+                        : storyUiText.guidanceList
+                      ).map((item) => (
                         <div key={item} className="rounded-[1.5rem] bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-600">
                           {item}
                         </div>
@@ -3300,18 +3460,34 @@ const App = () => {
                   <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
                       <span className="rounded-full bg-indigo-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-indigo-600">
-                        Free Talk
+                        {freeTalkUiText.badge}
                       </span>
                       <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
-                        Say one thing, get one reply
+                        {freeTalkUiText.microMode}
                       </span>
                     </div>
                     <h3 className="text-2xl md:text-3xl font-black text-slate-900">{freeTalkUiText.title}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
                       {freeTalkUiText.description}
                     </p>
+                    {isListening && (
+                      <div className="mt-4 inline-flex items-center gap-3 rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        {freeTalkUiText.liveLabel} · {formatRecordingDuration(recordingDurationSec)}
+                      </div>
+                    )}
 
                     <div className="mt-8 space-y-4 max-h-[46vh] overflow-y-auto pr-2 no-scrollbar">
+                      {isListening && (
+                        <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 px-5 py-4 text-emerald-700">
+                          <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-80">
+                            {freeTalkUiText.userRole}
+                          </p>
+                          <p className="text-base md:text-lg font-medium leading-relaxed">
+                            {freeTalkUiText.recording}
+                          </p>
+                        </div>
+                      )}
                       {freeTalkMessages.map((message) => (
                         <div
                           key={message.id}
@@ -3320,7 +3496,7 @@ const App = () => {
                           }`}
                         >
                           <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-70">
-                            {message.role === 'assistant' ? 'AI partner' : 'You'}
+                            {message.role === 'assistant' ? freeTalkUiText.assistantRole : freeTalkUiText.userRole}
                           </p>
                           <p className="text-base md:text-lg font-medium leading-relaxed whitespace-pre-wrap">{message.text}</p>
                         </div>
@@ -3338,7 +3514,12 @@ const App = () => {
                       ) : null}
                       <textarea
                         value={freeTalkInput}
-                        onChange={(event) => setFreeTalkInput(event.target.value)}
+                        onChange={(event) => {
+                          setFreeTalkInput(event.target.value);
+                          if (speechDraft === freeTalkUiText.transcriptReady) {
+                            setSpeechDraft('');
+                          }
+                        }}
                         placeholder={freeTalkUiText.placeholder}
                         className="w-full min-h-[120px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
                       />

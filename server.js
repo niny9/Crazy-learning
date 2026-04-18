@@ -37,12 +37,20 @@ const DEFAULT_READING_SOURCES = {
     { name: 'Le Monde', url: 'https://www.lemonde.fr/', type: 'reading', description: 'General French news and society reading at native level.' },
     { name: 'France Culture', url: 'https://www.radiofrance.fr/franceculture', type: 'reading', description: 'Culture, ideas, and commentary in French.' },
     { name: 'TV5MONDE Langue Française', url: 'https://langue-francaise.tv5monde.com/', type: 'reading', description: 'French-learning articles and comprehension materials.' },
+    { name: 'Le Figaro', url: 'https://www.lefigaro.fr/', type: 'reading', description: 'French news, culture, and opinion reading.' },
+    { name: 'Courrier International', url: 'https://www.courrierinternational.com/', type: 'reading', description: 'Global issues rewritten for French readers.' },
+    { name: 'Les Echos Start', url: 'https://start.lesechos.fr/', type: 'reading', description: 'Business, work, and career reading in French.' },
+    { name: 'Usbek & Rica', url: 'https://usbeketrica.com/fr', type: 'reading', description: 'French reading about technology, future, and society.' },
   ],
   Japanese: [
     { name: 'NHK Web Easy', url: 'https://www3.nhk.or.jp/news/easy/', type: 'reading', description: 'Easy Japanese news articles for learners.' },
     { name: 'NHK News', url: 'https://www3.nhk.or.jp/news/', type: 'reading', description: 'Standard Japanese news reading.' },
     { name: 'Matcha', url: 'https://matcha-jp.com/jp', type: 'reading', description: 'Japanese lifestyle, travel, and culture reading.' },
     { name: 'Hiragana Times', url: 'https://hiraganatimes.com/', type: 'reading', description: 'Japanese culture and bilingual reading support.' },
+    { name: 'NewsPicks', url: 'https://newspicks.com/', type: 'reading', description: 'Business, startup, and society reading in Japanese.' },
+    { name: 'ITmedia', url: 'https://www.itmedia.co.jp/', type: 'reading', description: 'Technology and product reading in Japanese.' },
+    { name: 'President Online', url: 'https://president.jp/', type: 'reading', description: 'Work, leadership, and business reading.' },
+    { name: 'Toyokeizai Online', url: 'https://toyokeizai.net/', type: 'reading', description: 'Japanese business and industry analysis.' },
   ],
 };
 
@@ -61,12 +69,20 @@ const DEFAULT_LISTENING_SOURCES = {
     { name: 'InnerFrench', url: 'https://innerfrench.com/podcast/', type: 'listening', description: 'Natural French podcast for intermediate learners.' },
     { name: 'Français Authentique', url: 'https://www.francaisauthentique.com/podcasts/', type: 'listening', description: 'Everyday spoken French listening.' },
     { name: 'Easy French', url: 'https://www.easyfrench.fm/', type: 'listening', description: 'Conversational French listening practice.' },
+    { name: 'Louis French Lessons', url: 'https://louisfrenchlessons.com/podcast/', type: 'listening', description: 'Clear spoken French with learning support.' },
+    { name: 'Transfert', url: 'https://www.slate.fr/audio/transfert', type: 'listening', description: 'Narrative storytelling podcast in natural French.' },
+    { name: 'Code source', url: 'https://www.leparisien.fr/podcasts/code-source/', type: 'listening', description: 'French news storytelling podcast.' },
+    { name: 'La Story', url: 'https://www.lesechos.fr/podcasts/la-story', type: 'listening', description: 'Business and society listening in French.' },
   ],
   Japanese: [
     { name: 'NHK World Easy Japanese', url: 'https://www.nhk.or.jp/lesson/en/', type: 'listening', description: 'Structured Japanese listening for learners.' },
     { name: 'JapanesePod101', url: 'https://www.japanesepod101.com/', type: 'listening', description: 'Japanese listening and speaking practice episodes.' },
     { name: 'Nihongo Con Teppei', url: 'https://nihongoconteppei.com/', type: 'listening', description: 'Natural Japanese podcast for learners.' },
     { name: 'Matcha Podcast', url: 'https://matcha-jp.com/easy', type: 'listening', description: 'Easy Japanese culture and everyday topics.' },
+    { name: 'Let’s Talk in Japanese', url: 'https://www.lets-talk-in-japanese.com/', type: 'listening', description: 'Level-based Japanese listening practice.' },
+    { name: '4989 American Life', url: 'https://podcasts.apple.com/us/podcast/4989-american-life/id1279691820', type: 'listening', description: 'Natural Japanese storytelling and culture talk.' },
+    { name: 'News Connect', url: 'https://newsconnect.jp/', type: 'listening', description: 'Japanese current affairs audio for deeper listening.' },
+    { name: 'Rebuild', url: 'https://rebuild.fm/', type: 'listening', description: 'Tech podcast in Japanese for advanced learners.' },
   ],
 };
 
@@ -961,7 +977,7 @@ Rules:
       case 'freeTalk': {
         const language = String(payload.language || 'English');
         const userMessage = String(payload.userMessage || '');
-        const history = Array.isArray(payload.history) ? payload.history.slice(-8) : [];
+        const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
         const content = await callZhipu(
           [
             {
@@ -972,7 +988,7 @@ Return strict JSON only with:
 - followUp
 - quickReplies (array of 2 to 3 short starter ideas)
 - correction
-- improvements (array of 2 short improvement lines)
+- improvements (array of 2 to 3 short but meaningful improvement lines)
 
 Rules:
 - Sound like a friendly real person, not a teacher or rubric.
@@ -984,7 +1000,8 @@ Rules:
 - improvements should be the real value:
   1. rewrite the learner's message into a clearer, more natural version they can say next time
   2. give one more upgraded version or one especially useful sentence chunk
-- If the learner message is long, improvements must still cover the main errors and awkward phrasing, not just one tiny point.
+  3. if the learner message is long, add one more line that fixes another major awkward part
+- If the learner message is long, improvements must cover the main errors and awkward phrasing across the message, not just one tiny point.
 - Keep each improvement concise but meaningful, usually 1 to 2 sentences.
 - quickReplies should be short, everyday prompts in ${language}.
 - The main conversation language should be ${language}, but correction can use a little Chinese if helpful.
