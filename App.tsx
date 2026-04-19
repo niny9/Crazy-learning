@@ -2604,6 +2604,19 @@ const App = () => {
   }, [sidebarOpen]);
 
   useEffect(() => {
+    if (!sidebarOpen || typeof window === 'undefined') return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [sidebarOpen]);
+
+  useEffect(() => {
     if (!isSupabaseConfigured()) {
       setCloudSyncStatus('local');
       setCloudSyncMessage('本地内容已就绪');
@@ -2879,13 +2892,21 @@ const App = () => {
         </div>
       )}
 
-      <div className={`fixed inset-0 z-[70] transition-all duration-300 ${sidebarOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+      <div
+        aria-hidden={!sidebarOpen}
+        className={`fixed inset-0 z-[70] transition-all duration-300 ${sidebarOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      >
         <button
           aria-label="Close notebook"
           onClick={() => setSidebarOpen(false)}
           className={`absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),rgba(15,23,42,0.16)_32%,rgba(15,23,42,0.28))] backdrop-blur-[4px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}
         />
-        <div className={`absolute inset-y-0 right-0 w-full sm:w-[420px] glass-panel border-l border-white/60 flex flex-col transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)]`}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={labels.notebook}
+          className={`absolute inset-y-0 right-0 w-[min(92vw,420px)] glass-panel rounded-l-[2rem] sm:rounded-l-[2.5rem] border-l border-white/60 flex flex-col transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)]`}
+        >
         <div className="p-4 sm:p-8 border-b border-white/60">
           <div className="flex justify-between items-center mb-6">
             <h2 className="font-black text-kitty-800 flex items-center gap-3 text-xl sm:text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
