@@ -1108,6 +1108,9 @@ async function handleAsrRequest(req, res) {
     return sendJson(res, 200, { transcript });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown ASR error';
+    if (/SUCCESS_WITH_NO_VALID_FRAGMENT|ASR transcript was empty/i.test(message)) {
+      return sendJson(res, 200, { transcript: '' });
+    }
     return sendJson(res, 500, { error: message });
   } finally {
     if (filePath) {

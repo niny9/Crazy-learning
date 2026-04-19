@@ -53,7 +53,12 @@ export const transcribeSpeech = async (
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || "ASR request failed");
+    try {
+      const parsed = JSON.parse(errorText);
+      throw new Error(parsed?.error || parsed?.message || "ASR request failed");
+    } catch {
+      throw new Error(errorText || "ASR request failed");
+    }
   }
 
   return response.json() as Promise<{ transcript: string }>;

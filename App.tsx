@@ -662,9 +662,9 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
   return {
     badgeFallback: '今日推荐内容',
     loadingTitle: '正在帮你找一篇更值得读的内容...',
-    loadingBody: '我正在从默认信息源和你的收藏源里重新抓新的内容，不会只停在原地。',
+    loadingBody: '正在从你的默认信息源和收藏源里，帮你重新找一篇更适合现在练的内容。',
     loadingBadge: '正在刷新今日材料',
-    loadingHint: '这次会重新随机信息源，也会重新随机里面的内容。',
+    loadingHint: '清晰素材正在加载中，马上给你一篇新的。',
     openSource: '打开原文链接',
     sourcePanelLabel: '我的信息源',
     sourcePanelTitle: isListening ? '自定义你的听力信息源' : '自定义你的阅读信息源',
@@ -732,7 +732,7 @@ const getGeneralUiText = (language: string) => {
       modelEssay: 'Version modèle',
       saveToDiary: 'Enregistrer dans Diary',
       speakingLaunchTitle: "Ouverture de l'espace oral...",
-      speakingLaunchDesc: "On prépare l'image et l'état de la conversation, tu pourras parler dans un instant.",
+      speakingLaunchDesc: "On prépare le micro et l'état de la conversation, tu pourras parler dans un instant.",
       todayLoopTitle: "Le chemin le plus simple aujourd'hui",
       momentumTitle: 'Ce que tu as déjà accumulé',
       momentumDesc: 'histoires personnelles sont déjà enregistrées',
@@ -785,7 +785,7 @@ const getGeneralUiText = (language: string) => {
       modelEssay: '模範版',
       saveToDiary: 'Diary に保存',
       speakingLaunchTitle: 'スピーキング画面を開いています...',
-      speakingLaunchDesc: '画像と会話の準備をしています。すぐに話し始められます。',
+      speakingLaunchDesc: 'マイクと会話の準備をしています。すぐに話し始められます。',
       todayLoopTitle: '今日はこの流れがいちばん楽です',
       momentumTitle: 'ここまで残ってきた表現',
       momentumDesc: '本の自分のストーリーが残っています',
@@ -837,7 +837,7 @@ const getGeneralUiText = (language: string) => {
     modelEssay: '参考范文版',
     saveToDiary: '保存到 Diary',
     speakingLaunchTitle: '正在打开口语练习区...',
-    speakingLaunchDesc: '我们先把上传图片和对话状态准备好，你马上就能开始讲。',
+    speakingLaunchDesc: '我们先把麦克风和对话状态准备好，你马上就能开始讲。',
     todayLoopTitle: '今天怎么练最轻松',
     momentumTitle: '已经攒下来的表达',
     momentumDesc: '篇属于你的英语故事已经留下来了',
@@ -1215,6 +1215,7 @@ const App = () => {
   const holdTriggeredRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentAudioUrlRef = useRef<string | null>(null);
+  const selectionBubbleRef = useRef<HTMLDivElement | null>(null);
   const recorderRef = useRef<RecorderNodes | null>(null);
   const recordedChunksRef = useRef<Float32Array[]>([]);
   const recordingSampleRateRef = useRef(16000);
@@ -1256,6 +1257,10 @@ const App = () => {
     if (value === 'Pro Upgrade') return generalUiText.proUpgrade;
     if (value === 'Model Essay') return generalUiText.modelEssay;
     return value;
+  };
+  const clearSelectionBubble = () => {
+    setSelectionRect(null);
+    setSelectedText('');
   };
   const selectedStory = storyEntries.find((entry) => entry.id === selectedStoryId) || storyEntries[0] || null;
   const readingSources = contentSources.filter((item) => item.language === language && (item.type === 'reading' || item.type === 'both'));
@@ -1927,7 +1932,7 @@ const App = () => {
   const handleTextSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
-      setSelectionRect(null);
+      clearSelectionBubble();
       return;
     }
 
@@ -1937,7 +1942,7 @@ const App = () => {
       setSelectionRect(rect);
       setSelectedText(text);
     } else {
-      setSelectionRect(null);
+      clearSelectionBubble();
     }
   };
 
@@ -2376,17 +2381,20 @@ const App = () => {
       const finalText = await transcribeRecordedAudio(asrLanguage);
       setSpeechDraft('');
       recordedChunksRef.current = [];
-      if (finalText) {
-        if (mode === AppMode.SPEAKING) {
-          if (speakingTrack === 'story') {
-            setStoryTranscript((prev) => [safeTrim(prev), finalText].filter(Boolean).join('\n\n'));
-            if (completion === 'story_finish') {
-              setStoryStage('review');
-            }
-          } else if (speakingTrack === 'chat') {
-            setFreeTalkInput((prev) => [safeTrim(prev), finalText].filter(Boolean).join(' ').trim());
-            setSpeechDraft(freeTalkUiText.transcriptReady);
+      if (!finalText) {
+        setErrorMsg('这段语音没有收清楚。你可以再说一次，或者先打字继续。');
+        return;
+      }
+
+      if (mode === AppMode.SPEAKING) {
+        if (speakingTrack === 'story') {
+          setStoryTranscript((prev) => [safeTrim(prev), finalText].filter(Boolean).join('\n\n'));
+          if (completion === 'story_finish') {
+            setStoryStage('review');
           }
+        } else if (speakingTrack === 'chat') {
+          setFreeTalkInput((prev) => [safeTrim(prev), finalText].filter(Boolean).join(' ').trim());
+          setSpeechDraft(freeTalkUiText.transcriptReady);
         }
       }
     } catch (error) {
@@ -2396,8 +2404,10 @@ const App = () => {
       const message = error instanceof Error ? error.message : '语音输入暂时不可用。你可以重试一次，或者先在下面打字继续。';
       if (/arrearage|access denied|overdue-payment/i.test(message)) {
         setErrorMsg('语音输入暂时不可用，应该是当前语音识别账号出了问题。你可以先在下面打字，练习不会中断。');
+      } else if (/SUCCESS_WITH_NO_VALID_FRAGMENT|ASR transcript was empty/i.test(message)) {
+        setErrorMsg('这段语音没有收清楚。你可以再说一次，或者先打字继续。');
       } else {
-        setErrorMsg(`Voice input issue: ${message}`);
+        setErrorMsg(`语音识别这次没成功：${message}`);
       }
     }
   };
@@ -2794,6 +2804,38 @@ const App = () => {
     }
   }, [mode, dailyContent]);
 
+  useEffect(() => {
+    const dismissSelectionBubble = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (selectionBubbleRef.current && target instanceof Node && selectionBubbleRef.current.contains(target)) {
+        return;
+      }
+
+      clearSelectionBubble();
+
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) {
+        selection.removeAllRanges();
+      }
+    };
+
+    const collapseOnViewportChange = () => {
+      clearSelectionBubble();
+    };
+
+    document.addEventListener('mousedown', dismissSelectionBubble);
+    document.addEventListener('touchstart', dismissSelectionBubble);
+    window.addEventListener('scroll', collapseOnViewportChange, true);
+    window.addEventListener('resize', collapseOnViewportChange);
+
+    return () => {
+      document.removeEventListener('mousedown', dismissSelectionBubble);
+      document.removeEventListener('touchstart', dismissSelectionBubble);
+      window.removeEventListener('scroll', collapseOnViewportChange, true);
+      window.removeEventListener('resize', collapseOnViewportChange);
+    };
+  }, []);
+
   useEffect(() => () => {
     void stopRecorder();
     stopMediaStream();
@@ -2805,13 +2847,14 @@ const App = () => {
     <div className="min-h-screen w-full bg-kitty-50 flex overflow-x-hidden relative">
       {selectionRect && (
         <div
+          ref={selectionBubbleRef}
           style={{ top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 100 }}
           className="fixed z-[100] bg-slate-900 text-white p-2.5 rounded-3xl shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200"
         >
-          <button onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
+          <button onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
             <Plus size={16} /> {isSentenceSelection(selectedText) ? 'Sentence' : 'Word'}
           </button>
-          <button onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); setSelectionRect(null); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
+          <button onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
             <Bookmark size={16} /> Save
           </button>
         </div>
