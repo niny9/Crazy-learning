@@ -4,6 +4,7 @@ import {
   BookOpen,
   Bookmark,
   CheckCircle,
+  ChevronLeft,
   FileText,
   Globe,
   GraduationCap,
@@ -81,8 +82,6 @@ type NotebookLikeItem = {
 
 const SUPPORTED_LANGUAGES = [
   { code: 'English', flag: '🇺🇸', label: 'English' },
-  { code: 'French', flag: '🇫🇷', label: 'Français' },
-  { code: 'Japanese', flag: '🇯🇵', label: '日本語' },
 ];
 
 const SECONDARY_MODULES = [
@@ -562,31 +561,31 @@ const getFreeTalkUiText = (language: string) => {
 
   return {
     badge: 'Free Talk',
-    microMode: 'Say one thing, get one reply',
-    title: 'Just chat. It is okay if you do not know what to say yet.',
-    description: 'You can speak for as long as you want. When you finish, tap stop and I will reply right away.',
-    placeholder: 'Say something simple... for example: Today was busy, I am a little tired, but I still wanted to practice.',
-    startButton: 'Start speaking',
-    stopButton: 'Stop and let AI reply',
-    sendButton: 'Send',
-    startHere: 'Start here',
-    betterWays: 'Better ways to say it',
-    betterWaysEmpty: 'Once you send a message, I will give you 1 to 2 stronger versions so you can reuse them next time.',
-    coachNote: 'Coach note',
+    microMode: '你说一句，我接一句',
+    title: '直接聊，不知道说什么也没关系',
+    description: '你可以多说一会儿。等你说完再点停止，我会马上接着回你。',
+    placeholder: '先随便说一句也可以，比如：Today was busy, but I still wanted to practice.',
+    startButton: '开始说话',
+    stopButton: '停下并等我回复',
+    sendButton: '发送',
+    startHere: '先从这些开口',
+    betterWays: '更自然的说法',
+    betterWaysEmpty: '你发出一句后，我会给你 1 到 2 个更顺、更能复用的版本。',
+    coachNote: '一句提醒',
     rules: [
       'Start with short sentences.',
       'If you get stuck, say the simplest version first.',
       'The goal is to keep the back-and-forth going.',
     ],
-    rulesTitle: 'Good enough rule',
-    replying: 'Replying...',
-    recording: 'Recording... keep talking until you press stop.',
-    transcribing: 'Transcribing your speech...',
-    transcribingPart: 'Transcribing part',
-    liveLabel: 'Live',
-    assistantRole: 'AI partner',
-    userRole: 'You',
-    transcriptReady: 'Your transcript is ready. Check it, tweak it if needed, then send.',
+    rulesTitle: '先把这一轮聊下去',
+    replying: '我正在接你的话...',
+    recording: '正在录音，你继续说，等你自己按停止就行。',
+    transcribing: '正在把你的语音转成文字...',
+    transcribingPart: '正在转写这一段',
+    liveLabel: '录音中',
+    assistantRole: 'AI 口语搭子',
+    userRole: '你',
+    transcriptReady: '语音已经转好了。你可以先改一改，再决定要不要发。',
   };
 };
 
@@ -598,6 +597,8 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
       badgeFallback: isListening ? 'Contenu audio du jour' : 'Lecture du jour',
       loadingTitle: isListening ? 'Recherche d’un bon support audio...' : 'Recherche d’un bon texte...',
       loadingBody: isListening ? 'Synchronisation avec tes sources audio...' : 'Synchronisation avec tes sources de lecture...',
+      loadingBadge: isListening ? 'Chargement audio' : 'Chargement lecture',
+      loadingHint: isListening ? 'On va te sortir un nouvel audio en quelques secondes.' : 'On va te sortir une nouvelle lecture en quelques secondes.',
       openSource: 'Ouvrir la source originale',
       sourcePanelLabel: 'Mes sources',
       sourcePanelTitle: isListening ? 'Tes sources audio personnalisées' : 'Tes sources de lecture personnalisées',
@@ -611,6 +612,10 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
       pauseTitle: 'Pause',
       resumeTitle: 'Reprendre',
       playTitle: 'Lancer la lecture',
+      sourcePanelButton: 'Sources',
+      sourcePanelClose: 'Fermer',
+      customCountLabel: 'Personnalisées',
+      defaultCountLabel: 'Par défaut',
     };
   }
 
@@ -619,6 +624,8 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
       badgeFallback: isListening ? '今日の聞く素材' : '今日の読む素材',
       loadingTitle: isListening ? 'ぴったりの音声素材を探しています...' : 'ぴったりの読み物を探しています...',
       loadingBody: isListening ? '音声ソースと同期しています...' : '読み物ソースと同期しています...',
+      loadingBadge: isListening ? '読み込み中' : '読み込み中',
+      loadingHint: isListening ? '数秒で新しい音声素材を引いてきます。' : '数秒で新しい読み物を引いてきます。',
       openSource: '元の記事を開く',
       sourcePanelLabel: 'My sources',
       sourcePanelTitle: isListening ? '聞く素材の情報源を自分で追加' : '読む素材の情報源を自分で追加',
@@ -632,26 +639,36 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
       pauseTitle: '一時停止',
       resumeTitle: '再開',
       playTitle: '再生',
+      sourcePanelButton: '情報源',
+      sourcePanelClose: '閉じる',
+      customCountLabel: '自分の源',
+      defaultCountLabel: '既定',
     };
   }
 
   return {
-    badgeFallback: 'Curated Content',
-    loadingTitle: 'Finding the best material...',
-    loadingBody: 'Synchronizing with external libraries...',
-    openSource: 'Open original source',
-    sourcePanelLabel: 'My sources',
-    sourcePanelTitle: isListening ? 'Customize your listening sources' : 'Customize your reading sources',
-    sourcePanelDesc: 'This area is just for setup. Once you add sources, future recommendations will pull from here first.',
-    sourceTypeBoth: 'Read + Listen',
-    sourceTypeReading: 'Reading only',
-    sourceTypeListening: 'Listening only',
-    sourceDescPlaceholder: 'Add a theme, for example AI / business / culture',
-    addSource: 'Add source',
-    noCustomSource: 'No custom sources yet. We will pull directly from the default pool for now.',
-    pauseTitle: 'Pause',
-    resumeTitle: 'Resume',
-    playTitle: 'Play',
+    badgeFallback: '今日推荐内容',
+    loadingTitle: '正在帮你找一篇更值得读的内容...',
+    loadingBody: '我正在从默认信息源和你的收藏源里重新抓新的内容，不会只停在原地。',
+    loadingBadge: '正在刷新今日材料',
+    loadingHint: '这次会重新随机信息源，也会重新随机里面的内容。',
+    openSource: '打开原文链接',
+    sourcePanelLabel: '我的信息源',
+    sourcePanelTitle: isListening ? '自定义你的听力信息源' : '自定义你的阅读信息源',
+    sourcePanelDesc: '这里主要是设置区。你一旦加了自己的源，后面系统会优先从这里抽内容。',
+    sourceTypeBoth: '读 + 听',
+    sourceTypeReading: '只读',
+    sourceTypeListening: '只听',
+    sourceDescPlaceholder: '补一句主题，比如 AI / 商业 / 文化',
+    addSource: '添加源',
+    noCustomSource: '你还没加自定义源，当前会直接从默认源池里抓内容。',
+    pauseTitle: '暂停',
+    resumeTitle: '继续播放',
+    playTitle: '开始播放',
+    sourcePanelButton: '信息源设置',
+    sourcePanelClose: '收起',
+    customCountLabel: '自定义',
+    defaultCountLabel: '默认',
   };
 };
 
@@ -701,6 +718,11 @@ const getGeneralUiText = (language: string) => {
       proUpgrade: 'Version avancée',
       modelEssay: 'Version modèle',
       saveToDiary: 'Enregistrer dans Diary',
+      speakingLaunchTitle: "Ouverture de l'espace oral...",
+      speakingLaunchDesc: "On prépare l'image et l'état de la conversation, tu pourras parler dans un instant.",
+      todayLoopTitle: "Le chemin le plus simple aujourd'hui",
+      momentumTitle: 'Ce que tu as déjà accumulé',
+      momentumDesc: 'histoires personnelles sont déjà enregistrées',
     };
   }
 
@@ -749,6 +771,11 @@ const getGeneralUiText = (language: string) => {
       proUpgrade: '表現を強めた版',
       modelEssay: '模範版',
       saveToDiary: 'Diary に保存',
+      speakingLaunchTitle: 'スピーキング画面を開いています...',
+      speakingLaunchDesc: '画像と会話の準備をしています。すぐに話し始められます。',
+      todayLoopTitle: '今日はこの流れがいちばん楽です',
+      momentumTitle: 'ここまで残ってきた表現',
+      momentumDesc: '本の自分のストーリーが残っています',
     };
   }
 
@@ -764,38 +791,43 @@ const getGeneralUiText = (language: string) => {
     storyLibraryTitle: '我的故事库',
     storyLibraryDesc: '这里会慢慢长出你自己的英语故事素材。以后面试、考试、聊天，都可以从这里复述和调用。',
     backHome: '返回首页',
-    writingTitle: 'Writing Studio',
-    saveDiary: 'Save Diary',
-    saveDraft: 'Save Draft',
-    savedDiaries: 'Saved Diaries',
-    feedbackPlaceholder: 'AI feedback will appear here once you submit.',
-    examTitle: 'Exam Hub',
-    examDesc: 'External resources to supercharge your official preparation.',
-    accountTitle: 'Account',
-    cloudAccount: 'Cloud Account',
-    accountDesc: 'Sign in first, then your notebook, diary, and study history will stay attached to your account.',
-    accountSynced: 'Your notebook is now tied to your account and will sync across sessions.',
-    signInTitle: 'Sign in with email',
+    writingTitle: '写作练习',
+    saveDiary: '保存到 Diary',
+    saveDraft: '保存草稿',
+    savedDiaries: '已保存的 Diary',
+    feedbackPlaceholder: '你提交后，AI 的反馈会出现在这里。',
+    examTitle: '考试专区',
+    examDesc: '这里放你后续备考会用到的外部资料和入口。',
+    accountTitle: '账号',
+    cloudAccount: '云端账号',
+    accountDesc: '先登录，之后你的 notebook、diary 和学习记录都会跟着账号走。',
+    accountSynced: '你的 notebook 已经和账号绑定，之后重新打开也会保留。',
+    signInTitle: '邮箱登录',
     emailPlaceholder: 'you@example.com',
-    verificationCode: 'Verification code',
-    sendVerificationCode: 'Send verification code',
-    sendingCode: 'Sending code...',
-    changeEmail: 'Change email',
-    verifyCode: 'Verify code',
-    verifyingCode: 'Verifying...',
-    emailLogin: 'Email login',
-    currentAccount: 'Current account',
-    clipperTitle: 'Chrome Clipper',
+    verificationCode: '验证码',
+    sendVerificationCode: '发送验证码',
+    sendingCode: '发送中...',
+    changeEmail: '切换邮箱',
+    verifyCode: '确认登录',
+    verifyingCode: '验证中...',
+    emailLogin: '邮箱登录',
+    currentAccount: '当前账号',
+    clipperTitle: 'Chrome 划词插件',
     generateToken: '生成连接码',
     generatingToken: '生成中...',
     copy: '复制',
-    signOut: 'Sign out',
-    signingOut: 'Signing out...',
-    myStoriesBadge: 'My Stories',
-    corrected: 'Corrected',
-    proUpgrade: 'Pro Upgrade',
-    modelEssay: 'Model Essay',
-    saveToDiary: 'Save to Diary',
+    signOut: '退出登录',
+    signingOut: '退出中...',
+    myStoriesBadge: '我的故事',
+    corrected: '纠正版本',
+    proUpgrade: '更顺一点的版本',
+    modelEssay: '参考范文版',
+    saveToDiary: '保存到 Diary',
+    speakingLaunchTitle: '正在打开口语练习区...',
+    speakingLaunchDesc: '我们先把上传图片和对话状态准备好，你马上就能开始讲。',
+    todayLoopTitle: '今天怎么练最轻松',
+    momentumTitle: '已经攒下来的表达',
+    momentumDesc: '篇属于你的英语故事已经留下来了',
   };
 };
 
@@ -880,30 +912,30 @@ const getNotebookUiText = (language: string) => {
     diaryTab: 'Diary',
     copyToNotion: '复制到 Notion',
     downloadObsidian: '下载 .md 到 Obsidian',
-    addWordPlaceholder: 'Add a new word manually...',
-    addSentencePlaceholder: 'Add a useful sentence manually...',
-    diaryTitlePlaceholder: 'Diary title...',
-    diaryInputPlaceholder: 'Add a diary note manually...',
-    add: 'Add',
-    addToDiary: 'Add to Diary',
-    untitledWord: 'Untitled word',
-    untitledSentence: 'Untitled sentence',
-    untitledDiary: 'Untitled diary',
-    languageClip: 'Language Clip',
-    savedSentence: 'Saved sentence',
-    openSource: 'Open source',
+    addWordPlaceholder: '手动补一个单词...',
+    addSentencePlaceholder: '手动补一句想存的话...',
+    diaryTitlePlaceholder: 'Diary 标题...',
+    diaryInputPlaceholder: '手动补一条 diary...',
+    add: '添加',
+    addToDiary: '存到 Diary',
+    untitledWord: '未命名单词',
+    untitledSentence: '未命名句子',
+    untitledDiary: '未命名 Diary',
+    languageClip: '语言片段',
+    savedSentence: '已保存句子',
+    openSource: '打开原文',
     playWord: '播放发音',
     playSentence: '朗读整句',
     pronunciationFailed: '这个词暂时没能播出来，再试一次。',
     copiedNotice: '已复制成 Markdown，可以直接贴到 Notion。',
     copyFailed: '复制失败了，你再试一次。',
     downloadedNotice: 'Markdown 已下载，直接拖进 Obsidian 就行。',
-    manualNote: 'Manual note',
-    manualDiaryNote: 'Manual diary note',
-    freeWriting: 'Free writing',
-    writingDraft: 'Writing Draft',
-    unknownDate: 'Unknown date',
-    exportedAt: 'Exported at',
+    manualNote: '手动备注',
+    manualDiaryNote: '手动 Diary 备注',
+    freeWriting: '自由写作',
+    writingDraft: '写作草稿',
+    unknownDate: '未知日期',
+    exportedAt: '导出时间',
     source: 'Source',
     chineseDefinition: '中文释义',
     targetDefinition: language === 'English' ? '英文释义' : '目标语言释义',
@@ -966,6 +998,7 @@ const getStoryUiText = (language: string) => {
       wordCount: 'Nombre de mots',
       keepAdding: 'Continuer à ajouter',
       clearDraft: 'Effacer et recommencer',
+      alternativeLabel: 'Tu peux aussi le redire comme ça la prochaine fois',
     };
   }
 
@@ -1021,15 +1054,16 @@ const getStoryUiText = (language: string) => {
       wordCount: '語数',
       keepAdding: '続きを足す',
       clearDraft: '消してやり直す',
+      alternativeLabel: '次はこう言っても自然です',
     };
   }
 
   return {
-    step1: 'Step 1',
+    step1: 'STEP 1',
     chooseTitle: '先选你今天更需要哪种口语练习',
     chooseDesc: '如果你已经知道今天想讲什么，就走 Today Story；如果你只是想找个人直接聊几句英语，就走 Free Talk。',
     freeTalkDesc: '不知道说什么也没关系，先和 AI 直接聊几句英语。',
-    whatYouGet: 'What you get',
+    whatYouGet: '你会拿到什么',
     whatYouGetList: [
       '一版整理后的原话，让你知道自己刚刚到底讲了什么',
       '一篇更清晰、以后可以直接复述的英文故事',
@@ -1058,7 +1092,7 @@ const getStoryUiText = (language: string) => {
     rewrittenVersion: '优化后的英文版本',
     keyPhrases: '重点表达',
     summary: '今天的总评',
-    next: 'Next',
+    next: '接下来怎么继续',
     retry: '再讲一版，把故事说得更顺',
     restart: '换一种模式重新开始',
     emptyLibrary: '你还没有保存任何故事。今天先讲第一篇吧。',
@@ -1069,12 +1103,13 @@ const getStoryUiText = (language: string) => {
     copy: '复制',
     comment: '点评',
     countSuffix: ' stories',
-    reviewTitle: 'Review it once before generating',
-    reviewDesc: 'Make sure the story feels complete. You can still edit it, add one more detail, or record another short part.',
-    transcriptStats: 'Draft snapshot',
-    wordCount: 'Word count',
-    keepAdding: 'Keep adding',
-    clearDraft: 'Clear and restart',
+    reviewTitle: '生成前先顺一遍',
+    reviewDesc: '看看这段是不是已经讲完整了。你还可以补一句、改一句，或者再录一小段。',
+    transcriptStats: '草稿概览',
+    wordCount: '词数',
+    keepAdding: '继续补一点',
+    clearDraft: '清空重来',
+    alternativeLabel: '你下次也可以直接这样说',
   };
 };
 
@@ -1129,6 +1164,7 @@ const App = () => {
   const [sourceUrlInput, setSourceUrlInput] = useState('');
   const [sourceDescriptionInput, setSourceDescriptionInput] = useState('');
   const [sourceTypeInput, setSourceTypeInput] = useState<ContentSourceType>('both');
+  const [isSourcePanelOpen, setIsSourcePanelOpen] = useState(false);
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
@@ -1186,6 +1222,14 @@ const App = () => {
   const notebookUiText = getNotebookUiText(language);
 
   const labels = UI_LABELS[language] || UI_LABELS.English;
+  const renderSubpageBackButton = (onClick?: () => void) => (
+    <button
+      onClick={onClick || (() => setMode(AppMode.DASHBOARD))}
+      className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-black text-slate-700 border border-slate-100 shadow-sm hover:border-kitty-200"
+    >
+      <ChevronLeft size={16} /> {generalUiText.backHome}
+    </button>
+  );
   const formatRecordingDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -1638,7 +1682,7 @@ const App = () => {
       await beginFreeTalk();
     } catch (error) {
       console.error(error);
-      setErrorMsg('We could not open Free Talk right now.');
+      setErrorMsg('现在没能顺利打开 Free Talk，你再点一次试试。');
       setMode(AppMode.DASHBOARD);
     } finally {
       setIsLaunchingSpeaking(false);
@@ -1756,7 +1800,7 @@ const App = () => {
       if (freeTalkTurnIdRef.current !== turnId) {
         return;
       }
-      setErrorMsg(error instanceof Error ? error.message : 'Free Talk is unavailable right now.');
+      setErrorMsg(error instanceof Error ? error.message : 'Free Talk 现在有点忙，你可以先手动输入继续练。');
     } finally {
       if (freeTalkTurnIdRef.current === turnId) {
         setIsFreeTalkLoading(false);
@@ -1959,6 +2003,7 @@ const App = () => {
       } else {
         window.speechSynthesis.pause();
         setIsPlaybackPaused(true);
+        setIsPlaybackActive(false);
       }
       return;
     }
@@ -1973,6 +2018,7 @@ const App = () => {
       } else {
         currentAudioRef.current.pause();
         setIsPlaybackPaused(true);
+        setIsPlaybackActive(false);
       }
       return;
     }
@@ -2233,6 +2279,7 @@ const App = () => {
       audio.onpause = () => {
         if (currentAudioRef.current) {
           setIsPlaybackPaused(true);
+          setIsPlaybackActive(false);
         }
       };
       audio.onended = () => stopCurrentSpeechPlayback();
@@ -2330,9 +2377,9 @@ const App = () => {
       console.error(error);
       recordedChunksRef.current = [];
       setSpeechDraft('');
-      const message = error instanceof Error ? error.message : 'Voice input is temporarily unavailable. Please try again or type your reply below.';
+      const message = error instanceof Error ? error.message : '语音输入暂时不可用。你可以重试一次，或者先在下面打字继续。';
       if (/arrearage|access denied|overdue-payment/i.test(message)) {
-        setErrorMsg('Voice input is temporarily unavailable because the current Alibaba ASR account is not available. You can still type your reply below and continue the practice.');
+        setErrorMsg('语音输入暂时不可用，应该是当前语音识别账号出了问题。你可以先在下面打字，练习不会中断。');
       } else {
         setErrorMsg(`Voice input issue: ${message}`);
       }
@@ -2739,7 +2786,7 @@ const App = () => {
   }, []);
 
   return (
-    <div className="h-screen w-screen bg-kitty-50 flex overflow-hidden relative">
+    <div className="min-h-screen w-full bg-kitty-50 flex overflow-x-hidden relative">
       {selectionRect && (
         <div
           style={{ top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 100 }}
@@ -2945,7 +2992,7 @@ const App = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         <div className="min-h-20 px-4 py-4 md:px-6 lg:px-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40">
           <div className="flex items-center gap-3 md:gap-4 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
             <div className="bg-kitty-500 text-white p-2.5 rounded-2xl shadow-lg group-hover:rotate-12 transition-all"><Star size={24} /></div>
@@ -2956,14 +3003,16 @@ const App = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 md:gap-4 lg:justify-end">
-            <div className="flex w-full sm:w-auto bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm overflow-x-auto">
+            {SUPPORTED_LANGUAGES.length > 1 && (
+              <div className="flex w-full sm:w-auto bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm overflow-x-auto">
               {SUPPORTED_LANGUAGES.map((item) => (
                 <button key={item.code} onClick={() => { setLanguage(item.code); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
                   <span>{item.flag}</span>
                   <span>{item.label}</span>
                 </button>
               ))}
-            </div>
+              </div>
+            )}
             <div className={`flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
               cloudSyncStatus === 'synced'
                 ? 'bg-emerald-50 text-emerald-600'
@@ -3003,10 +3052,10 @@ const App = () => {
           </div>
         </div>
 
-        <main className="flex-1 overflow-hidden relative">
+        <main className="flex-1 min-h-0 overflow-hidden relative">
           {isSupabaseConfigured() && isAuthChecked && !isEmailUser && (
-            <div className="absolute inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center px-6">
-              <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
+            <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
+              <div className="mx-auto my-4 w-full max-w-lg rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-kitty-100 max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
@@ -3079,8 +3128,8 @@ const App = () => {
             </div>
           )}
           {isSupabaseConfigured() && isEmailUser && isAuthModalOpen && (
-            <div className="absolute inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center px-6">
-              <div className="w-full max-w-lg rounded-[2.5rem] bg-white p-8 shadow-2xl border border-kitty-100">
+            <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
+              <div className="mx-auto my-4 w-full max-w-lg rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-kitty-100 max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
@@ -3152,9 +3201,9 @@ const App = () => {
             <div className="absolute inset-0 z-[60] bg-slate-950/92 backdrop-blur-sm flex items-center justify-center">
               <div className="rounded-[2.5rem] bg-white px-8 py-7 shadow-2xl text-center">
                 <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 font-black mb-4">
-                  <RefreshCw className="animate-spin" size={18} /> Opening speaking space...
+                  <RefreshCw className="animate-spin" size={18} /> {generalUiText.speakingLaunchTitle}
                 </div>
-                <p className="text-slate-500 font-semibold">We are getting your scene upload flow ready for a low-pressure speaking session.</p>
+                <p className="text-slate-500 font-semibold">{generalUiText.speakingLaunchDesc}</p>
               </div>
             </div>
           )}
@@ -3173,7 +3222,7 @@ const App = () => {
                       {generalUiText.dashboardDesc}
                     </p>
                     <div className="mt-8 flex flex-wrap gap-3">
-                      {['门槛低：中文 / 中英 / 全英文都可以', '结果感强：立刻看到优化版故事', '积累可见：每天自动进入故事库'].map((item) => (
+                      {['今天别背模板了，先把真实生活讲出来', '讲卡了也没关系，我会帮你顺成自然英文', '每天留下一篇自己的表达，以后真的用得上'].map((item) => (
                         <span key={item} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600">
                           {item}
                         </span>
@@ -3202,7 +3251,7 @@ const App = () => {
                     <div className="mt-10">
                       <div className="flex items-center justify-between gap-4 mb-4">
                         <p className="text-xs font-black uppercase tracking-widest text-slate-400">{generalUiText.otherModules}</p>
-                        <p className="text-sm font-semibold text-slate-400">{generalUiText.otherModules}</p>
+                        <p className="text-sm font-semibold text-slate-400">口语先跑通，听读写考试都还在。</p>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         {SECONDARY_MODULES.map((item) => {
@@ -3240,9 +3289,9 @@ const App = () => {
 
                   <div className="space-y-5">
                     <div className="rounded-[2rem] bg-emerald-50 p-6 border border-emerald-100">
-                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">Today’s loop</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.todayLoopTitle}</p>
                       <div className="space-y-3">
-                        {['1. 选一个模式，直接开讲', '2. 自动转写原话，可手动补几句', '3. AI 生成一篇像你自己会说的英文故事', '4. 存进故事库，后面继续复述和复用'].map((step) => (
+                        {['1. 先把今天最想说的一件事讲出来', '2. 我先帮你转成草稿，你再顺一顺', '3. AI 把它变成一篇更像你会说出口的英文故事', '4. 自动存进故事库，后面面试、考试、聊天都能拿来用'].map((step) => (
                           <div key={step} className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-700">
                             {step}
                           </div>
@@ -3250,9 +3299,9 @@ const App = () => {
                       </div>
                     </div>
                     <div className="rounded-[2rem] bg-slate-50 p-6 border border-slate-100">
-                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">连续积累</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{generalUiText.momentumTitle}</p>
                       <p className="text-3xl font-black text-slate-900">{storyEntries.filter((item) => item.language === language).length}</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-500">篇属于你的英语故事已经存下来</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-500">{storyEntries.filter((item) => item.language === language).length}{generalUiText.momentumDesc}</p>
                       <div className="mt-4 text-sm font-semibold text-slate-500">
                         提醒时间：{storyReminder || '22:00'} · 今天{storyEntries.find((item) => new Date(item.date).toDateString() === new Date().toDateString() && item.language === language) ? '已经完成' : '还没讲故事'}
                       </div>
@@ -3264,18 +3313,19 @@ const App = () => {
           )}
 
           {mode === AppMode.SPEAKING && (
-            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+            <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+              <div className="mb-4">{renderSubpageBackButton(() => endSpeakingSession('user_exit'))}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
                   <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <Mic size={16} /> {generalUiText.dashboardBadge}
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{generalUiText.dashboardTitle}</h2>
-                  <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{generalUiText.dashboardTitle}</h2>
+                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
                     {generalUiText.dashboardDesc}
                   </p>
                 </div>
-                <button onClick={() => endSpeakingSession('user_exit')} className="self-start rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm border border-slate-100 flex items-center gap-3">
+                <button onClick={() => endSpeakingSession('user_exit')} className="self-start rounded-full bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm border border-slate-100 flex items-center gap-3">
                   <X size={16} /> {generalUiText.backHome}
                 </button>
               </div>
@@ -3284,21 +3334,21 @@ const App = () => {
               {errorMsg && <div className="mb-4 rounded-[1.5rem] bg-red-50 px-5 py-4 text-sm font-black text-red-600">{errorMsg}</div>}
 
               {speakingTrack === null && storyStage === 'choose_mode' && (
-                <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
                     <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.step1}</p>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{storyUiText.chooseTitle}</h3>
-                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{storyUiText.chooseTitle}</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
                       {storyUiText.chooseDesc}
                     </p>
                     <div className="mt-8 grid gap-4">
                       <button
                         onClick={() => void beginFreeTalk()}
-                        className="w-full rounded-[2rem] border border-indigo-100 bg-indigo-50 px-5 py-5 text-left hover:border-indigo-200 transition-all"
+                        className="w-full rounded-[1.5rem] sm:rounded-[2rem] border border-indigo-100 bg-indigo-50 px-4 py-4 sm:px-5 sm:py-5 text-left hover:border-indigo-200 transition-all"
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
-                            <p className="text-lg font-black text-slate-900">Free Talk</p>
+                            <p className="text-base sm:text-lg font-black text-slate-900">Free Talk</p>
                             <p className="mt-1 text-sm font-semibold text-slate-500">{storyUiText.freeTalkDesc}</p>
                           </div>
                           <ArrowRight className="text-indigo-500 shrink-0" />
@@ -3310,11 +3360,11 @@ const App = () => {
                         <button
                           key={item}
                           onClick={() => startStoryMode(item)}
-                          className="w-full rounded-[2rem] border border-slate-100 bg-slate-50 px-5 py-5 text-left hover:border-kitty-200 hover:bg-kitty-50 transition-all"
+                          className="w-full rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 bg-slate-50 px-4 py-4 sm:px-5 sm:py-5 text-left hover:border-kitty-200 hover:bg-kitty-50 transition-all"
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div>
-                              <p className="text-lg font-black text-slate-900">{storyModeMeta[item].title}</p>
+                              <p className="text-base sm:text-lg font-black text-slate-900">{storyModeMeta[item].title}</p>
                               <p className="mt-1 text-sm font-semibold text-slate-500">{storyModeMeta[item].description}</p>
                             </div>
                             <ArrowRight className="text-kitty-500 shrink-0" />
@@ -3323,18 +3373,18 @@ const App = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-[2.5rem] bg-kitty-50 p-7 md:p-10 border border-kitty-100">
+                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-kitty-50 p-5 sm:p-6 md:p-10 border border-kitty-100">
                     <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.whatYouGet}</p>
                     <div className="space-y-3">
                       {storyUiText.whatYouGetList.map((item) => (
-                        <div key={item} className="rounded-[1.5rem] bg-white px-5 py-4 text-sm font-bold text-slate-700">
+                        <div key={item} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-white px-4 py-3 sm:px-5 sm:py-4 text-sm font-bold text-slate-700 leading-relaxed">
                           {item}
                         </div>
                       ))}
                     </div>
                     <div className="mt-6 rounded-[1.75rem] bg-white px-5 py-4">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.reminder}</p>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                         <input
                           type="time"
                           value={storyReminder}
@@ -3349,8 +3399,8 @@ const App = () => {
               )}
 
               {speakingTrack === 'story' && (storyStage === 'record' || storyStage === 'review') && (
-                <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
                       <span className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
                         STEP 2 · {storyModeLabel(storyMode)}
@@ -3359,11 +3409,11 @@ const App = () => {
                         {storyUiText.recordHint}
                       </span>
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{storyUiText.recordTitle}</h3>
-                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{storyUiText.recordTitle}</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
                       {storyStage === 'review' ? storyUiText.reviewDesc : storyUiText.recordDesc}
                     </p>
-                    <div className="mt-8 rounded-[2rem] bg-slate-50 p-5 md:p-6">
+                    <div className="mt-6 rounded-[1.5rem] sm:rounded-[2rem] bg-slate-50 p-4 sm:p-5 md:p-6">
                       {speechDraft ? (
                         <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
                       ) : null}
@@ -3379,7 +3429,7 @@ const App = () => {
                           </div>
                           <div className="rounded-[1.5rem] bg-white px-4 py-4">
                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.recordHint}</p>
-                            <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).length} chars</p>
+                            <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).length} 字</p>
                           </div>
                         </div>
                       )}
@@ -3387,15 +3437,15 @@ const App = () => {
                         value={storyTranscript}
                         onChange={(event) => setStoryTranscript(event.target.value)}
                         placeholder={storyUiText.transcriptPlaceholder}
-                        className="w-full min-h-[260px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
+                        className="w-full min-h-[220px] sm:min-h-[260px] resize-none rounded-[1.25rem] sm:rounded-[1.5rem] bg-white px-4 sm:px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
                       />
                       <div className="mt-4 flex flex-wrap gap-3">
                         {!isListening ? (
-                          <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                          <button onClick={() => void startVoiceInput()} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-kitty-500 px-5 py-4 text-white font-black flex items-center gap-3">
                             <Mic size={18} /> {storyStage === 'review' ? storyUiText.keepAdding : storyUiText.startRecording}
                           </button>
                         ) : (
-                          <button onClick={() => void stopVoiceInput('story_pause')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                          <button onClick={() => void stopVoiceInput('story_pause')} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-amber-500 px-5 py-4 text-white font-black flex items-center gap-3">
                             <Square size={18} /> {storyUiText.pauseAndTranscribe}
                           </button>
                         )}
@@ -3408,7 +3458,7 @@ const App = () => {
                             }
                           }}
                           disabled={!isListening && !safeTrim(storyTranscript)}
-                          className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                          className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-slate-900 px-5 py-4 text-white font-black disabled:opacity-50"
                         >
                           {storyUiText.finishStep}
                         </button>
@@ -3419,7 +3469,7 @@ const App = () => {
                               setStoryStage('record');
                               setSpeechDraft('');
                             }}
-                            className="rounded-[1.5rem] bg-white px-6 py-4 text-slate-700 font-black border border-slate-200"
+                            className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-white px-5 py-4 text-slate-700 font-black border border-slate-200"
                           >
                             {storyUiText.clearDraft}
                           </button>
@@ -3427,7 +3477,7 @@ const App = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
                     <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
                       {storyStage === 'review' ? storyUiText.reviewTitle : storyUiText.lightGuidance}
                     </p>
@@ -3456,8 +3506,8 @@ const App = () => {
               )}
 
               {speakingTrack === 'chat' && (
-                <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
                       <span className="rounded-full bg-indigo-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-indigo-600">
                         {freeTalkUiText.badge}
@@ -3466,8 +3516,8 @@ const App = () => {
                         {freeTalkUiText.microMode}
                       </span>
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900">{freeTalkUiText.title}</h3>
-                    <p className="mt-3 text-slate-500 font-medium text-base md:text-lg">
+                    <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{freeTalkUiText.title}</h3>
+                    <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
                       {freeTalkUiText.description}
                     </p>
                     {isListening && (
@@ -3477,13 +3527,13 @@ const App = () => {
                       </div>
                     )}
 
-                    <div className="mt-8 space-y-4 max-h-[46vh] overflow-y-auto pr-2 no-scrollbar">
+                    <div className="mt-6 sm:mt-8 space-y-4 max-h-[40vh] sm:max-h-[46vh] overflow-y-auto pr-2 no-scrollbar">
                       {isListening && (
                         <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 px-5 py-4 text-emerald-700">
                           <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-80">
                             {freeTalkUiText.userRole}
                           </p>
-                          <p className="text-base md:text-lg font-medium leading-relaxed">
+                          <p className="text-sm sm:text-base md:text-lg font-medium leading-relaxed">
                             {freeTalkUiText.recording}
                           </p>
                         </div>
@@ -3498,7 +3548,7 @@ const App = () => {
                           <p className="text-xs font-black uppercase tracking-widest mb-2 opacity-70">
                             {message.role === 'assistant' ? freeTalkUiText.assistantRole : freeTalkUiText.userRole}
                           </p>
-                          <p className="text-base md:text-lg font-medium leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                          <p className="text-sm sm:text-base md:text-lg font-medium leading-relaxed whitespace-pre-wrap">{message.text}</p>
                         </div>
                       ))}
                       {isFreeTalkLoading && (
@@ -3508,7 +3558,7 @@ const App = () => {
                       )}
                     </div>
 
-                    <div className="mt-6 rounded-[2rem] bg-slate-50 p-5 md:p-6">
+                    <div className="mt-5 sm:mt-6 rounded-[1.5rem] sm:rounded-[2rem] bg-slate-50 p-4 sm:p-5 md:p-6">
                       {speechDraft ? (
                         <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
                       ) : null}
@@ -3521,22 +3571,22 @@ const App = () => {
                           }
                         }}
                         placeholder={freeTalkUiText.placeholder}
-                        className="w-full min-h-[120px] resize-none rounded-[1.5rem] bg-white px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
+                        className="w-full min-h-[110px] sm:min-h-[120px] resize-none rounded-[1.25rem] sm:rounded-[1.5rem] bg-white px-4 sm:px-5 py-4 outline-none text-base md:text-lg text-slate-700 placeholder:text-slate-300"
                       />
                       <div className="mt-4 flex flex-wrap gap-3">
                         {!isListening ? (
-                          <button onClick={() => void startVoiceInput()} className="rounded-[1.5rem] bg-kitty-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                          <button onClick={() => void startVoiceInput()} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-kitty-500 px-5 py-4 text-white font-black flex items-center gap-3">
                             <Mic size={18} /> {freeTalkUiText.startButton}
                           </button>
                         ) : (
-                          <button onClick={() => void stopVoiceInput('chat')} className="rounded-[1.5rem] bg-amber-500 px-6 py-4 text-white font-black flex items-center gap-3">
+                          <button onClick={() => void stopVoiceInput('chat')} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-amber-500 px-5 py-4 text-white font-black flex items-center gap-3">
                             <Square size={18} /> {freeTalkUiText.stopButton}
                           </button>
                         )}
                         <button
                           onClick={() => void handleSubmitFreeTalk()}
                           disabled={isFreeTalkLoading || !safeTrim(freeTalkInput)}
-                          className="rounded-[1.5rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                          className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-slate-900 px-5 py-4 text-white font-black disabled:opacity-50"
                         >
                           {freeTalkUiText.sendButton}
                         </button>
@@ -3544,23 +3594,23 @@ const App = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.startHere}</h4>
+                  <div className="space-y-5 sm:space-y-6">
+                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.startHere}</h4>
                       <div className="flex flex-wrap gap-3">
                         {freeTalkQuickReplies.map((item) => (
                           <button
                             key={item}
                             onClick={() => setFreeTalkInput(item)}
-                            className="rounded-full bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-600 hover:bg-indigo-100 transition-all"
+                            className="rounded-full bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-600 hover:bg-indigo-100 transition-all text-left"
                           >
                             {item}
                           </button>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
-                      <h4 className="text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.betterWays}</h4>
+                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                      <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.betterWays}</h4>
                       <div className="space-y-4">
                         {freeTalkImprovements.length ? (
                           freeTalkImprovements.map((item, index) => (
@@ -3582,7 +3632,7 @@ const App = () => {
                         ) : null}
                       </div>
                     </div>
-                    <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
+                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-slate-50 p-5 sm:p-6 md:p-8 border border-slate-100">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{freeTalkUiText.rulesTitle}</p>
                       <div className="space-y-3">
                         {freeTalkUiText.rules.map((item) => (
@@ -3633,7 +3683,7 @@ const App = () => {
                           <div key={`${phrase.original}-${index}`} className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
                             <p className="text-base font-black text-slate-900">{phrase.original}</p>
                             <p className="mt-2 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
-                            <p className="mt-2 text-sm text-kitty-700 font-bold">可替换说法：{phrase.alternative}</p>
+                            <p className="mt-2 text-sm text-kitty-700 font-bold">{storyUiText.alternativeLabel}：{phrase.alternative}</p>
                           </div>
                         ))}
                       </div>
@@ -3672,6 +3722,7 @@ const App = () => {
 
           {mode === AppMode.STORY_LIBRARY && (
             <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+              <div className="mb-4">{renderSubpageBackButton()}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
                   <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
@@ -3751,7 +3802,7 @@ const App = () => {
                               <div key={`${phrase.original}-${index}`} className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
                                 <p className="text-sm font-black text-slate-900">{phrase.original}</p>
                                 <p className="mt-1 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
-                                <p className="mt-1 text-sm text-kitty-700 font-bold">可替换说法：{phrase.alternative}</p>
+                                <p className="mt-1 text-sm text-kitty-700 font-bold">{storyUiText.alternativeLabel}：{phrase.alternative}</p>
                               </div>
                             ))}
                           </div>
@@ -3775,48 +3826,81 @@ const App = () => {
           )}
 
           {(mode === AppMode.LISTENING || mode === AppMode.READING) && (
-            <div className="h-full overflow-y-auto no-scrollbar p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className={`bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-10 lg:p-16 shadow-2xl min-h-full border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'}`}>
-                <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+            <div className="h-full overflow-y-auto no-scrollbar p-3 sm:p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="mb-4">{renderSubpageBackButton()}</div>
+              <div className={`relative bg-white rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-10 lg:p-16 shadow-2xl min-h-full border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'}`}>
+                <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
                   <div className="min-w-0">
                     <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                       <div>
-                        <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
-                          {dailyContent?.source || contentUiText.badgeFallback}
+                        <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${dailyContent ? mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500' : 'bg-kitty-100 text-kitty-600'}`}>
+                          {dailyContent?.source || contentUiText.loadingBadge}
                         </div>
-                        <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-slate-900 leading-tight tracking-tight">{dailyContent?.title || contentUiText.loadingTitle}</h2>
+                        <h2 className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black leading-tight tracking-tight ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
+                        {!dailyContent && (
+                          <p className="mt-4 text-base sm:text-lg md:text-2xl font-black text-slate-500">{contentUiText.loadingHint}</p>
+                        )}
                         {dailyContent?.url && dailyContent.url !== '#' && (
                           <a href={dailyContent.url} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700">
                             {contentUiText.openSource} <ArrowRight size={16} />
                           </a>
                         )}
                       </div>
-                      <div className="flex gap-4">
-                        <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-16 h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
+                      <div className="flex flex-wrap gap-3 sm:gap-4">
+                        <button onClick={() => setIsSourcePanelOpen(true)} className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 text-sm font-black text-slate-600 hover:bg-kitty-50 hover:text-kitty-600 transition-all">
+                          <Globe size={18} /> {contentUiText.sourcePanelButton}
+                        </button>
+                        <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
                           {isTTSLoading ? <RefreshCw className="animate-spin" /> : <Volume2 />}
                         </button>
                         {mode === AppMode.LISTENING && (
                           <button
                             onClick={() => void handleToggleTTSPlayback()}
                             disabled={!dailyContent?.content || (!isPlaybackActive && !isPlaybackPaused && isTTSLoading)}
-                            className="w-16 h-16 flex items-center justify-center bg-white text-slate-500 rounded-2xl border border-slate-100 hover:bg-slate-50 hover:text-kitty-500 transition-all disabled:opacity-40"
+                            className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white text-slate-500 rounded-2xl border border-slate-100 hover:bg-slate-50 hover:text-kitty-500 transition-all disabled:opacity-40"
                             title={isPlaybackPaused ? contentUiText.resumeTitle : isPlaybackActive ? contentUiText.pauseTitle : contentUiText.playTitle}
                           >
                             {isPlaybackPaused ? <Play /> : <Pause />}
                           </button>
                         )}
-                        <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-16 h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
+                        <button onClick={() => void loadDailyContent(mode === AppMode.READING ? 'reading' : 'listening')} className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-slate-50 text-slate-400 rounded-2xl hover:bg-kitty-50 hover:text-kitty-500 transition-all">
                           <RefreshCw />
                         </button>
                       </div>
                     </div>
-                    <div className="overflow-y-auto no-scrollbar text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
-                      {dailyContent?.content || contentUiText.loadingBody}
-                    </div>
+                    {dailyContent ? (
+                      <div className="overflow-y-auto no-scrollbar text-base sm:text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
+                        {dailyContent.content}
+                      </div>
+                    ) : (
+                      <div className="rounded-[2rem] border border-kitty-100 bg-gradient-to-br from-kitty-50 via-white to-kitty-100/60 px-5 py-7 md:px-8 md:py-10">
+                        <div className="inline-flex items-center gap-3 rounded-full bg-kitty-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-sm">
+                          <RefreshCw className="animate-spin" size={14} /> {contentUiText.loadingBadge}
+                        </div>
+                        <p className="mt-5 text-base sm:text-lg md:text-xl font-bold leading-relaxed text-slate-600">
+                          {contentUiText.loadingBody}
+                        </p>
+                        <div className="mt-6 space-y-4">
+                          <div className="h-4 w-40 rounded-full bg-kitty-100 animate-pulse" />
+                          <div className="h-7 w-full rounded-full bg-white/90 shadow-sm animate-pulse" />
+                          <div className="h-7 w-5/6 rounded-full bg-white/80 animate-pulse" />
+                          <div className="h-7 w-4/6 rounded-full bg-white/70 animate-pulse" />
+                        </div>
+                        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                          {['正在换一个源', '正在抽一篇新内容', '正在整理成可练习版本'].map((item) => (
+                            <div key={item} className="rounded-[1.25rem] bg-white/90 px-4 py-3 text-sm font-black text-kitty-600 shadow-sm">
+                              {item}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
 
-                  <aside className="space-y-5 xl:sticky xl:top-6">
-                    <div className="rounded-[2rem] border border-slate-100 bg-slate-50/80 p-5 md:p-6">
+                {isSourcePanelOpen && (
+                  <div className="absolute inset-0 z-30 rounded-[2rem] md:rounded-[4rem] bg-slate-950/20 backdrop-blur-[2px]">
+                    <div className="absolute inset-y-0 right-0 w-full max-w-[420px] rounded-[2rem] md:rounded-l-[3rem] md:rounded-r-[4rem] border-l border-slate-100 bg-white p-5 md:p-6 shadow-2xl overflow-y-auto no-scrollbar">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{contentUiText.sourcePanelLabel}</p>
@@ -3827,11 +3911,18 @@ const App = () => {
                             {contentUiText.sourcePanelDesc}
                           </p>
                         </div>
-                        <div className="rounded-[1.25rem] bg-white px-3 py-2 text-xs font-bold text-slate-500 border border-slate-100">
-                          当前自定义 {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个
-                          <br />
-                          默认 {mode === AppMode.LISTENING ? languageSourceHints.listeningNames.length : languageSourceHints.readingNames.length} 个
-                        </div>
+                        <button
+                          onClick={() => setIsSourcePanelOpen(false)}
+                          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600"
+                        >
+                          <X size={14} /> {contentUiText.sourcePanelClose}
+                        </button>
+                      </div>
+
+                      <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 border border-slate-100">
+                        {contentUiText.customCountLabel} {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个
+                        <br />
+                        {contentUiText.defaultCountLabel} {mode === AppMode.LISTENING ? languageSourceHints.listeningNames.length : languageSourceHints.readingNames.length} 个
                       </div>
 
                       <div className="mt-5 space-y-3">
@@ -3839,18 +3930,18 @@ const App = () => {
                           value={sourceNameInput}
                           onChange={(event) => setSourceNameInput(event.target.value)}
                           placeholder={mode === AppMode.LISTENING ? languageSourceHints.listeningPlaceholder : languageSourceHints.readingPlaceholder}
-                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                          className="w-full rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
                         />
                         <input
                           value={sourceUrlInput}
                           onChange={(event) => setSourceUrlInput(event.target.value)}
                           placeholder="https://..."
-                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                          className="w-full rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
                         />
                         <select
                           value={sourceTypeInput}
                           onChange={(event) => setSourceTypeInput(event.target.value as ContentSourceType)}
-                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
+                          className="w-full rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none border border-slate-100"
                         >
                           <option value="both">{contentUiText.sourceTypeBoth}</option>
                           <option value="reading">{contentUiText.sourceTypeReading}</option>
@@ -3860,10 +3951,13 @@ const App = () => {
                           value={sourceDescriptionInput}
                           onChange={(event) => setSourceDescriptionInput(event.target.value)}
                           placeholder={contentUiText.sourceDescPlaceholder}
-                          className="w-full rounded-[1.25rem] bg-white px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
+                          className="w-full rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-slate-100"
                         />
                         <button
-                          onClick={addContentSource}
+                          onClick={() => {
+                            addContentSource();
+                            setIsSourcePanelOpen(false);
+                          }}
                           disabled={!safeTrim(sourceNameInput) || !safeTrim(sourceUrlInput)}
                           className="w-full rounded-[1.25rem] bg-kitty-500 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
                         >
@@ -3871,9 +3965,9 @@ const App = () => {
                         </button>
                       </div>
 
-                      <div className="mt-4 flex max-h-48 flex-wrap gap-3 overflow-y-auto no-scrollbar">
+                      <div className="mt-4 flex max-h-64 flex-wrap gap-3 overflow-y-auto no-scrollbar">
                         {(mode === AppMode.LISTENING ? listeningSources : readingSources).map((item) => (
-                          <div key={item.id} className="inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-bold text-slate-600 border border-slate-100">
+                          <div key={item.id} className="inline-flex items-center gap-3 rounded-full bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 border border-slate-100">
                             <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-kitty-600 transition-colors">
                               {item.name}
                             </a>
@@ -3884,36 +3978,38 @@ const App = () => {
                           </div>
                         ))}
                         {!(mode === AppMode.LISTENING ? listeningSources : readingSources).length && (
-                          <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-400 border border-slate-100">
+                          <div className="rounded-[1.25rem] bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-400 border border-slate-100">
                             {contentUiText.noCustomSource}
                           </div>
                         )}
                       </div>
                     </div>
-                  </aside>
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {mode === AppMode.WRITING && (
-            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-6 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
-              <div className="flex-1 flex flex-col bg-white rounded-[2.5rem] md:rounded-[4rem] p-6 md:p-8 lg:p-12 shadow-2xl border border-pink-100 relative overflow-hidden min-h-[520px]">
+            <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-5 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
+              <div className="w-full xl:hidden">{renderSubpageBackButton()}</div>
+              <div className="flex-1 flex flex-col bg-white rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-8 lg:p-12 shadow-2xl border border-pink-100 relative overflow-hidden min-h-[520px]">
+                <div className="hidden xl:block mb-4">{renderSubpageBackButton()}</div>
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
-                  <h2 className="text-2xl md:text-3xl font-black text-slate-800">{generalUiText.writingTitle}</h2>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center gap-3 bg-pink-50 text-pink-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{generalUiText.writingTitle}</h2>
+                  <div className="flex w-full lg:w-auto flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center justify-center gap-3 bg-pink-50 text-pink-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
                     </button>
-                    <button onClick={saveWritingEntry} disabled={!safeTrim(writingInput)} className="flex items-center gap-3 bg-emerald-50 text-emerald-600 px-6 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-40">
+                    <button onClick={saveWritingEntry} disabled={!safeTrim(writingInput)} className="flex items-center justify-center gap-3 bg-emerald-50 text-emerald-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-40">
                       <Bookmark size={18} /> {writingResult ? generalUiText.saveDiary : generalUiText.saveDraft}
                     </button>
                   </div>
                 </div>
                 {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
-                {writingTopic && <div className="mb-8 md:mb-10 p-6 md:p-8 bg-pink-50/30 rounded-[2rem] md:rounded-[2.5rem] border border-pink-100 text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
-                <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="Type your story, essay or journal here..." className="flex-1 w-full resize-none outline-none text-lg md:text-xl lg:text-2xl text-slate-600 bg-transparent placeholder:text-slate-200 font-medium leading-relaxed no-scrollbar min-h-[260px]" />
-                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-8 md:mt-10 w-full py-5 md:py-6 bg-kitty-500 text-white rounded-3xl font-black text-xl md:text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
+                {writingTopic && <div className="mb-8 md:mb-10 p-5 md:p-8 bg-pink-50/30 rounded-[1.75rem] md:rounded-[2.5rem] border border-pink-100 text-base sm:text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
+                <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="先把你想写的内容打出来，不用一开始就很完美。" className="flex-1 w-full resize-none outline-none text-base sm:text-lg md:text-xl lg:text-2xl text-slate-600 bg-transparent placeholder:text-slate-300 font-medium leading-relaxed no-scrollbar min-h-[260px]" />
+                <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-8 md:mt-10 w-full py-4 md:py-6 bg-kitty-500 text-white rounded-3xl font-black text-lg md:text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
                   {isWritingLoading ? <RefreshCw className="animate-spin" /> : <><CheckCircle size={28} /> {labels.check}</>}
                 </button>
               </div>
@@ -3960,20 +4056,21 @@ const App = () => {
           )}
 
           {mode === AppMode.EXAM_PORTAL && (
-            <div className="h-full p-16 max-w-6xl mx-auto overflow-y-auto no-scrollbar animate-in fade-in duration-1000">
-              <div className="text-center mb-16">
-                <h2 className="text-5xl font-black text-slate-900 mb-4">{generalUiText.examTitle}</h2>
-                <p className="text-slate-400 text-xl font-medium">{generalUiText.examDesc}</p>
+            <div className="h-full p-3 sm:p-4 md:p-8 lg:p-16 max-w-6xl mx-auto overflow-y-auto no-scrollbar animate-in fade-in duration-1000">
+              <div className="mb-4">{renderSubpageBackButton()}</div>
+              <div className="text-center mb-10 md:mb-16">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4">{generalUiText.examTitle}</h2>
+                <p className="text-slate-400 text-base sm:text-lg md:text-xl font-medium">{generalUiText.examDesc}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 {(EXAM_RESOURCES[language] || []).map((resource, index) => (
-                  <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="bg-white p-12 rounded-[4rem] shadow-sm hover:shadow-2xl transition-all border border-slate-100 flex items-center gap-10 group">
-                    <div className={`p-8 bg-${resource.color}-50 text-${resource.color}-500 rounded-[2.5rem] group-hover:scale-110 transition-transform`}>
-                      <resource.icon size={48} />
+                  <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="bg-white p-5 sm:p-7 md:p-12 rounded-[2rem] md:rounded-[4rem] shadow-sm hover:shadow-2xl transition-all border border-slate-100 flex items-center gap-4 sm:gap-6 md:gap-10 group">
+                    <div className={`p-4 sm:p-6 md:p-8 bg-${resource.color}-50 text-${resource.color}-500 rounded-[1.5rem] md:rounded-[2.5rem] group-hover:scale-110 transition-transform`}>
+                      <resource.icon size={36} />
                     </div>
                     <div>
-                      <h4 className="text-3xl font-black text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{resource.name}</h4>
-                      <p className="text-slate-400 text-lg font-medium">{resource.desc}</p>
+                      <h4 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{resource.name}</h4>
+                      <p className="text-slate-400 text-sm sm:text-base md:text-lg font-medium">{resource.desc}</p>
                     </div>
                   </a>
                 ))}
