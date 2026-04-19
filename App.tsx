@@ -1187,7 +1187,7 @@ const App = () => {
   const [isSourcePanelOpen, setIsSourcePanelOpen] = useState(false);
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
-  const [cloudSyncMessage, setCloudSyncMessage] = useState('Local notebook');
+  const [cloudSyncMessage, setCloudSyncMessage] = useState('本地内容已就绪');
   const [authEmail, setAuthEmail] = useState('');
   const [authOtp, setAuthOtp] = useState('');
   const [authMessage, setAuthMessage] = useState('');
@@ -1246,7 +1246,7 @@ const App = () => {
   const renderSubpageBackButton = (onClick?: () => void) => (
     <button
       onClick={onClick || (() => setMode(AppMode.DASHBOARD))}
-      className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-black text-slate-700 border border-slate-100 shadow-sm hover:border-kitty-200"
+      className="glass-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-slate-700 hover:border-kitty-200"
     >
       <ChevronLeft size={16} /> {generalUiText.backHome}
     </button>
@@ -1393,7 +1393,7 @@ const App = () => {
       if (guestUser) {
         cloudUserIdRef.current = guestUser.id;
         setCloudSyncStatus('synced');
-        setCloudSyncMessage('Guest cloud synced');
+        setCloudSyncMessage('体验数据已同步');
       }
     } catch (error) {
       console.error(error);
@@ -2591,7 +2591,7 @@ const App = () => {
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       setCloudSyncStatus('local');
-      setCloudSyncMessage('Local notebook');
+      setCloudSyncMessage('本地内容已就绪');
       return;
     }
 
@@ -2599,14 +2599,14 @@ const App = () => {
 
     const bootstrapCloud = async () => {
       setCloudSyncStatus('connecting');
-      setCloudSyncMessage('Connecting cloud notebook...');
+      setCloudSyncMessage('正在连接云端笔记...');
 
       try {
         const user = await getSupabaseUser();
         if (!user?.email) {
           if (!cancelled) {
             setCloudSyncStatus('local');
-            setCloudSyncMessage('Sign in to sync');
+            setCloudSyncMessage('登录后可同步');
             setIsEmailUser(false);
             setCurrentUserEmail(null);
             setIsAuthModalOpen(true);
@@ -2625,7 +2625,7 @@ const App = () => {
         await flushUsageQueue();
         if (!cancelled) {
           setCloudSyncStatus('synced');
-          setCloudSyncMessage('Signed in and synced');
+          setCloudSyncMessage('账号已连接，内容已同步');
           setIsAuthChecked(true);
           setAuthMessage(`Signed in as ${user.email}`);
         }
@@ -2633,7 +2633,7 @@ const App = () => {
         console.error('Supabase bootstrap failed', error);
         if (!cancelled) {
           setCloudSyncStatus('error');
-          setCloudSyncMessage('Cloud reconnecting...');
+          setCloudSyncMessage('云端连接波动，正在重连');
           setIsAuthChecked(true);
         }
       }
@@ -2649,13 +2649,13 @@ const App = () => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && user?.email) {
         cloudUserIdRef.current = user.id;
         setCloudSyncStatus('connecting');
-        setCloudSyncMessage('Linking your notebook...');
+        setCloudSyncMessage('正在绑定你的云端笔记...');
         void applyCloudSnapshot(user.id)
           .then(() => flushUsageQueue())
           .then(() => {
             hasBootstrappedCloudRef.current = true;
             setCloudSyncStatus('synced');
-            setCloudSyncMessage('Signed in and synced');
+            setCloudSyncMessage('账号已连接，内容已同步');
             setAuthMessage(`Signed in as ${user.email}`);
             setIsAuthModalOpen(false);
             setIsAuthChecked(true);
@@ -2663,7 +2663,7 @@ const App = () => {
           .catch((error) => {
             console.error('Auth sync failed', error);
             setCloudSyncStatus('error');
-            setCloudSyncMessage('Cloud reconnecting...');
+            setCloudSyncMessage('云端连接波动，正在重连');
             setAuthMessage(error instanceof Error ? error.message : 'Failed to sync after sign-in');
             setIsAuthChecked(true);
           });
@@ -2675,7 +2675,7 @@ const App = () => {
         setCurrentUserEmail(null);
         setIsEmailUser(false);
         setCloudSyncStatus('local');
-        setCloudSyncMessage('Sign in to sync');
+        setCloudSyncMessage('登录后可同步');
         setIsAuthModalOpen(true);
         setIsAuthChecked(true);
         setIsOtpStage(false);
@@ -2702,7 +2702,7 @@ const App = () => {
       if (!cloudUserIdRef.current) return;
 
       setCloudSyncStatus('syncing');
-      setCloudSyncMessage('Syncing...');
+      setCloudSyncMessage('正在同步最新内容...');
 
       Promise.all([
         replaceLearningItems(cloudUserIdRef.current, 'vocab', vocabList),
@@ -2714,12 +2714,12 @@ const App = () => {
       ])
         .then(() => {
           setCloudSyncStatus('synced');
-          setCloudSyncMessage('Cloud synced');
+          setCloudSyncMessage('内容已同步到云端');
         })
         .catch((error) => {
           console.error('Cloud sync failed', error);
           setCloudSyncStatus('error');
-          setCloudSyncMessage('Cloud reconnecting...');
+          setCloudSyncMessage('云端连接波动，正在重连');
         });
     }, 500);
 
@@ -2744,18 +2744,18 @@ const App = () => {
     cloudRetryTimerRef.current = window.setTimeout(() => {
       if (!cloudUserIdRef.current) return;
       setCloudSyncStatus('connecting');
-      setCloudSyncMessage('Retrying cloud sync...');
+      setCloudSyncMessage('正在尝试重新同步...');
       void applyCloudSnapshot(cloudUserIdRef.current)
         .then(() => flushUsageQueue())
         .then(() => {
           hasBootstrappedCloudRef.current = true;
           setCloudSyncStatus('synced');
-          setCloudSyncMessage('Signed in and synced');
+          setCloudSyncMessage('账号已连接，内容已同步');
         })
         .catch((error) => {
           console.error('Cloud retry failed', error);
           setCloudSyncStatus('error');
-          setCloudSyncMessage('Cloud reconnecting...');
+          setCloudSyncMessage('云端连接波动，正在重连');
         });
     }, 12000);
 
@@ -2864,15 +2864,15 @@ const App = () => {
         </div>
       )}
 
-      <div className={`fixed inset-y-0 right-0 w-full sm:w-[420px] bg-white shadow-2xl z-50 transform transition-transform duration-500 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-kitty-100 flex flex-col`}>
-        <div className="p-4 sm:p-8 border-b border-kitty-50">
+      <div className={`glass-panel fixed inset-y-0 right-0 w-full sm:w-[420px] z-50 transform transition-transform duration-500 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-white/60 flex flex-col`}>
+        <div className="p-4 sm:p-8 border-b border-white/60">
           <div className="flex justify-between items-center mb-6">
             <h2 className="font-black text-kitty-800 flex items-center gap-3 text-xl sm:text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
-            <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-kitty-50 rounded-full transition-all text-slate-400"><X /></button>
+            <button onClick={() => setSidebarOpen(false)} className="glass-pill p-2 rounded-full transition-all text-slate-400"><X /></button>
           </div>
-          <div className="flex bg-kitty-100/50 p-1.5 rounded-2xl border border-kitty-100">
+          <div className="glass-pill flex p-1.5 rounded-2xl">
             {['vocab', 'sentences', 'diary'].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-400'}`}>
+              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white/90 text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-500'}`}>
                 {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : notebookUiText.diaryTab}
               </button>
             ))}
@@ -2880,7 +2880,7 @@ const App = () => {
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onClick={() => void copyNotebookExport()}
-              className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-kitty-600 border border-kitty-100 hover:border-kitty-200"
+              className="glass-pill rounded-2xl px-4 py-3 text-xs font-black text-kitty-600 hover:border-kitty-200"
             >
               {notebookUiText.copyToNotion}
             </button>
@@ -2899,7 +2899,7 @@ const App = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
-          <div className="rounded-[1.5rem] sm:rounded-[2rem] bg-kitty-50/70 border border-kitty-100 p-4">
+          <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4">
             {activeTab === 'vocab' && (
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
@@ -3135,18 +3135,18 @@ const App = () => {
         <main className="flex-1 min-h-0 overflow-hidden relative">
           {isSupabaseConfigured() && isAuthChecked && !isEmailUser && (
             <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
-              <div className="mx-auto my-4 w-full max-w-lg rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-kitty-100 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div className="glass-panel mx-auto my-4 w-full max-w-lg rounded-[2.5rem] p-6 md:p-8 max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="text-3xl font-black text-slate-900">{generalUiText.signInTitle}</h3>
-                    <p className="mt-2 text-sm text-slate-500 font-medium">
+                    <h3 className="font-display text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.signInTitle}</h3>
+                    <p className="mt-2 text-sm text-slate-600 font-semibold">
                       {generalUiText.accountDesc}
                     </p>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                  <div className="glass-pill rounded-[1.75rem] px-5 py-4">
                     <input
                       type="email"
                       value={authEmail}
@@ -3156,7 +3156,7 @@ const App = () => {
                     />
                   </div>
                   {isOtpStage && (
-                    <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                    <div className="glass-pill rounded-[1.75rem] px-5 py-4">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -3171,7 +3171,7 @@ const App = () => {
                     <button
                       onClick={() => void handleEmailLogin()}
                       disabled={isAuthLoading || !safeTrim(authEmail)}
-                      className="w-full rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                      className="w-full rounded-[1.75rem] bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-6 py-4 text-white font-black shadow-[0_18px_36px_rgba(255,77,156,0.24)] disabled:opacity-50"
                     >
                       {isAuthLoading ? generalUiText.sendingCode : generalUiText.sendVerificationCode}
                     </button>
@@ -3184,14 +3184,14 @@ const App = () => {
                           setAuthMessage('');
                         }}
                         disabled={isAuthLoading}
-                        className="rounded-[1.75rem] bg-slate-100 px-6 py-4 text-slate-600 font-black disabled:opacity-50"
+                        className="glass-pill rounded-[1.75rem] px-6 py-4 text-slate-600 font-black disabled:opacity-50"
                       >
                         {generalUiText.changeEmail}
                       </button>
                       <button
                         onClick={() => void handleOtpVerify()}
                         disabled={isAuthLoading || safeTrim(authOtp).length < 4}
-                        className="rounded-[1.75rem] bg-kitty-500 px-6 py-4 text-white font-black disabled:opacity-50"
+                        className="rounded-[1.75rem] bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-6 py-4 text-white font-black shadow-[0_18px_36px_rgba(255,77,156,0.24)] disabled:opacity-50"
                       >
                         {isAuthLoading ? generalUiText.verifyingCode : generalUiText.verifyCode}
                       </button>
@@ -3209,47 +3209,47 @@ const App = () => {
           )}
           {isSupabaseConfigured() && isEmailUser && isAuthModalOpen && (
             <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
-              <div className="mx-auto my-4 w-full max-w-lg rounded-[2.5rem] bg-white p-6 md:p-8 shadow-2xl border border-kitty-100 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+              <div className="glass-panel mx-auto my-4 w-full max-w-lg rounded-[2.5rem] p-6 md:p-8 max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="text-3xl font-black text-slate-900">{generalUiText.accountTitle}</h3>
-                    <p className="mt-2 text-sm text-slate-500 font-medium">
+                    <h3 className="font-display text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.accountTitle}</h3>
+                    <p className="mt-2 text-sm text-slate-600 font-semibold">
                       {generalUiText.accountSynced}
                     </p>
                   </div>
-                  <button onClick={() => setIsAuthModalOpen(false)} className="p-2 rounded-full hover:bg-kitty-50 text-slate-400">
+                  <button onClick={() => setIsAuthModalOpen(false)} className="glass-pill p-2 rounded-full text-slate-400">
                     <X size={18} />
                   </button>
                 </div>
-                <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4">
+                <div className="rounded-[1.75rem] bg-emerald-50/85 px-5 py-4 shadow-sm">
                   <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.currentAccount}</p>
                   <p className="text-sm font-semibold text-emerald-700">{currentUserEmail}</p>
                 </div>
-                <div className="mt-4 rounded-[1.75rem] bg-slate-50 px-5 py-4 border border-slate-100">
+                <div className="glass-panel mt-4 rounded-[1.75rem] px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.clipperTitle}</p>
-                      <p className="text-sm text-slate-500 font-medium">
+                      <p className="text-sm text-slate-600 font-semibold">
                         先生成你的插件连接码，再粘到 Chrome 插件里。之后插件就能直接把单词和句子存进你的账号。
                       </p>
                     </div>
                     <button
                       onClick={() => void generateClipperToken()}
                       disabled={isGeneratingClipperToken}
-                      className="rounded-full bg-kitty-500 px-4 py-2 text-xs font-black text-white disabled:opacity-50"
+                      className="rounded-full bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-4 py-2 text-xs font-black text-white shadow-[0_14px_28px_rgba(255,77,156,0.22)] disabled:opacity-50"
                     >
                       {isGeneratingClipperToken ? generalUiText.generatingToken : generalUiText.generateToken}
                     </button>
                   </div>
                   {clipperToken && (
-                    <div className="mt-4 rounded-[1.25rem] bg-white px-4 py-4 border border-kitty-100">
+                    <div className="mt-4 rounded-[1.25rem] bg-white/82 px-4 py-4 border border-white/70 shadow-sm">
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">插件连接码</p>
                       <div className="flex flex-col gap-3 md:flex-row md:items-center">
                         <code className="flex-1 break-all text-xs leading-6 text-slate-600">{clipperToken}</code>
                         <button
                           onClick={() => void copyClipperToken()}
-                          className="rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white"
+                          className="glass-pill rounded-full px-4 py-2 text-xs font-black text-slate-700"
                         >
                           {generalUiText.copy}
                         </button>
@@ -3265,7 +3265,7 @@ const App = () => {
                 <button
                   onClick={() => void handleSignOut()}
                   disabled={isAuthLoading}
-                  className="mt-4 w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black disabled:opacity-50"
+                  className="mt-4 w-full rounded-[1.75rem] bg-slate-900 px-6 py-4 text-white font-black shadow-[0_18px_34px_rgba(15,23,42,0.18)] disabled:opacity-50"
                 >
                   {isAuthLoading ? generalUiText.signingOut : generalUiText.signOut}
                 </button>
@@ -3279,11 +3279,11 @@ const App = () => {
           )}
           {isLaunchingSpeaking && (
             <div className="absolute inset-0 z-[60] bg-slate-950/92 backdrop-blur-sm flex items-center justify-center">
-              <div className="rounded-[2.5rem] bg-white px-8 py-7 shadow-2xl text-center">
-                <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 font-black mb-4">
+              <div className="glass-panel rounded-[2.5rem] px-8 py-7 text-center">
+                <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 font-black mb-4">
                   <RefreshCw className="animate-spin" size={18} /> {generalUiText.speakingLaunchTitle}
                 </div>
-                <p className="text-slate-500 font-semibold">{generalUiText.speakingLaunchDesc}</p>
+                <p className="text-slate-600 font-semibold">{generalUiText.speakingLaunchDesc}</p>
               </div>
             </div>
           )}
@@ -3298,9 +3298,6 @@ const App = () => {
                 </div>
                 <div className="relative grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
-                    <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/65 px-4 py-2 text-[11px] font-black tracking-[0.28em] text-slate-500 uppercase shadow-sm">
-                      <Sparkles size={14} className="text-kitty-500" /> 云雾口语工作台
-                    </div>
                     <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-[-0.05em] leading-[0.95]">
                       {generalUiText.dashboardTitle}
                     </h2>
@@ -3409,15 +3406,15 @@ const App = () => {
               <div className="mb-4">{renderSubpageBackButton(() => endSpeakingSession('user_exit'))}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
-                  <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                  <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <Mic size={16} /> {generalUiText.dashboardBadge}
                   </div>
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{generalUiText.dashboardTitle}</h2>
-                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
+                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.dashboardTitle}</h2>
+                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.dashboardDesc}
                   </p>
                 </div>
-                <button onClick={() => endSpeakingSession('user_exit')} className="self-start rounded-full bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm border border-slate-100 flex items-center gap-3">
+                <button onClick={() => endSpeakingSession('user_exit')} className="glass-pill self-start rounded-full px-4 py-3 text-sm font-black text-slate-700 flex items-center gap-3">
                   <X size={16} /> {generalUiText.backHome}
                 </button>
               </div>
@@ -3427,7 +3424,7 @@ const App = () => {
 
               {speakingTrack === null && storyStage === 'choose_mode' && (
                 <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
+                  <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
                     <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.step1}</p>
                     <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{storyUiText.chooseTitle}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
@@ -3436,7 +3433,7 @@ const App = () => {
                     <div className="mt-8 grid gap-4">
                       <button
                         onClick={() => void beginFreeTalk()}
-                        className="w-full rounded-[1.5rem] sm:rounded-[2rem] border border-indigo-100 bg-indigo-50 px-4 py-4 sm:px-5 sm:py-5 text-left hover:border-indigo-200 transition-all"
+                        className="glass-panel w-full rounded-[1.5rem] sm:rounded-[2rem] px-4 py-4 sm:px-5 sm:py-5 text-left hover:-translate-y-0.5 transition-all"
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
@@ -3452,7 +3449,7 @@ const App = () => {
                         <button
                           key={item}
                           onClick={() => startStoryMode(item)}
-                          className="w-full rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 bg-slate-50 px-4 py-4 sm:px-5 sm:py-5 text-left hover:border-kitty-200 hover:bg-kitty-50 transition-all"
+                          className="glass-panel w-full rounded-[1.5rem] sm:rounded-[2rem] px-4 py-4 sm:px-5 sm:py-5 text-left hover:-translate-y-0.5 transition-all"
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div>
@@ -3465,16 +3462,16 @@ const App = () => {
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-kitty-50 p-5 sm:p-6 md:p-10 border border-kitty-100">
+                  <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
                     <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.whatYouGet}</p>
                     <div className="space-y-3">
                       {storyUiText.whatYouGetList.map((item) => (
-                        <div key={item} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-white px-4 py-3 sm:px-5 sm:py-4 text-sm font-bold text-slate-700 leading-relaxed">
+                        <div key={item} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-white/82 px-4 py-3 sm:px-5 sm:py-4 text-sm font-bold text-slate-700 leading-relaxed shadow-sm">
                           {item}
                         </div>
                       ))}
                     </div>
-                    <div className="mt-6 rounded-[1.75rem] bg-white px-5 py-4">
+                    <div className="mt-6 rounded-[1.75rem] bg-white/82 px-5 py-4 shadow-sm">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.reminder}</p>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                         <input
@@ -3492,7 +3489,7 @@ const App = () => {
 
               {speakingTrack === 'story' && (storyStage === 'record' || storyStage === 'review') && (
                 <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
+                  <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
                       <span className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
                         STEP 2 · {storyModeLabel(storyMode)}
@@ -3505,21 +3502,21 @@ const App = () => {
                     <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
                       {storyStage === 'review' ? storyUiText.reviewDesc : storyUiText.recordDesc}
                     </p>
-                    <div className="mt-6 rounded-[1.5rem] sm:rounded-[2rem] bg-slate-50 p-4 sm:p-5 md:p-6">
+                    <div className="glass-panel mt-6 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-5 md:p-6">
                       {speechDraft ? (
                         <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
                       ) : null}
                       {storyStage === 'review' && (
                         <div className="mb-4 grid gap-3 md:grid-cols-3">
-                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                          <div className="rounded-[1.5rem] bg-white/82 px-4 py-4 shadow-sm">
                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.transcriptStats}</p>
                             <p className="text-sm font-semibold text-slate-600">{storyModeLabel(storyMode)}</p>
                           </div>
-                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                          <div className="rounded-[1.5rem] bg-white/82 px-4 py-4 shadow-sm">
                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.wordCount}</p>
                             <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).split(/\s+/).filter(Boolean).length}</p>
                           </div>
-                          <div className="rounded-[1.5rem] bg-white px-4 py-4">
+                          <div className="rounded-[1.5rem] bg-white/82 px-4 py-4 shadow-sm">
                             <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.recordHint}</p>
                             <p className="text-sm font-semibold text-slate-600">{safeTrim(storyTranscript).length} 字</p>
                           </div>
@@ -3569,7 +3566,7 @@ const App = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                  <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
                     <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
                       {storyStage === 'review' ? storyUiText.reviewTitle : storyUiText.lightGuidance}
                     </p>
@@ -3582,7 +3579,7 @@ const App = () => {
                           ]
                         : storyUiText.guidanceList
                       ).map((item) => (
-                        <div key={item} className="rounded-[1.5rem] bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-600">
+                        <div key={item} className="rounded-[1.5rem] bg-white/82 px-4 py-4 text-sm font-semibold text-slate-600 shadow-sm">
                           {item}
                         </div>
                       ))}
@@ -3599,17 +3596,17 @@ const App = () => {
 
               {speakingTrack === 'chat' && (
                 <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                  <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-10 shadow-xl border border-slate-100">
+                  <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
-                      <span className="rounded-full bg-indigo-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-indigo-600">
+                      <span className="glass-pill rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest text-indigo-600">
                         {freeTalkUiText.badge}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                      <span className="glass-pill rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
                         {freeTalkUiText.microMode}
                       </span>
                     </div>
-                    <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{freeTalkUiText.title}</h3>
-                    <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
+                    <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 leading-tight tracking-[-0.03em]">{freeTalkUiText.title}</h3>
+                    <p className="mt-3 text-slate-600 font-semibold text-sm sm:text-base md:text-lg leading-relaxed">
                       {freeTalkUiText.description}
                     </p>
                     {isListening && (
@@ -3650,7 +3647,7 @@ const App = () => {
                       )}
                     </div>
 
-                    <div className="mt-5 sm:mt-6 rounded-[1.5rem] sm:rounded-[2rem] bg-slate-50 p-4 sm:p-5 md:p-6">
+                    <div className="glass-panel mt-5 sm:mt-6 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-5 md:p-6">
                       {speechDraft ? (
                         <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{speechDraft}</div>
                       ) : null}
@@ -3687,26 +3684,26 @@ const App = () => {
                   </div>
 
                   <div className="space-y-5 sm:space-y-6">
-                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                    <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
                       <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.startHere}</h4>
                       <div className="flex flex-wrap gap-3">
                         {freeTalkQuickReplies.map((item) => (
                           <button
                             key={item}
                             onClick={() => setFreeTalkInput(item)}
-                            className="rounded-full bg-indigo-50 px-4 py-3 text-sm font-black text-indigo-600 hover:bg-indigo-100 transition-all text-left"
+                            className="glass-pill rounded-full px-4 py-3 text-sm font-black text-indigo-600 hover:bg-white/80 transition-all text-left"
                           >
                             {item}
                           </button>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-5 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                    <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
                       <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.betterWays}</h4>
                       <div className="space-y-4">
                         {freeTalkImprovements.length ? (
                           freeTalkImprovements.map((item, index) => (
-                            <div key={`${index}-${item}`} className="rounded-[1.5rem] bg-slate-50 px-4 py-4">
+                            <div key={`${index}-${item}`} className="rounded-[1.5rem] bg-white/82 px-4 py-4 shadow-sm">
                               <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{index + 1}</p>
                               <p className="text-base font-semibold text-slate-700 leading-relaxed">{item}</p>
                             </div>
@@ -3717,18 +3714,18 @@ const App = () => {
                           </p>
                         )}
                         {freeTalkCorrection ? (
-                          <div className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
+                          <div className="rounded-[1.5rem] bg-kitty-50/85 px-4 py-4 shadow-sm">
                             <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-2">{freeTalkUiText.coachNote}</p>
                             <p className="text-sm font-semibold text-kitty-700 leading-relaxed">{freeTalkCorrection}</p>
                           </div>
                         ) : null}
                       </div>
                     </div>
-                    <div className="rounded-[2rem] md:rounded-[2.5rem] bg-slate-50 p-5 sm:p-6 md:p-8 border border-slate-100">
+                    <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{freeTalkUiText.rulesTitle}</p>
                       <div className="space-y-3">
                         {freeTalkUiText.rules.map((item) => (
-                          <div key={item} className="rounded-[1.5rem] bg-white px-4 py-4 text-sm font-semibold text-slate-600">
+                          <div key={item} className="rounded-[1.5rem] bg-white/82 px-4 py-4 text-sm font-semibold text-slate-600 shadow-sm">
                             {item}
                           </div>
                         ))}
@@ -3817,26 +3814,26 @@ const App = () => {
               <div className="mb-4">{renderSubpageBackButton()}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
-                  <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                  <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <BookOpen size={16} /> {generalUiText.myStoriesBadge}
                   </div>
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{generalUiText.storyLibraryTitle}</h2>
-                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
+                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.storyLibraryTitle}</h2>
+                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.storyLibraryDesc}
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-                  <button onClick={() => void enterSpeakingMode()} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
+                  <button onClick={() => void enterSpeakingMode()} className="rounded-full bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-5 py-3 text-sm font-black text-white shadow-[0_16px_34px_rgba(255,77,156,0.24)]">
                     {generalUiText.storyButton}
                   </button>
-                  <button onClick={() => setMode(AppMode.DASHBOARD)} className="rounded-full bg-white px-5 py-3 text-sm font-black text-slate-700 border border-slate-100">
+                  <button onClick={() => setMode(AppMode.DASHBOARD)} className="glass-pill rounded-full px-5 py-3 text-sm font-black text-slate-700">
                     {generalUiText.backHome}
                   </button>
                 </div>
               </div>
 
               <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-4 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-4 sm:p-6 md:p-8">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg sm:text-xl font-black text-slate-900">{storyUiText.sortByDate}</h3>
                     <span className="text-sm font-black text-slate-400">{storyEntries.filter((item) => item.language === language).length}{storyUiText.countSuffix}</span>
@@ -3850,7 +3847,7 @@ const App = () => {
                             <button
                               key={item.id}
                               onClick={() => setSelectedStoryId(item.id)}
-                              className={`w-full rounded-[1.35rem] sm:rounded-[1.75rem] px-4 py-4 sm:px-5 text-left border transition-all ${selectedStory?.id === item.id ? 'bg-kitty-50 border-kitty-200' : 'bg-slate-50 border-slate-100 hover:border-kitty-150'}`}
+                              className={`w-full rounded-[1.35rem] sm:rounded-[1.75rem] px-4 py-4 sm:px-5 text-left border transition-all ${selectedStory?.id === item.id ? 'bg-white/90 border-kitty-200 shadow-sm' : 'bg-white/70 border-white/60 hover:border-kitty-150'}`}
                             >
                               <p className="text-sm sm:text-base font-black text-slate-900 line-clamp-2">{item.title}</p>
                               <p className="mt-2 text-xs font-black uppercase tracking-widest text-kitty-500">{storyModeLabel(item.mode)}</p>
@@ -3871,17 +3868,17 @@ const App = () => {
                   </div>
                 </div>
 
-                <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-4 sm:p-6 md:p-8 shadow-xl border border-slate-100">
+                <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-4 sm:p-6 md:p-8">
                   {selectedStory ? (
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{new Date(selectedStory.date).toLocaleDateString()} · {storyModeLabel(selectedStory.mode)}</p>
                       <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">{selectedStory.title}</h3>
                       <div className="mt-6 grid gap-5">
-                        <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                        <div className="rounded-[1.75rem] bg-white/78 px-5 py-4 shadow-sm">
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.originalStory}</p>
                           <p className="text-sm sm:text-base leading-relaxed text-slate-600 whitespace-pre-wrap">{selectedStory.originalText}</p>
                         </div>
-                        <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4 border border-emerald-100">
+                        <div className="rounded-[1.75rem] bg-emerald-50/82 px-5 py-4 border border-emerald-100 shadow-sm">
                           <div className="flex items-center justify-between gap-3 mb-2">
                             <p className="text-xs font-black uppercase tracking-widest text-emerald-500">{storyUiText.optimizedStory}</p>
                             <button onClick={() => void copyStoryText(selectedStory.rewrittenText)} className="text-xs font-black text-kitty-600">
@@ -3890,11 +3887,11 @@ const App = () => {
                           </div>
                           <p className="text-sm sm:text-base leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{selectedStory.rewrittenText}</p>
                         </div>
-                        <div className="rounded-[1.75rem] bg-white border border-slate-100 px-5 py-4">
+                        <div className="rounded-[1.75rem] bg-white/82 border border-white/70 px-5 py-4 shadow-sm">
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.keyPhrases}</p>
                           <div className="space-y-3">
                             {selectedStory.keyPhrases.map((phrase, index) => (
-                              <div key={`${phrase.original}-${index}`} className="rounded-[1.5rem] bg-kitty-50 px-4 py-4">
+                              <div key={`${phrase.original}-${index}`} className="rounded-[1.5rem] bg-kitty-50/82 px-4 py-4 shadow-sm">
                                 <p className="text-sm font-black text-slate-900">{phrase.original}</p>
                                 <p className="mt-1 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
                                 <p className="mt-1 text-sm text-kitty-700 font-bold">{storyUiText.alternativeLabel}：{phrase.alternative}</p>
@@ -3903,7 +3900,7 @@ const App = () => {
                           </div>
                         </div>
                         {selectedStory.comment && (
-                          <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                          <div className="rounded-[1.75rem] bg-white/78 px-5 py-4 shadow-sm">
                             <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.comment}</p>
                             <p className="text-sm font-semibold text-slate-600">{selectedStory.comment}</p>
                           </div>
@@ -3923,15 +3920,15 @@ const App = () => {
           {(mode === AppMode.LISTENING || mode === AppMode.READING) && (
             <div className="h-full overflow-y-auto no-scrollbar p-3 sm:p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="mb-4">{renderSubpageBackButton()}</div>
-              <div className={`relative bg-white rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-10 lg:p-16 shadow-2xl min-h-full border ${mode === AppMode.LISTENING ? 'border-indigo-100' : 'border-orange-100'}`}>
+              <div className={`glass-panel relative rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-10 lg:p-16 min-h-full ${mode === AppMode.LISTENING ? 'border-indigo-100/70' : 'border-orange-100/70'}`}>
                 <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
                   <div className="min-w-0">
                     <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                       <div>
-                        <div className={`inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${dailyContent ? mode === AppMode.LISTENING ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500' : 'bg-kitty-100 text-kitty-600'}`}>
+                        <div className={`glass-pill inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${dailyContent ? mode === AppMode.LISTENING ? 'text-indigo-500' : 'text-orange-500' : 'text-kitty-600'}`}>
                           {dailyContent?.source || contentUiText.loadingBadge}
                         </div>
-                        <h2 className={`text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black leading-tight tracking-tight ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
+                        <h2 className={`font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-[-0.04em] ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
                         {!dailyContent && (
                           <p className="mt-4 text-base sm:text-lg md:text-2xl font-black text-slate-500">{contentUiText.loadingHint}</p>
                         )}
@@ -3942,7 +3939,7 @@ const App = () => {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-3 sm:gap-4">
-                        <button onClick={() => setIsSourcePanelOpen(true)} className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 text-sm font-black text-slate-600 hover:bg-kitty-50 hover:text-kitty-600 transition-all">
+                        <button onClick={() => setIsSourcePanelOpen(true)} className="glass-pill inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black text-slate-600 hover:text-kitty-600 transition-all">
                           <Globe size={18} /> {contentUiText.sourcePanelButton}
                         </button>
                         <button onClick={handleTTS} disabled={isTTSLoading || !dailyContent} className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg disabled:opacity-50">
@@ -3952,7 +3949,7 @@ const App = () => {
                           <button
                             onClick={() => void handleToggleTTSPlayback()}
                             disabled={!dailyContent?.content || (!isPlaybackActive && !isPlaybackPaused && isTTSLoading)}
-                            className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center bg-white text-slate-500 rounded-2xl border border-slate-100 hover:bg-slate-50 hover:text-kitty-500 transition-all disabled:opacity-40"
+                            className="glass-pill w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center text-slate-500 rounded-2xl hover:text-kitty-500 transition-all disabled:opacity-40"
                             title={isPlaybackPaused ? contentUiText.resumeTitle : isPlaybackActive ? contentUiText.pauseTitle : contentUiText.playTitle}
                           >
                             {isPlaybackPaused ? <Play /> : <Pause />}
@@ -3968,7 +3965,7 @@ const App = () => {
                         {dailyContent.content}
                       </div>
                     ) : (
-                      <div className="rounded-[2rem] border border-kitty-100 bg-gradient-to-br from-kitty-50 via-white to-kitty-100/60 px-5 py-7 md:px-8 md:py-10">
+                      <div className="glass-panel rounded-[2rem] px-5 py-7 md:px-8 md:py-10">
                         <div className="inline-flex items-center gap-3 rounded-full bg-kitty-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white shadow-sm">
                           <RefreshCw className="animate-spin" size={14} /> {contentUiText.loadingBadge}
                         </div>
@@ -3995,7 +3992,7 @@ const App = () => {
 
                 {isSourcePanelOpen && (
                   <div className="absolute inset-0 z-30 rounded-[2rem] md:rounded-[4rem] bg-slate-950/20 backdrop-blur-[2px]">
-                    <div className="absolute inset-y-0 right-0 w-full max-w-[420px] rounded-[2rem] md:rounded-l-[3rem] md:rounded-r-[4rem] border-l border-slate-100 bg-white p-5 md:p-6 shadow-2xl overflow-y-auto no-scrollbar">
+                    <div className="glass-panel absolute inset-y-0 right-0 w-full max-w-[420px] rounded-[2rem] md:rounded-l-[3rem] md:rounded-r-[4rem] p-5 md:p-6 overflow-y-auto no-scrollbar">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{contentUiText.sourcePanelLabel}</p>
@@ -4008,13 +4005,13 @@ const App = () => {
                         </div>
                         <button
                           onClick={() => setIsSourcePanelOpen(false)}
-                          className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600"
+                          className="glass-pill inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black text-slate-600"
                         >
                           <X size={14} /> {contentUiText.sourcePanelClose}
                         </button>
                       </div>
 
-                      <div className="mt-4 rounded-[1.25rem] bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 border border-slate-100">
+                      <div className="mt-4 rounded-[1.25rem] bg-white/78 px-4 py-3 text-xs font-bold text-slate-500 border border-white/70 shadow-sm">
                         {contentUiText.customCountLabel} {mode === AppMode.LISTENING ? listeningSources.length : readingSources.length} 个
                         <br />
                         {contentUiText.defaultCountLabel} {mode === AppMode.LISTENING ? languageSourceHints.listeningNames.length : languageSourceHints.readingNames.length} 个
@@ -4088,21 +4085,21 @@ const App = () => {
           {mode === AppMode.WRITING && (
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-5 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
               <div className="w-full xl:hidden">{renderSubpageBackButton()}</div>
-              <div className="flex-1 flex flex-col bg-white rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-8 lg:p-12 shadow-2xl border border-pink-100 relative overflow-hidden min-h-[520px]">
+              <div className="glass-panel flex-1 flex flex-col rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-8 lg:p-12 relative overflow-hidden min-h-[520px]">
                 <div className="hidden xl:block mb-4">{renderSubpageBackButton()}</div>
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
-                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-800">{generalUiText.writingTitle}</h2>
+                  <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-[-0.03em]">{generalUiText.writingTitle}</h2>
                   <div className="flex w-full lg:w-auto flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="flex items-center justify-center gap-3 bg-pink-50 text-pink-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-pink-100 transition-all">
+                    <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="glass-pill flex items-center justify-center gap-3 text-pink-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-white/80 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
                     </button>
-                    <button onClick={saveWritingEntry} disabled={!safeTrim(writingInput)} className="flex items-center justify-center gap-3 bg-emerald-50 text-emerald-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-emerald-100 transition-all disabled:opacity-40">
+                    <button onClick={saveWritingEntry} disabled={!safeTrim(writingInput)} className="glass-pill flex items-center justify-center gap-3 text-emerald-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-white/80 transition-all disabled:opacity-40">
                       <Bookmark size={18} /> {writingResult ? generalUiText.saveDiary : generalUiText.saveDraft}
                     </button>
                   </div>
                 </div>
                 {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
-                {writingTopic && <div className="mb-8 md:mb-10 p-5 md:p-8 bg-pink-50/30 rounded-[1.75rem] md:rounded-[2.5rem] border border-pink-100 text-base sm:text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
+                {writingTopic && <div className="glass-panel mb-8 md:mb-10 p-5 md:p-8 rounded-[1.75rem] md:rounded-[2.5rem] text-base sm:text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
                 <textarea value={writingInput} onChange={(event) => setWritingInput(event.target.value)} placeholder="先把你想写的内容打出来，不用一开始就很完美。" className="flex-1 w-full resize-none outline-none text-base sm:text-lg md:text-xl lg:text-2xl text-slate-600 bg-transparent placeholder:text-slate-300 font-medium leading-relaxed no-scrollbar min-h-[260px]" />
                 <button onClick={handleWritingSubmit} disabled={isWritingLoading || !safeTrim(writingInput)} className="mt-8 md:mt-10 w-full py-4 md:py-6 bg-kitty-500 text-white rounded-3xl font-black text-lg md:text-2xl hover:bg-kitty-600 disabled:opacity-50 shadow-xl transition-all flex items-center justify-center gap-4">
                   {isWritingLoading ? <RefreshCw className="animate-spin" /> : <><CheckCircle size={28} /> {labels.check}</>}
@@ -4116,7 +4113,7 @@ const App = () => {
                       { label: 'Pro Upgrade', title: generalUiText.proUpgrade, text: writingResult.upgraded, color: 'indigo' },
                       { label: 'Model Essay', title: generalUiText.modelEssay, text: writingResult.modelEssay, color: 'slate' },
                     ].map((result, index) => (
-                      <div key={index} className={`bg-${result.color}-50 p-6 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] border border-${result.color}-100 shadow-sm`}>
+                      <div key={index} className={`glass-panel bg-${result.color}-50/72 p-6 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] border border-${result.color}-100/70 shadow-sm`}>
                         <div className="flex items-center justify-between gap-3 mb-4">
                           <span className={`text-[10px] font-black uppercase tracking-widest text-${result.color}-600`}>{result.title}</span>
                           <button onClick={() => saveDiaryVariant(result.label as 'Corrected' | 'Pro Upgrade' | 'Model Essay', result.text)} className="text-xs font-black text-kitty-600 hover:text-kitty-700">
@@ -4128,17 +4125,17 @@ const App = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-16 glass rounded-[4rem] border-2 border-dashed border-slate-200">
+                  <div className="h-full flex flex-col items-center justify-center text-center p-16 glass-panel rounded-[4rem] border-2 border-dashed border-white/70">
                     <PenTool size={64} className="text-slate-200 mb-6" />
                     <p className="text-lg text-slate-400 font-black">{generalUiText.feedbackPlaceholder}</p>
                   </div>
                 )}
                 {writingEntries.length > 0 && (
-                  <div className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm">
+                  <div className="glass-panel rounded-[3rem] p-8 shadow-sm">
                     <h3 className="text-xl font-black text-slate-800 mb-5">{generalUiText.savedDiaries}</h3>
                     <div className="space-y-4">
                       {writingEntries.slice(0, 3).map((entry) => (
-                        <div key={entry.id} className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
+                        <div key={entry.id} className="rounded-[1.75rem] bg-white/78 px-5 py-4 shadow-sm">
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{entry.topic}</p>
                           <p className="text-sm font-semibold text-slate-600 max-h-16 overflow-hidden">{entry.original}</p>
                         </div>
