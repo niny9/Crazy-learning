@@ -123,6 +123,19 @@ const SECONDARY_MODULES = [
   },
 ];
 
+const DASHBOARD_PROMISES = [
+  '今天别背模板了，先把真实生活讲出来',
+  '讲卡了也没关系，我会帮你顺成自然英文',
+  '每天留下一篇自己的表达，以后真的用得上',
+];
+
+const TODAY_LOOP_STEPS = [
+  '1. 先把今天最想说的一件事讲出来',
+  '2. 我先帮你转成草稿，你再顺一顺',
+  '3. AI 把它变成一篇更像你会说出口的英文故事',
+  '4. 自动存进故事库，后面面试、考试、聊天都能拿来用',
+];
+
 const UI_LABELS: Record<string, any> = {
   English: {
     welcome: 'Welcome, Learner! 👋',
@@ -942,6 +955,9 @@ const getNotebookUiText = (language: string) => {
     exampleSentence: '例句',
     chineseHint: '中文示意',
     tag: '标签',
+    emptyTitle: '这里先空着，等你慢慢把素材存进来',
+    emptyDesc:
+      '你可以在阅读、听力、写作、或者插件划词时随手存。后面单词、句子、Diary 都会按日期帮你整理好。',
   };
 };
 
@@ -2801,10 +2817,10 @@ const App = () => {
         </div>
       )}
 
-      <div className={`fixed inset-y-0 right-0 w-[420px] bg-white shadow-2xl z-50 transform transition-transform duration-500 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-kitty-100 flex flex-col`}>
-        <div className="p-8 border-b border-kitty-50">
+      <div className={`fixed inset-y-0 right-0 w-full sm:w-[420px] bg-white shadow-2xl z-50 transform transition-transform duration-500 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-kitty-100 flex flex-col`}>
+        <div className="p-4 sm:p-8 border-b border-kitty-50">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="font-black text-kitty-800 flex items-center gap-3 text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
+            <h2 className="font-black text-kitty-800 flex items-center gap-3 text-xl sm:text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
             <button onClick={() => setSidebarOpen(false)} className="p-2 hover:bg-kitty-50 rounded-full transition-all text-slate-400"><X /></button>
           </div>
           <div className="flex bg-kitty-100/50 p-1.5 rounded-2xl border border-kitty-100">
@@ -2814,7 +2830,7 @@ const App = () => {
               </button>
             ))}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onClick={() => void copyNotebookExport()}
               className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-kitty-600 border border-kitty-100 hover:border-kitty-200"
@@ -2835,10 +2851,10 @@ const App = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
-          <div className="rounded-[2rem] bg-kitty-50/70 border border-kitty-100 p-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
+          <div className="rounded-[1.5rem] sm:rounded-[2rem] bg-kitty-50/70 border border-kitty-100 p-4">
             {activeTab === 'vocab' && (
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   value={manualVocabInput}
                   onChange={(event) => setManualVocabInput(event.target.value)}
@@ -2859,7 +2875,7 @@ const App = () => {
               </div>
             )}
             {activeTab === 'sentences' && (
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   value={manualSentenceInput}
                   onChange={(event) => setManualSentenceInput(event.target.value)}
@@ -2905,16 +2921,19 @@ const App = () => {
 
           {groupNotebookItemsByDate(
             (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item && item.language === language)
-          ).map((group) => (
-            <div key={group.title || 'untitled-group'} className="space-y-4">
-              <div className="inline-flex rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 shadow-sm border border-kitty-100">
-                {group.title || notebookUiText.unknownDate}
-              </div>
-              {group.items.filter(Boolean).map((item) => (
-                <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
+          ).length ? (
+            groupNotebookItemsByDate(
+              (activeTab === 'vocab' ? vocabList : activeTab === 'sentences' ? sentenceList : diaryEntries).filter((item) => item && item.language === language)
+            ).map((group) => (
+              <div key={group.title || 'untitled-group'} className="space-y-4">
+                <div className="inline-flex rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-400 shadow-sm border border-kitty-100">
+                  {group.title || notebookUiText.unknownDate}
+                </div>
+                {group.items.filter(Boolean).map((item) => (
+                  <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-black text-slate-800 text-xl tracking-tight">
+                      <span className="font-black text-slate-800 text-base sm:text-xl tracking-tight line-clamp-2">
                         {activeTab === 'vocab'
                           ? (item as VocabItem).word || notebookUiText.untitledWord
                           : activeTab === 'sentences'
@@ -2945,7 +2964,7 @@ const App = () => {
                             ? setSentenceList((prev) => prev.filter((entry) => entry.id !== item.id))
                             : setDiaryEntries((prev) => prev.filter((entry) => entry.id !== item.id))
                       }
-                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"
+                      className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -2985,10 +3004,16 @@ const App = () => {
                       </>
                     )}
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : (
+            <div className="rounded-[1.75rem] border border-kitty-100 bg-kitty-50/60 px-5 py-6 text-center">
+              <p className="text-base font-black text-slate-800">{notebookUiText.emptyTitle}</p>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">{notebookUiText.emptyDesc}</p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -3208,42 +3233,48 @@ const App = () => {
             </div>
           )}
           {mode === AppMode.DASHBOARD && (
-            <div className="h-full p-5 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
-              <div className="rounded-[2.5rem] md:rounded-[4rem] bg-white p-8 md:p-12 lg:p-16 shadow-2xl border border-kitty-100">
+            <div className="h-full p-4 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
+              <div className="rounded-[2.5rem] md:rounded-[4rem] bg-gradient-to-br from-white via-white to-kitty-50/40 p-6 sm:p-8 md:p-12 lg:p-16 shadow-2xl border border-kitty-100">
                 <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
                   <Mic size={16} /> {generalUiText.dashboardBadge}
                 </div>
                 <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
-                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[0.95]">
+                    <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[0.95]">
                       {generalUiText.dashboardTitle}
                     </h2>
-                    <p className="mt-6 text-lg md:text-xl text-slate-500 font-medium leading-relaxed max-w-2xl">
+                    <p className="mt-5 md:mt-6 text-base sm:text-lg md:text-xl text-slate-500 font-medium leading-relaxed max-w-2xl">
                       {generalUiText.dashboardDesc}
                     </p>
                     <div className="mt-8 flex flex-wrap gap-3">
-                      {['今天别背模板了，先把真实生活讲出来', '讲卡了也没关系，我会帮你顺成自然英文', '每天留下一篇自己的表达，以后真的用得上'].map((item) => (
-                        <span key={item} className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-600">
+                      {DASHBOARD_PROMISES.map((item, index) => (
+                        <span key={item} className={`rounded-full px-4 py-2 text-sm font-black ${
+                          index === 0
+                            ? 'bg-kitty-50 text-kitty-600'
+                            : index === 1
+                              ? 'bg-indigo-50 text-indigo-600'
+                              : 'bg-emerald-50 text-emerald-600'
+                        }`}>
                           {item}
                         </span>
                       ))}
                     </div>
-                    <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                    <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <button
                         onClick={() => void enterSpeakingMode()}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-kitty-500 px-8 py-5 text-white text-lg font-black shadow-xl hover:bg-kitty-600 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-kitty-500 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black shadow-xl hover:bg-kitty-600 transition-all"
                       >
                         <Mic size={22} /> {generalUiText.storyButton}
                       </button>
                       <button
                         onClick={() => void enterFreeTalkMode()}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-indigo-50 px-8 py-5 text-indigo-700 text-lg font-black hover:bg-indigo-100 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-indigo-50 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black hover:bg-indigo-100 transition-all"
                       >
                         <Headphones size={22} /> {generalUiText.freeTalkButton}
                       </button>
                       <button
                         onClick={openStoryLibrary}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.75rem] bg-slate-100 px-8 py-5 text-slate-700 text-lg font-black hover:bg-slate-200 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-slate-100 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black hover:bg-slate-200 transition-all"
                       >
                         <BookOpen size={22} /> {generalUiText.libraryButton}
                       </button>
@@ -3269,7 +3300,7 @@ const App = () => {
                             <button
                               key={item.key}
                               onClick={() => openSecondaryModule(item.onEnter)}
-                              className="rounded-[2rem] border border-slate-100 bg-white px-5 py-5 text-left shadow-sm hover:shadow-md hover:border-kitty-200 transition-all"
+                              className="rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 bg-gradient-to-br from-white via-white to-slate-50/80 px-5 py-5 text-left shadow-sm hover:shadow-md hover:border-kitty-200 transition-all"
                             >
                               <div className="flex items-start justify-between gap-4">
                                 <div className={`rounded-2xl border px-3 py-3 ${accentClass}`}>
@@ -3291,7 +3322,7 @@ const App = () => {
                     <div className="rounded-[2rem] bg-emerald-50 p-6 border border-emerald-100">
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.todayLoopTitle}</p>
                       <div className="space-y-3">
-                        {['1. 先把今天最想说的一件事讲出来', '2. 我先帮你转成草稿，你再顺一顺', '3. AI 把它变成一篇更像你会说出口的英文故事', '4. 自动存进故事库，后面面试、考试、聊天都能拿来用'].map((step) => (
+                        {TODAY_LOOP_STEPS.map((step) => (
                           <div key={step} className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-700">
                             {step}
                           </div>
@@ -3721,19 +3752,19 @@ const App = () => {
           )}
 
           {mode === AppMode.STORY_LIBRARY && (
-            <div className="h-full p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
+            <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
               <div className="mb-4">{renderSubpageBackButton()}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
                   <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <BookOpen size={16} /> {generalUiText.myStoriesBadge}
                   </div>
-                  <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">{generalUiText.storyLibraryTitle}</h2>
-                  <p className="mt-3 text-slate-500 text-base md:text-lg font-medium max-w-2xl">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">{generalUiText.storyLibraryTitle}</h2>
+                  <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-500 font-medium max-w-2xl leading-relaxed">
                     {generalUiText.storyLibraryDesc}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3">
                   <button onClick={() => void enterSpeakingMode()} className="rounded-full bg-kitty-500 px-5 py-3 text-sm font-black text-white">
                     {generalUiText.storyButton}
                   </button>
@@ -3743,13 +3774,13 @@ const App = () => {
                 </div>
               </div>
 
-              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="rounded-[2.5rem] bg-white p-6 md:p-8 shadow-xl border border-slate-100">
+              <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-4 sm:p-6 md:p-8 shadow-xl border border-slate-100">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-black text-slate-900">{storyUiText.sortByDate}</h3>
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900">{storyUiText.sortByDate}</h3>
                     <span className="text-sm font-black text-slate-400">{storyEntries.filter((item) => item.language === language).length}{storyUiText.countSuffix}</span>
                   </div>
-                  <div className="space-y-5 max-h-[65vh] overflow-y-auto pr-2 no-scrollbar">
+                  <div className="space-y-4 max-h-[48vh] sm:max-h-[65vh] overflow-y-auto pr-1 sm:pr-2 no-scrollbar">
                     {groupNotebookItemsByDate<TodayStoryEntry>(storyEntries.filter((item) => item.language === language)).map((group) => (
                       <div key={group.title}>
                         <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{group.title}</p>
@@ -3758,9 +3789,9 @@ const App = () => {
                             <button
                               key={item.id}
                               onClick={() => setSelectedStoryId(item.id)}
-                              className={`w-full rounded-[1.75rem] px-5 py-4 text-left border transition-all ${selectedStory?.id === item.id ? 'bg-kitty-50 border-kitty-200' : 'bg-slate-50 border-slate-100 hover:border-kitty-150'}`}
+                              className={`w-full rounded-[1.35rem] sm:rounded-[1.75rem] px-4 py-4 sm:px-5 text-left border transition-all ${selectedStory?.id === item.id ? 'bg-kitty-50 border-kitty-200' : 'bg-slate-50 border-slate-100 hover:border-kitty-150'}`}
                             >
-                              <p className="text-base font-black text-slate-900">{item.title}</p>
+                              <p className="text-sm sm:text-base font-black text-slate-900 line-clamp-2">{item.title}</p>
                               <p className="mt-2 text-xs font-black uppercase tracking-widest text-kitty-500">{storyModeLabel(item.mode)}</p>
                               <p className="mt-2 text-sm font-semibold text-slate-500 line-clamp-2">{item.rewrittenText}</p>
                             </button>
@@ -3769,22 +3800,25 @@ const App = () => {
                       </div>
                     ))}
                     {!storyEntries.filter((item) => item.language === language).length && (
-                      <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4 text-sm font-semibold text-slate-500">
-                        {storyUiText.emptyLibrary}
+                      <div className="rounded-[1.75rem] bg-kitty-50/70 border border-kitty-100 px-5 py-5 text-center">
+                        <p className="text-base font-black text-slate-800">{storyUiText.emptyLibrary}</p>
+                        <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">
+                          先去讲第一篇。等你存下 3 到 5 篇之后，这里会开始很有“自己的素材库”感觉。
+                        </p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-[2.5rem] bg-white p-6 md:p-8 shadow-xl border border-slate-100">
+                <div className="rounded-[2rem] md:rounded-[2.5rem] bg-white p-4 sm:p-6 md:p-8 shadow-xl border border-slate-100">
                   {selectedStory ? (
                     <div>
                       <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{new Date(selectedStory.date).toLocaleDateString()} · {storyModeLabel(selectedStory.mode)}</p>
-                      <h3 className="text-3xl font-black text-slate-900 tracking-tight">{selectedStory.title}</h3>
+                      <h3 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">{selectedStory.title}</h3>
                       <div className="mt-6 grid gap-5">
                         <div className="rounded-[1.75rem] bg-slate-50 px-5 py-4">
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">{storyUiText.originalStory}</p>
-                          <p className="text-base leading-relaxed text-slate-600 whitespace-pre-wrap">{selectedStory.originalText}</p>
+                          <p className="text-sm sm:text-base leading-relaxed text-slate-600 whitespace-pre-wrap">{selectedStory.originalText}</p>
                         </div>
                         <div className="rounded-[1.75rem] bg-emerald-50 px-5 py-4 border border-emerald-100">
                           <div className="flex items-center justify-between gap-3 mb-2">
@@ -3793,7 +3827,7 @@ const App = () => {
                               {storyUiText.copy}
                             </button>
                           </div>
-                          <p className="text-base leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{selectedStory.rewrittenText}</p>
+                          <p className="text-sm sm:text-base leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{selectedStory.rewrittenText}</p>
                         </div>
                         <div className="rounded-[1.75rem] bg-white border border-slate-100 px-5 py-4">
                           <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.keyPhrases}</p>
