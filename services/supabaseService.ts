@@ -1,13 +1,13 @@
 import { AuthChangeEvent, createClient, Session, SupabaseClient, User } from '@supabase/supabase-js';
-import { CustomContentSource, DiaryEntry, SavedSentence, TodayStoryEntry, VocabItem, WritingEntry } from '../types';
+import { CustomContentSource, CustomExamLink, DiaryEntry, SavedSentence, TodayStoryEntry, VocabItem, WritingEntry } from '../types';
 
-type ItemType = 'vocab' | 'sentence' | 'diary' | 'writing_entry' | 'story' | 'content_source';
+type ItemType = 'vocab' | 'sentence' | 'diary' | 'writing_entry' | 'story' | 'content_source' | 'exam_source';
 
 type LearningItemRecord = {
   item_type: ItemType;
   item_id: string;
   language: string | null;
-  payload: VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource;
+  payload: VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource | CustomExamLink;
 };
 
 type UsageEventPayload = {
@@ -151,7 +151,7 @@ export const subscribeToAuthChanges = (callback: (event: AuthChangeEvent, sessio
   return subscription;
 };
 
-const mapItem = (itemType: ItemType, item: VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource): LearningItemRecord => ({
+const mapItem = (itemType: ItemType, item: VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource | CustomExamLink): LearningItemRecord => ({
   item_type: itemType,
   item_id: item.id,
   language: item.language ?? null,
@@ -170,6 +170,7 @@ export const fetchLearningItems = async (userId: string) => {
       writingEntries: [] as WritingEntry[],
       stories: [] as TodayStoryEntry[],
       contentSources: [] as CustomContentSource[],
+      examSources: [] as CustomExamLink[],
     };
   }
 
@@ -191,13 +192,14 @@ export const fetchLearningItems = async (userId: string) => {
     writingEntries: safePayloadArray<WritingEntry>(items.filter((item) => item.item_type === 'writing_entry').map((item) => item.payload)),
     stories: safePayloadArray<TodayStoryEntry>(items.filter((item) => item.item_type === 'story').map((item) => item.payload)),
     contentSources: safePayloadArray<CustomContentSource>(items.filter((item) => item.item_type === 'content_source').map((item) => item.payload)),
+    examSources: safePayloadArray<CustomExamLink>(items.filter((item) => item.item_type === 'exam_source').map((item) => item.payload)),
   };
 };
 
 export const replaceLearningItems = async (
   userId: string,
   itemType: ItemType,
-  items: Array<VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource>
+  items: Array<VocabItem | SavedSentence | DiaryEntry | WritingEntry | TodayStoryEntry | CustomContentSource | CustomExamLink>
 ) => {
   const client = getClient();
   if (!client) return;

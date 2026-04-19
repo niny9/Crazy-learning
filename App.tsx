@@ -4,14 +4,18 @@ import {
   BookOpen,
   Bookmark,
   CheckCircle,
+  ChevronDown,
   ChevronLeft,
+  ChevronUp,
   Cloud,
   FileText,
   Globe,
   GraduationCap,
+  GripVertical,
   Headphones,
   Mic,
   Pause,
+  Pin,
   PenTool,
   Play,
   Plus,
@@ -30,6 +34,7 @@ import {
   AppMode,
   ContentSourceType,
   CustomContentSource,
+  CustomExamLink,
   DailyContent,
   DiaryEntry,
   FreeTalkMessage,
@@ -233,6 +238,7 @@ const SPEECH_RECOGNITION_LOCALE: Record<string, string> = {
 const WRITING_STORAGE_KEY = 'linguaflow-writing-entries';
 const STORY_STORAGE_KEY = 'linguaflow-story-entries';
 const CONTENT_SOURCE_STORAGE_KEY = 'linguaflow-content-sources';
+const EXAM_SOURCE_STORAGE_KEY = 'linguaflow-exam-sources';
 const VOCAB_STORAGE_KEY = 'linguaflow-vocab';
 const SENTENCE_STORAGE_KEY = 'linguaflow-sentences';
 const DIARY_STORAGE_KEY = 'linguaflow-diary-entries';
@@ -327,6 +333,25 @@ const normalizeContentSource = (value: Partial<CustomContentSource> | null | und
     description: safeTrim(value.description) || undefined,
     dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
     language: safeTrim(value.language) || undefined,
+  };
+};
+
+const normalizeExamSource = (value: Partial<CustomExamLink> | null | undefined): CustomExamLink | null => {
+  if (!value || typeof value !== 'object') return null;
+  const name = safeTrim(value.name);
+  const url = safeTrim(value.url);
+  if (!name || !url) return null;
+
+  return {
+    id: safeTrim(value.id) || `${Date.now()}-${name.slice(0, 12)}`,
+    language: safeTrim(value.language) || 'English',
+    name,
+    url,
+    description: safeTrim(value.description) || '你常用的备考入口。',
+    tag: safeTrim(value.tag) || '自定义官网',
+    dateAdded: safeTrim(value.dateAdded) || new Date().toISOString(),
+    pinned: Boolean(value.pinned),
+    order: typeof value.order === 'number' && Number.isFinite(value.order) ? value.order : Date.now(),
   };
 };
 
@@ -1185,6 +1210,12 @@ const App = () => {
   const [sourceDescriptionInput, setSourceDescriptionInput] = useState('');
   const [sourceTypeInput, setSourceTypeInput] = useState<ContentSourceType>('both');
   const [isSourcePanelOpen, setIsSourcePanelOpen] = useState(false);
+  const [examSources, setExamSources] = useState<CustomExamLink[]>([]);
+  const [examSourceNameInput, setExamSourceNameInput] = useState('');
+  const [examSourceUrlInput, setExamSourceUrlInput] = useState('');
+  const [examSourceDescriptionInput, setExamSourceDescriptionInput] = useState('');
+  const [examSourceTagInput, setExamSourceTagInput] = useState('');
+  const [editingExamSourceId, setEditingExamSourceId] = useState<string | null>(null);
   const [isLaunchingSpeaking, setIsLaunchingSpeaking] = useState(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('local');
   const [cloudSyncMessage, setCloudSyncMessage] = useState('本地内容已就绪');
@@ -1209,10 +1240,13 @@ const App = () => {
   const [isTTSLoading, setIsTTSLoading] = useState(false);
   const [isPlaybackActive, setIsPlaybackActive] = useState(false);
   const [isPlaybackPaused, setIsPlaybackPaused] = useState(false);
+  const [audioReadyNotice, setAudioReadyNotice] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
   const [selectedText, setSelectedText] = useState('');
+  const [isSelectionTrayMobile, setIsSelectionTrayMobile] = useState(false);
+  const [draggingExamSourceId, setDraggingExamSourceId] = useState<string | null>(null);
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const holdTimerRef = useRef<number | null>(null);
@@ -1234,6 +1268,7 @@ const App = () => {
   const syncTimerRef = useRef<number | null>(null);
   const usageQueueRef = useRef<UsageEventPayload[]>([]);
   const listeningAutoplayRef = useRef<string | null>(null);
+  const audioPlaybackUnlockedRef = useRef(false);
   const cloudRetryTimerRef = useRef<number | null>(null);
   const languageSourceHints = getLanguageSourceHints(language);
   const freeTalkUiText = getFreeTalkUiText(language);
@@ -1265,10 +1300,17 @@ const App = () => {
   const clearSelectionBubble = () => {
     setSelectionRect(null);
     setSelectedText('');
+    setIsSelectionTrayMobile(false);
   };
   const selectedStory = storyEntries.find((entry) => entry.id === selectedStoryId) || storyEntries[0] || null;
   const readingSources = contentSources.filter((item) => item.language === language && (item.type === 'reading' || item.type === 'both'));
   const listeningSources = contentSources.filter((item) => item.language === language && (item.type === 'listening' || item.type === 'both'));
+  const customExamSources = [...examSources.filter((item) => item.language === language)].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+  const pinnedExamSources = customExamSources.filter((item) => item.pinned);
+  const regularExamSources = customExamSources.filter((item) => !item.pinned);
 
   const applyCloudSnapshot = async (userId: string) => {
     const storedVocab = safeArray<Partial<VocabItem>>(JSON.parse(window.localStorage.getItem(VOCAB_STORAGE_KEY) || '[]')).map(normalizeVocabItem).filter(Boolean) as VocabItem[];
@@ -1277,6 +1319,7 @@ const App = () => {
     const storedDiaries = safeArray<Partial<DiaryEntry>>(JSON.parse(window.localStorage.getItem(DIARY_STORAGE_KEY) || '[]')).map(normalizeDiaryEntry).filter(Boolean) as DiaryEntry[];
     const storedStories = safeArray<Partial<TodayStoryEntry>>(JSON.parse(window.localStorage.getItem(STORY_STORAGE_KEY) || '[]')).map(normalizeStoryEntry).filter(Boolean) as TodayStoryEntry[];
     const storedContentSources = safeArray<Partial<CustomContentSource>>(JSON.parse(window.localStorage.getItem(CONTENT_SOURCE_STORAGE_KEY) || '[]')).map(normalizeContentSource).filter(Boolean) as CustomContentSource[];
+    const storedExamSources = safeArray<Partial<CustomExamLink>>(JSON.parse(window.localStorage.getItem(EXAM_SOURCE_STORAGE_KEY) || '[]')).map(normalizeExamSource).filter(Boolean) as CustomExamLink[];
 
     const remoteData = await fetchLearningItems(userId);
     const mergedVocab = mergeById(storedVocab, remoteData.vocab);
@@ -1285,6 +1328,7 @@ const App = () => {
     const mergedDiaries = mergeById(storedDiaries, remoteData.diaries);
     const mergedStories = mergeById(storedStories, remoteData.stories);
     const mergedContentSources = mergeById(storedContentSources, remoteData.contentSources);
+    const mergedExamSources = mergeById(storedExamSources, remoteData.examSources);
 
     isApplyingCloudSnapshotRef.current = true;
     setVocabList(mergedVocab);
@@ -1293,6 +1337,7 @@ const App = () => {
     setDiaryEntries(mergedDiaries);
     setStoryEntries(mergedStories);
     setContentSources(mergedContentSources);
+    setExamSources(mergedExamSources);
 
     await Promise.all([
       replaceLearningItems(userId, 'vocab', mergedVocab),
@@ -1301,6 +1346,7 @@ const App = () => {
       replaceLearningItems(userId, 'diary', mergedDiaries),
       replaceLearningItems(userId, 'story', mergedStories),
       replaceLearningItems(userId, 'content_source', mergedContentSources),
+      replaceLearningItems(userId, 'exam_source', mergedExamSources),
     ]);
     isApplyingCloudSnapshotRef.current = false;
   };
@@ -1911,6 +1957,139 @@ const App = () => {
     queueUsageEvent('remove_content_source', { id });
   };
 
+  const resetExamSourceForm = () => {
+    setExamSourceNameInput('');
+    setExamSourceUrlInput('');
+    setExamSourceDescriptionInput('');
+    setExamSourceTagInput('');
+    setEditingExamSourceId(null);
+  };
+
+  const addExamSource = () => {
+    const name = safeTrim(examSourceNameInput);
+    const url = safeTrim(examSourceUrlInput);
+    if (!name || !url) return;
+    const languageItems = examSources.filter((item) => item.language === language);
+    const nextOrder = languageItems.length ? Math.max(...languageItems.map((item) => item.order ?? 0)) + 1 : 1;
+
+    if (editingExamSourceId) {
+      setExamSources((prev) => prev.map((item) => (
+        item.id === editingExamSourceId
+          ? {
+              ...item,
+              name,
+              url,
+              description: safeTrim(examSourceDescriptionInput) || '你常用的备考官网入口。',
+              tag: safeTrim(examSourceTagInput) || '自定义官网',
+            }
+          : item
+      )));
+      resetExamSourceForm();
+      queueUsageEvent('edit_exam_source', { id: editingExamSourceId, name });
+      return;
+    }
+
+    const nextSource: CustomExamLink = {
+      id: Date.now().toString(),
+      language,
+      name,
+      url,
+      description: safeTrim(examSourceDescriptionInput) || '你常用的备考官网入口。',
+      tag: safeTrim(examSourceTagInput) || '自定义官网',
+      dateAdded: new Date().toISOString(),
+      pinned: false,
+      order: nextOrder,
+    };
+
+    setExamSources((prev) => [nextSource, ...prev.filter((item) => item.url !== nextSource.url || item.language !== language)].slice(0, 100));
+    resetExamSourceForm();
+    queueUsageEvent('save_exam_source', { name, tag: nextSource.tag });
+  };
+
+  const removeExamSource = (id: string) => {
+    setExamSources((prev) => prev.filter((item) => item.id !== id));
+    if (editingExamSourceId === id) {
+      resetExamSourceForm();
+    }
+    queueUsageEvent('remove_exam_source', { id });
+  };
+
+  const startEditingExamSource = (id: string) => {
+    const target = examSources.find((item) => item.id === id);
+    if (!target) return;
+    setEditingExamSourceId(id);
+    setExamSourceNameInput(target.name);
+    setExamSourceUrlInput(target.url);
+    setExamSourceDescriptionInput(target.description);
+    setExamSourceTagInput(target.tag || '');
+  };
+
+  const moveExamSource = (id: string, direction: 'up' | 'down') => {
+    setExamSources((prev) => {
+      const currentLanguageItems = [...prev.filter((item) => item.language === language)].sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        return (a.order ?? 0) - (b.order ?? 0);
+      });
+      const index = currentLanguageItems.findIndex((item) => item.id === id);
+      if (index === -1) return prev;
+      const swapIndex = direction === 'up' ? index - 1 : index + 1;
+      if (swapIndex < 0 || swapIndex >= currentLanguageItems.length) return prev;
+
+      const reordered = [...currentLanguageItems];
+      [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+      const reorderedWithOrder = reordered.map((item, orderIndex) => ({ ...item, order: orderIndex + 1 }));
+
+      return prev.map((item) => {
+        if (item.language !== language) return item;
+        return reorderedWithOrder.find((entry) => entry.id === item.id) || item;
+      });
+    });
+    queueUsageEvent('reorder_exam_source', { id, direction });
+  };
+
+  const togglePinExamSource = (id: string) => {
+    setExamSources((prev) => {
+      const next = prev.map((item) => (
+        item.id === id ? { ...item, pinned: !item.pinned } : item
+      ));
+      const reordered = [...next.filter((item) => item.language === language)].sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        return (a.order ?? 0) - (b.order ?? 0);
+      }).map((item, index) => ({ ...item, order: index + 1 }));
+
+      return next.map((item) => {
+        if (item.language !== language) return item;
+        return reordered.find((entry) => entry.id === item.id) || item;
+      });
+    });
+    queueUsageEvent('pin_exam_source', { id });
+  };
+
+  const reorderExamSourceByDrag = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+
+    setExamSources((prev) => {
+      const currentLanguageItems = [...prev.filter((item) => item.language === language)].sort((a, b) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+        return (a.order ?? 0) - (b.order ?? 0);
+      });
+      const draggedIndex = currentLanguageItems.findIndex((item) => item.id === draggedId);
+      const targetIndex = currentLanguageItems.findIndex((item) => item.id === targetId);
+      if (draggedIndex === -1 || targetIndex === -1) return prev;
+
+      const reordered = [...currentLanguageItems];
+      const [dragged] = reordered.splice(draggedIndex, 1);
+      reordered.splice(targetIndex, 0, dragged);
+      const reorderedWithOrder = reordered.map((item, index) => ({ ...item, order: index + 1 }));
+
+      return prev.map((item) => {
+        if (item.language !== language) return item;
+        return reorderedWithOrder.find((entry) => entry.id === item.id) || item;
+      });
+    });
+    queueUsageEvent('drag_exam_source', { draggedId, targetId });
+  };
+
   const openSecondaryModule = (target: 'listening' | 'reading' | 'writing' | 'exams') => {
     if (target === 'listening') {
       setMode(AppMode.LISTENING);
@@ -1939,7 +2118,29 @@ const App = () => {
     const text = safeTrim(selection.toString());
     if (text.length > 0 && text.length < 150) {
       const rect = selection.getRangeAt(0).getBoundingClientRect();
-      setSelectionRect(rect);
+      const isCoarsePointer =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(pointer: coarse)').matches;
+
+      if (isCoarsePointer) {
+        setIsSelectionTrayMobile(true);
+        const mobileRect = {
+          top: window.innerHeight - 112,
+          left: Math.max(window.innerWidth / 2 - 150, 16),
+          width: 300,
+          height: 56,
+          bottom: window.innerHeight - 56,
+          right: Math.min(window.innerWidth / 2 + 150, window.innerWidth - 16),
+          x: Math.max(window.innerWidth / 2 - 150, 16),
+          y: window.innerHeight - 112,
+          toJSON: () => ({}),
+        } as DOMRect;
+        setSelectionRect(mobileRect);
+      } else {
+        setIsSelectionTrayMobile(false);
+        setSelectionRect(rect);
+      }
       setSelectedText(text);
     } else {
       clearSelectionBubble();
@@ -2002,6 +2203,8 @@ const App = () => {
   const handleTTS = async () => {
     if (!dailyContent?.content) return;
 
+    audioPlaybackUnlockedRef.current = true;
+    setAudioReadyNotice('');
     setIsTTSLoading(true);
     queueUsageEvent('play_tts', { title: dailyContent.title || 'Untitled content', source: dailyContent.source || 'Unknown source' });
     try {
@@ -2530,6 +2733,10 @@ const App = () => {
       if (storedContentSources) {
         setContentSources(safeArray<Partial<CustomContentSource>>(JSON.parse(storedContentSources)).map(normalizeContentSource).filter(Boolean) as CustomContentSource[]);
       }
+      const storedExamSources = window.localStorage.getItem(EXAM_SOURCE_STORAGE_KEY);
+      if (storedExamSources) {
+        setExamSources(safeArray<Partial<CustomExamLink>>(JSON.parse(storedExamSources)).map(normalizeExamSource).filter(Boolean) as CustomExamLink[]);
+      }
       if (storedReminder) {
         setStoryReminder(storedReminder);
       }
@@ -2577,29 +2784,30 @@ const App = () => {
       window.localStorage.setItem(DIARY_STORAGE_KEY, JSON.stringify(diaryEntries));
       window.localStorage.setItem(STORY_STORAGE_KEY, JSON.stringify(storyEntries));
       window.localStorage.setItem(CONTENT_SOURCE_STORAGE_KEY, JSON.stringify(contentSources));
+      window.localStorage.setItem(EXAM_SOURCE_STORAGE_KEY, JSON.stringify(examSources));
       window.localStorage.setItem(STORY_REMINDER_KEY, storyReminder);
     } catch (error) {
       console.error('Failed to save notebook entries', error);
     }
-  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources, storyReminder]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources, examSources, storyReminder]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
     const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
 
     if (sidebarOpen) {
       document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     }
 
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [sidebarOpen]);
 
@@ -2739,6 +2947,7 @@ const App = () => {
         replaceLearningItems(cloudUserIdRef.current, 'diary', diaryEntries),
         replaceLearningItems(cloudUserIdRef.current, 'story', storyEntries),
         replaceLearningItems(cloudUserIdRef.current, 'content_source', contentSources),
+        replaceLearningItems(cloudUserIdRef.current, 'exam_source', examSources),
       ])
         .then(() => {
           setCloudSyncStatus('synced');
@@ -2757,7 +2966,7 @@ const App = () => {
         syncTimerRef.current = null;
       }
     };
-  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources]);
+  }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources, examSources]);
 
   useEffect(() => {
     if (cloudRetryTimerRef.current) {
@@ -2827,12 +3036,24 @@ const App = () => {
   }, [language]);
 
   useEffect(() => {
-    if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== (dailyContent.title || dailyContent.source || 'listening')) {
-      listeningAutoplayRef.current = dailyContent.title || dailyContent.source || 'listening';
-      void handleTTS();
+    const currentListeningKey = dailyContent?.title || dailyContent?.source || 'listening';
+    const isCoarsePointer =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches;
+
+    if (mode === AppMode.LISTENING && dailyContent?.content && listeningAutoplayRef.current !== currentListeningKey) {
+      listeningAutoplayRef.current = currentListeningKey;
+      if (isCoarsePointer && !audioPlaybackUnlockedRef.current) {
+        setAudioReadyNotice('手机浏览器第一次需要你点一下播放，后面这一轮会顺着播。');
+      } else {
+        setAudioReadyNotice('');
+        void handleTTS();
+      }
     }
     if (mode === AppMode.READING) {
       listeningAutoplayRef.current = null;
+      setAudioReadyNotice('');
     }
   }, [mode, dailyContent]);
 
@@ -2880,15 +3101,57 @@ const App = () => {
       {selectionRect && (
         <div
           ref={selectionBubbleRef}
-          style={{ top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 100 }}
-          className="fixed z-[100] bg-slate-900 text-white p-2.5 rounded-3xl shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200"
+          style={isSelectionTrayMobile
+            ? { bottom: 'max(1rem, env(safe-area-inset-bottom))' }
+            : { top: selectionRect.top - 80, left: selectionRect.left + selectionRect.width / 2 - 110 }}
+          className={isSelectionTrayMobile
+            ? 'fixed inset-x-4 z-[100] animate-in fade-in slide-in-from-bottom-3 duration-200'
+            : 'fixed z-[100] animate-in fade-in zoom-in-95 duration-200'}
         >
-          <button onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
-            <Plus size={16} /> {isSentenceSelection(selectedText) ? 'Sentence' : 'Word'}
-          </button>
-          <button onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
-            <Bookmark size={16} /> Save
-          </button>
+          <div className={isSelectionTrayMobile
+            ? 'mx-auto max-w-xl rounded-[1.75rem] border border-white/80 bg-slate-950/92 px-4 py-3 text-white shadow-[0_20px_50px_rgba(15,23,42,0.35)] backdrop-blur-2xl'
+            : 'rounded-3xl bg-slate-900 p-2.5 text-white shadow-2xl flex items-center gap-2'}>
+            {isSelectionTrayMobile ? (
+              <>
+                <div className="mb-3 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/55">已选内容</p>
+                    <p className="mt-1 line-clamp-2 text-sm font-semibold text-white/92">{selectedText}</p>
+                  </div>
+                  <button
+                    onClick={clearSelectionBubble}
+                    className="rounded-full bg-white/8 p-2 text-white/65 transition-all hover:bg-white/12 hover:text-white"
+                    aria-label="关闭保存条"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pb-[max(0px,env(safe-area-inset-bottom))]">
+                  <button
+                    onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); clearSelectionBubble(); }}
+                    className="flex items-center justify-center gap-2 rounded-[1.2rem] bg-white px-4 py-3 text-sm font-black text-slate-900 shadow-sm transition-all active:scale-[0.98]"
+                  >
+                    <Plus size={16} /> {isSentenceSelection(selectedText) ? '存成句子' : '存到单词本'}
+                  </button>
+                  <button
+                    onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); clearSelectionBubble(); }}
+                    className="flex items-center justify-center gap-2 rounded-[1.2rem] bg-white/10 px-4 py-3 text-sm font-black text-white transition-all active:scale-[0.98]"
+                  >
+                    <Bookmark size={16} /> 直接收藏
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { addSelectionToNotebook(selectedText, dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all border-r border-slate-700">
+                  <Plus size={16} /> {isSentenceSelection(selectedText) ? 'Sentence' : 'Word'}
+                </button>
+                <button onClick={() => { saveSentence(selectedText, dailyContent?.title || 'Manual', dailyContent?.url); clearSelectionBubble(); }} className="flex items-center gap-2 px-5 py-2.5 hover:bg-slate-800 rounded-2xl text-xs font-black transition-all">
+                  <Bookmark size={16} /> Save
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -2956,7 +3219,7 @@ const App = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
           <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-5 bg-[linear-gradient(180deg,rgba(255,255,255,0.74),rgba(255,255,255,0.5))]">
             {activeTab === 'vocab' && (
               <div className="flex flex-col sm:flex-row gap-3">
@@ -3136,8 +3399,8 @@ const App = () => {
               </div>
             </div>
             <div className="min-w-0">
-              <h1 className="font-display text-xl md:text-3xl font-bold text-slate-900 tracking-[-0.04em] truncate">{BRAND_NAME}</h1>
-              <p className="text-[9px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.28em] md:tracking-[0.35em] truncate">{BRAND_TAGLINE}</p>
+              <h1 className="font-display text-xl md:text-3xl font-semibold text-slate-900 tracking-[-0.02em] truncate">{BRAND_NAME}</h1>
+              <p className="text-[9px] md:text-[11px] font-bold text-slate-400 uppercase tracking-[0.22em] md:tracking-[0.3em] truncate">{BRAND_TAGLINE}</p>
             </div>
           </div>
 
@@ -3214,7 +3477,7 @@ const App = () => {
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.signInTitle}</h3>
+                    <h3 className="font-display text-2xl md:text-3xl font-semibold text-slate-900 tracking-[-0.02em]">{generalUiText.signInTitle}</h3>
                     <p className="mt-2 text-sm md:text-[15px] text-slate-600 font-semibold leading-relaxed">
                       {generalUiText.accountDesc}
                     </p>
@@ -3288,7 +3551,7 @@ const App = () => {
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.accountTitle}</h3>
+                    <h3 className="font-display text-2xl md:text-3xl font-semibold text-slate-900 tracking-[-0.02em]">{generalUiText.accountTitle}</h3>
                     <p className="mt-2 text-sm md:text-[15px] text-slate-600 font-semibold leading-relaxed">
                       {generalUiText.accountSynced}
                     </p>
@@ -3370,7 +3633,7 @@ const App = () => {
                 <div className="aurora-orb h-40 w-40 bg-violet-200/70 left-24 bottom-16" />
                 <div className="relative grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
-                    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-[-0.05em] leading-[0.95]">
+                    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold text-slate-900 tracking-[-0.03em] leading-[1.02]">
                       {generalUiText.dashboardTitle}
                     </h2>
                     <p className="mt-5 md:mt-6 text-base sm:text-lg md:text-xl text-slate-600 font-semibold leading-relaxed max-w-2xl">
@@ -3505,7 +3768,7 @@ const App = () => {
                   <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <Mic size={16} /> 口语主线
                   </div>
-                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.dashboardTitle}</h2>
+                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-semibold text-slate-900 tracking-[-0.025em] leading-[1.08]">{generalUiText.dashboardTitle}</h2>
                   <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.dashboardDesc}
                   </p>
@@ -3706,7 +3969,7 @@ const App = () => {
                         {freeTalkUiText.microMode}
                       </span>
                     </div>
-                    <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 leading-tight tracking-[-0.03em]">{freeTalkUiText.title}</h3>
+                    <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-semibold text-slate-900 leading-[1.1] tracking-[-0.02em]">{freeTalkUiText.title}</h3>
                     <p className="mt-3 text-slate-600 font-semibold text-sm sm:text-base md:text-lg leading-relaxed">
                       {freeTalkUiText.description}
                     </p>
@@ -3931,7 +4194,7 @@ const App = () => {
                   <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <BookOpen size={16} /> {generalUiText.myStoriesBadge}
                   </div>
-                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.storyLibraryTitle}</h2>
+                  <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-semibold text-slate-900 tracking-[-0.025em] leading-[1.08]">{generalUiText.storyLibraryTitle}</h2>
                   <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.storyLibraryDesc}
                   </p>
@@ -4053,7 +4316,7 @@ const App = () => {
                         <div className={`glass-pill inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${dailyContent ? mode === AppMode.LISTENING ? 'text-indigo-500' : 'text-orange-500' : 'text-kitty-600'}`}>
                           {dailyContent?.source || contentUiText.loadingBadge}
                         </div>
-                        <h2 className={`font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-[-0.04em] ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
+                        <h2 className={`font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold leading-[1.08] tracking-[-0.025em] ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
                         {dailyContent ? (
                           <p className="mt-4 max-w-3xl text-sm sm:text-base md:text-lg text-slate-500 font-semibold leading-relaxed">
                             {mode === AppMode.LISTENING ? '先听一遍，再暂停看看表达；遇到想记的单词和句子，随手就能存进你的本子。' : '先顺着读完，再挑你真正想留下来的表达。看到喜欢的原文，也可以直接跳出去继续深读。'}
@@ -4092,7 +4355,7 @@ const App = () => {
                     </div>
                     </div>
                     {dailyContent ? (
-                      <div className="overflow-y-auto no-scrollbar text-base sm:text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
+                      <div className="overflow-y-auto no-scrollbar text-base sm:text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
                         {dailyContent.content}
                       </div>
                     ) : (
@@ -4226,7 +4489,7 @@ const App = () => {
                     <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                       <PenTool size={16} /> 写作工作台
                     </div>
-                    <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-[-0.03em]">{generalUiText.writingTitle}</h2>
+                    <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-semibold text-slate-800 tracking-[-0.02em]">{generalUiText.writingTitle}</h2>
                     <p className="mt-3 text-sm sm:text-base text-slate-500 font-semibold leading-relaxed max-w-2xl">
                       先把意思写出来，再让 AI 帮你润顺、升级、保存。这里更像你的英文表达工作台，而不是冷冰冰的批改器。
                     </p>
@@ -4250,7 +4513,7 @@ const App = () => {
               </div>
               <div className="w-full xl:w-[480px] space-y-6 md:space-y-8 overflow-y-auto no-scrollbar">
                 {writingResult ? (
-                  <div className="space-y-6 animate-in slide-in-from-right-8 duration-500" onMouseUp={handleTextSelection}>
+                  <div className="space-y-6 animate-in slide-in-from-right-8 duration-500" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
                     {[
                       { label: 'Corrected', title: generalUiText.corrected, text: writingResult.corrected, color: 'emerald' },
                       { label: 'Pro Upgrade', title: generalUiText.proUpgrade, text: writingResult.upgraded, color: 'indigo' },
@@ -4300,12 +4563,226 @@ const App = () => {
                 <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-5">
                   <GraduationCap size={16} /> 考试入口
                 </div>
-                <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 tracking-[-0.04em] mb-4">{generalUiText.examTitle}</h2>
+                <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold text-slate-900 tracking-[-0.025em] mb-4">{generalUiText.examTitle}</h2>
                 <p className="text-slate-400 text-base sm:text-lg md:text-xl font-medium">{generalUiText.examDesc}</p>
                 <p className="mt-4 text-sm sm:text-base text-slate-500 font-semibold leading-relaxed max-w-3xl mx-auto">
                   把你平时会反复打开的备考入口放在一起。临时想练时不用再到处翻链接，直接从这里进就够了。
                 </p>
               </div>
+              <div className="glass-panel rounded-[2rem] md:rounded-[3rem] p-5 sm:p-6 md:p-8 mb-6 md:mb-8">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-5">
+                  <div>
+                    <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-kitty-500 text-[11px] font-black uppercase tracking-widest mb-4">
+                      <Globe size={14} /> 我的备考官网
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900">把你最常开的官网也收进来</h3>
+                    <p className="mt-2 text-sm sm:text-base font-semibold leading-relaxed text-slate-500 max-w-2xl">
+                      比如雅思官网、托福官网、考满分、机经站、报名入口、查分入口，都可以自己加，后面会一直以模块卡片形式留在这里。
+                    </p>
+                  </div>
+                  <div className="rounded-[1.25rem] bg-white/78 px-4 py-3 text-sm font-bold text-slate-500 border border-white/70 shadow-sm">
+                    当前自定义 {customExamSources.length} 个
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    value={examSourceNameInput}
+                    onChange={(event) => setExamSourceNameInput(event.target.value)}
+                    placeholder="官网名称，比如 IELTS Official / ETS TOEFL"
+                    className="w-full rounded-[1.25rem] bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-white/80"
+                  />
+                  <input
+                    value={examSourceUrlInput}
+                    onChange={(event) => setExamSourceUrlInput(event.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded-[1.25rem] bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-white/80"
+                  />
+                  <input
+                    value={examSourceTagInput}
+                    onChange={(event) => setExamSourceTagInput(event.target.value)}
+                    placeholder="标签，比如 报名 / 刷题 / 查分"
+                    className="w-full rounded-[1.25rem] bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-white/80"
+                  />
+                  <input
+                    value={examSourceDescriptionInput}
+                    onChange={(event) => setExamSourceDescriptionInput(event.target.value)}
+                    placeholder="一句说明，比如 我每周都会打开它刷题"
+                    className="w-full rounded-[1.25rem] bg-white/90 px-4 py-3 text-sm font-semibold text-slate-700 placeholder:text-slate-300 outline-none border border-white/80"
+                  />
+                </div>
+
+                <button
+                  onClick={addExamSource}
+                  disabled={!safeTrim(examSourceNameInput) || !safeTrim(examSourceUrlInput)}
+                  className="mt-4 w-full md:w-auto rounded-[1.25rem] bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-6 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(244,114,182,0.22)] disabled:opacity-50"
+                >
+                  {editingExamSourceId ? '更新这个官网模块' : '保存成一个官网模块'}
+                </button>
+                {editingExamSourceId && (
+                  <button
+                    onClick={resetExamSourceForm}
+                    className="mt-3 ml-0 md:ml-3 w-full md:w-auto rounded-[1.25rem] bg-white/90 px-6 py-3 text-sm font-black text-slate-600 shadow-sm border border-white/80"
+                  >
+                    取消编辑
+                  </button>
+                )}
+              </div>
+
+              {customExamSources.length > 0 && (
+                <div className="mb-6 md:mb-8">
+                  {pinnedExamSources.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <h3 className="text-lg sm:text-xl font-black text-slate-900">你最常开的几个入口</h3>
+                        <span className="text-sm font-bold text-amber-500">置顶后会先出现在这里</span>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                        {pinnedExamSources.map((resource) => (
+                          <a
+                            key={`pinned-${resource.id}`}
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="glass-panel relative overflow-hidden rounded-[2rem] p-5 sm:p-6 transition-all hover:shadow-xl"
+                          >
+                            <div className="pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-amber-100/65 blur-3xl" />
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="rounded-[1.25rem] bg-amber-50/90 p-4 text-amber-500 border border-amber-100/80 shadow-sm">
+                                  <Pin size={24} />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-widest text-amber-500">常用入口</p>
+                                  <h4 className="mt-1 text-xl font-black text-slate-900">{resource.name}</h4>
+                                </div>
+                              </div>
+                              {resource.tag && (
+                                <span className="rounded-full bg-kitty-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-kitty-500">
+                                  {resource.tag}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-4 text-sm font-semibold leading-relaxed text-slate-500">{resource.description}</p>
+                            <div className="mt-4 inline-flex items-center gap-2 text-sm font-black text-kitty-600">
+                              直接打开 <ArrowRight size={16} />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900">你的官网模块库</h3>
+                    <span className="text-sm font-bold text-slate-400">会跟着账号一起保存</span>
+                  </div>
+                  {regularExamSources.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      {regularExamSources.map((resource) => (
+                      <div
+                        key={resource.id}
+                        draggable
+                        onDragStart={() => setDraggingExamSourceId(resource.id)}
+                        onDragEnd={() => setDraggingExamSourceId(null)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (draggingExamSourceId) {
+                            reorderExamSourceByDrag(draggingExamSourceId, resource.id);
+                            setDraggingExamSourceId(null);
+                          }
+                        }}
+                        className={`glass-panel relative overflow-hidden p-5 sm:p-6 rounded-[2rem] hover:shadow-xl transition-all ${draggingExamSourceId === resource.id ? 'scale-[0.98] opacity-70' : ''}`}
+                      >
+                        <div className="pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/45 blur-3xl" />
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              className="glass-pill hidden sm:inline-flex rounded-[1rem] p-3 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing"
+                              title="拖动排序"
+                              aria-label={`拖动排序 ${resource.name}`}
+                            >
+                              <GripVertical size={18} />
+                            </button>
+                            <div className="rounded-[1.25rem] bg-sky-50/90 text-sky-500 border border-sky-100/80 p-4 shadow-sm">
+                              <Globe size={28} />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEditingExamSource(resource.id)}
+                              className="glass-pill rounded-full p-2 text-slate-400 hover:text-indigo-500"
+                              aria-label={`编辑 ${resource.name}`}
+                              title="编辑"
+                            >
+                              <PenTool size={14} />
+                            </button>
+                            <button
+                              onClick={() => togglePinExamSource(resource.id)}
+                              className={`glass-pill rounded-full p-2 ${resource.pinned ? 'text-kitty-600' : 'text-slate-400 hover:text-kitty-500'}`}
+                              aria-label={`${resource.pinned ? '取消置顶' : '置顶'} ${resource.name}`}
+                              title={resource.pinned ? '取消置顶' : '置顶常用入口'}
+                            >
+                              <Pin size={14} />
+                            </button>
+                            <button
+                              onClick={() => moveExamSource(resource.id, 'up')}
+                              className="glass-pill rounded-full p-2 text-slate-400 hover:text-slate-600"
+                              aria-label={`上移 ${resource.name}`}
+                              title="上移"
+                            >
+                              <ChevronUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => moveExamSource(resource.id, 'down')}
+                              className="glass-pill rounded-full p-2 text-slate-400 hover:text-slate-600"
+                              aria-label={`下移 ${resource.name}`}
+                              title="下移"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                            <button
+                              onClick={() => removeExamSource(resource.id)}
+                              className="glass-pill rounded-full p-2 text-slate-400 hover:text-red-500"
+                              aria-label={`删除 ${resource.name}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h4 className="text-xl font-black text-slate-900">{resource.name}</h4>
+                            {resource.tag && (
+                              <span className="rounded-full bg-kitty-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-kitty-500">
+                                {resource.tag}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-semibold leading-relaxed text-slate-500">{resource.description}</p>
+                          <a
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-4 inline-flex items-center gap-2 text-sm font-black text-kitty-600 hover:text-kitty-700"
+                          >
+                            打开官网 <ArrowRight size={16} />
+                          </a>
+                          <p className="mt-3 text-xs font-semibold text-slate-400">
+                            手机端可以点上移 / 下移，电脑端也可以直接拖动排序。
+                          </p>
+                        </div>
+                      </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-[1.75rem] bg-white/82 px-5 py-4 text-sm font-semibold text-slate-500 shadow-sm">
+                      你已经把目前这些官网都置顶了。后面如果再加新的入口，它们会先出现在这里。
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 {(EXAM_RESOURCES[language] || []).map((resource, index) => (
                   <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="glass-panel relative overflow-hidden p-5 sm:p-7 md:p-12 rounded-[2rem] md:rounded-[4rem] hover:shadow-2xl transition-all flex items-center gap-4 sm:gap-6 md:gap-10 group">

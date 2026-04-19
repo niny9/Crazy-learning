@@ -137,4 +137,8 @@ export interface CustomExamLink {
   name: string;
   url: string;
   description: string;
+  tag?: string;
+  dateAdded?: string;
+  pinned?: boolean;
+  order?: number;
 }
