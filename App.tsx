@@ -1426,7 +1426,6 @@ const App = () => {
       language,
     };
     setVocabList((prev) => [newItem, ...prev]);
-    setSidebarOpen(true);
     setActiveTab('vocab');
     queueUsageEvent('save_vocab', { word, context, source: 'selection_or_manual' });
 
@@ -1448,7 +1447,6 @@ const App = () => {
       language,
     };
     setSentenceList((prev) => [newSentence, ...prev]);
-    setSidebarOpen(true);
     setActiveTab('sentences');
     queueUsageEvent('save_sentence', { text, source: dailyContent?.title || 'Manual' });
   };
@@ -1471,7 +1469,6 @@ const App = () => {
     setManualDiaryTitle('');
     setManualDiaryInput('');
     setActiveTab('diary');
-    setSidebarOpen(true);
     queueUsageEvent('save_manual_diary', { title: entry.title });
   };
 
@@ -1524,7 +1521,6 @@ const App = () => {
     };
 
     setDiaryEntries((prev) => [entry, ...prev].slice(0, 50));
-    setSidebarOpen(true);
     setActiveTab('diary');
     setWritingSavedNotice(`${formatDiarySourceLabel(sourceLabel)} · ${generalUiText.saveToDiary}`);
     window.setTimeout(() => setWritingSavedNotice(''), 2200);
@@ -2562,7 +2558,6 @@ const App = () => {
       setStoryNotice('已从浏览器插件保存句子。');
       setActiveTab('sentences');
     }
-    setSidebarOpen(true);
     window.setTimeout(() => setStoryNotice(''), 2200);
 
     params.delete('clipText');
@@ -2587,6 +2582,26 @@ const App = () => {
       console.error('Failed to save notebook entries', error);
     }
   }, [vocabList, sentenceList, writingEntries, diaryEntries, storyEntries, contentSources, storyReminder]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  }, [sidebarOpen]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -2864,7 +2879,13 @@ const App = () => {
         </div>
       )}
 
-      <div className={`glass-panel fixed inset-y-0 right-0 w-full sm:w-[420px] z-50 transform transition-transform duration-500 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-white/60 flex flex-col`}>
+      <div className={`fixed inset-0 z-[70] transition-all duration-300 ${sidebarOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+        <button
+          aria-label="Close notebook"
+          onClick={() => setSidebarOpen(false)}
+          className={`absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),rgba(15,23,42,0.16)_32%,rgba(15,23,42,0.28))] backdrop-blur-[4px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}
+        />
+        <div className={`absolute inset-y-0 right-0 w-full sm:w-[420px] glass-panel border-l border-white/60 flex flex-col transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)]`}>
         <div className="p-4 sm:p-8 border-b border-white/60">
           <div className="flex justify-between items-center mb-6">
             <h2 className="font-black text-kitty-800 flex items-center gap-3 text-xl sm:text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
@@ -3062,6 +3083,7 @@ const App = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
