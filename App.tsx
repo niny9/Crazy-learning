@@ -2905,50 +2905,66 @@ const App = () => {
           role="dialog"
           aria-modal="true"
           aria-label={labels.notebook}
-          className={`absolute inset-y-0 right-0 w-[min(92vw,420px)] glass-panel rounded-l-[2rem] sm:rounded-l-[2.5rem] border-l border-white/60 flex flex-col transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)]`}
+          className={`absolute inset-y-0 right-0 w-[min(92vw,420px)] glass-panel rounded-l-[2rem] sm:rounded-l-[2.5rem] border-l border-white/60 flex flex-col origin-top-right transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 scale-100 opacity-100' : 'translate-x-full scale-[0.985] opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)] overflow-hidden`}
         >
-        <div className="p-4 sm:p-8 border-b border-white/60">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="font-black text-kitty-800 flex items-center gap-3 text-xl sm:text-2xl"><Sparkles className="text-kitty-400" /> {labels.notebook}</h2>
-            <button onClick={() => setSidebarOpen(false)} className="glass-pill p-2 rounded-full transition-all text-slate-400"><X /></button>
+        <div className="relative overflow-hidden p-4 sm:p-8 border-b border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.54),rgba(255,255,255,0.22))]">
+          <div className="aurora-orb h-28 w-28 bg-pink-200/70 -right-4 -top-6" />
+          <div className="aurora-orb h-24 w-24 bg-cyan-200/60 right-16 top-8" />
+          <div className="relative flex justify-between items-start gap-4 mb-5">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-kitty-400 shadow-sm border border-white/70">
+                <Sparkles size={12} className="text-kitty-400" /> {labels.notebook}
+              </div>
+              <h2 className="mt-3 font-black text-kitty-800 text-2xl sm:text-[1.85rem] tracking-tight">
+                你的词句与表达
+              </h2>
+              <p className="mt-2 max-w-[18rem] text-xs sm:text-sm leading-6 text-slate-500">
+                先收着，后面复习、写作、口语都能直接复用。
+              </p>
+            </div>
+            <button onClick={() => setSidebarOpen(false)} className="glass-pill p-2.5 rounded-full transition-all text-slate-400 hover:text-slate-600 hover:scale-105 shrink-0"><X /></button>
           </div>
-          <div className="glass-pill flex p-1.5 rounded-2xl">
+          <div className="relative glass-pill flex p-1.5 rounded-2xl">
             {['vocab', 'sentences', 'diary'].map((tab) => (
               <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white/90 text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-500'}`}>
                 {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : notebookUiText.diaryTab}
               </button>
             ))}
           </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-bold text-slate-400">
+            <span>{activeTab === 'vocab' ? `${vocabList.filter((item) => item.language === language).length} 个单词` : activeTab === 'sentences' ? `${sentenceList.filter((item) => item.language === language).length} 条句子` : `${diaryEntries.filter((item) => item.language === language).length} 篇 Diary`}</span>
+            <span>随时导出到你的知识库</span>
+          </div>
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onClick={() => void copyNotebookExport()}
-              className="glass-pill rounded-2xl px-4 py-3 text-xs font-black text-kitty-600 hover:border-kitty-200"
+              className="glass-pill rounded-2xl px-4 py-3 text-xs font-black text-kitty-600 hover:border-kitty-200 hover:shadow-[0_12px_24px_rgba(244,114,182,0.12)]"
             >
               {notebookUiText.copyToNotion}
             </button>
             <button
               onClick={downloadNotebookExport}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-xs font-black text-white hover:bg-slate-800"
+              className="rounded-2xl bg-slate-900/92 px-4 py-3 text-xs font-black text-white hover:bg-slate-800 shadow-[0_14px_32px_rgba(15,23,42,0.18)]"
             >
               {notebookUiText.downloadObsidian}
             </button>
           </div>
           {notebookNotice && (
-            <div className="mt-4 rounded-2xl bg-kitty-50 px-4 py-3 text-xs font-semibold text-kitty-700">
+            <div className="mt-4 rounded-2xl bg-white/82 px-4 py-3 text-xs font-semibold text-kitty-700 border border-kitty-100 shadow-sm">
               {notebookNotice}
             </div>
           )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
-          <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4">
+          <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-5 bg-[linear-gradient(180deg,rgba(255,255,255,0.74),rgba(255,255,255,0.5))]">
             {activeTab === 'vocab' && (
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   value={manualVocabInput}
                   onChange={(event) => setManualVocabInput(event.target.value)}
                   placeholder={notebookUiText.addWordPlaceholder}
-                  className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                  className="flex-1 rounded-2xl bg-white/90 px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                 />
                 <button
                   onClick={() => {
@@ -2957,7 +2973,7 @@ const App = () => {
                     void addToVocab(value);
                     setManualVocabInput('');
                   }}
-                  className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
+                  className="rounded-2xl bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-4 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(244,114,182,0.22)]"
                 >
                   {notebookUiText.add}
                 </button>
@@ -2969,7 +2985,7 @@ const App = () => {
                   value={manualSentenceInput}
                   onChange={(event) => setManualSentenceInput(event.target.value)}
                   placeholder={notebookUiText.addSentencePlaceholder}
-                  className="flex-1 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                  className="flex-1 rounded-2xl bg-white/90 px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                 />
                 <button
                   onClick={() => {
@@ -2978,7 +2994,7 @@ const App = () => {
                     saveSentence(value);
                     setManualSentenceInput('');
                   }}
-                  className="rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
+                  className="rounded-2xl bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-4 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(244,114,182,0.22)]"
                 >
                   {notebookUiText.add}
                 </button>
@@ -2990,17 +3006,17 @@ const App = () => {
                   value={manualDiaryTitle}
                   onChange={(event) => setManualDiaryTitle(event.target.value)}
                   placeholder={notebookUiText.diaryTitlePlaceholder}
-                  className="w-full rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300"
+                  className="w-full rounded-2xl bg-white/90 px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                 />
                 <textarea
                   value={manualDiaryInput}
                   onChange={(event) => setManualDiaryInput(event.target.value)}
                   placeholder={notebookUiText.diaryInputPlaceholder}
-                  className="w-full min-h-28 rounded-2xl bg-white px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 resize-none"
+                  className="w-full min-h-28 rounded-2xl bg-white/90 px-4 py-3 outline-none text-sm text-slate-700 placeholder:text-slate-300 resize-none border border-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
                 />
                 <button
                   onClick={addManualDiary}
-                  className="w-full rounded-2xl bg-kitty-500 px-4 py-3 text-sm font-black text-white"
+                  className="w-full rounded-2xl bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-4 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(244,114,182,0.22)]"
                 >
                   {notebookUiText.addToDiary}
                 </button>
@@ -3019,7 +3035,7 @@ const App = () => {
                   {group.title || notebookUiText.unknownDate}
                 </div>
                 {group.items.filter(Boolean).map((item) => (
-                  <div key={item.id || `${group.title}-item`} className="bg-white border border-kitty-100 rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-sm hover:shadow-md transition-all group animate-in slide-in-from-right-4">
+                  <div key={item.id || `${group.title}-item`} className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-sm hover:shadow-[0_18px_40px_rgba(156,163,175,0.16)] transition-all group animate-in slide-in-from-right-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.62))]">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="font-black text-slate-800 text-base sm:text-xl tracking-tight line-clamp-2">
@@ -3171,7 +3187,16 @@ const App = () => {
                 )}
               </button>
             )}
-            <button onClick={() => setSidebarOpen(true)} className="glass-pill relative p-3 md:p-3.5 rounded-2xl text-kitty-500 hover:scale-105 transition-all shrink-0">
+            <button
+              aria-label={labels.notebook}
+              aria-expanded={sidebarOpen}
+              onClick={() => setSidebarOpen(true)}
+              className={`glass-pill relative p-3 md:p-3.5 rounded-2xl transition-all shrink-0 ${
+                sidebarOpen
+                  ? 'bg-white/95 text-kitty-600 shadow-[0_12px_32px_rgba(244,114,182,0.22)] ring-1 ring-kitty-200'
+                  : 'text-kitty-500 hover:scale-105'
+              }`}
+            >
               <ShoppingBag size={22} />
               {(vocabList.length + sentenceList.length + diaryEntries.length) > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1.35rem] h-5 px-1 bg-slate-900 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
@@ -3414,17 +3439,20 @@ const App = () => {
                             <button
                               key={item.key}
                               onClick={() => openSecondaryModule(item.onEnter)}
-                              className="glass-panel relative overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] px-5 py-5 text-left hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(141,156,201,0.18)] transition-all"
+                              className="glass-panel relative overflow-hidden rounded-[1.75rem] sm:rounded-[2.25rem] px-5 py-5 sm:px-6 sm:py-6 text-left hover:-translate-y-1 hover:shadow-[0_28px_64px_rgba(141,156,201,0.18)] transition-all"
                             >
                               <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${accentGlow} opacity-80`} />
                               <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/40 blur-2xl" />
+                              <div className="pointer-events-none absolute left-0 bottom-0 h-20 w-20 rounded-full bg-white/35 blur-2xl" />
                               <div className="flex items-start justify-between gap-4">
-                                <div className={`relative rounded-2xl border px-3 py-3 shadow-sm ${accentClass}`}>
+                                <div className={`relative rounded-[1.2rem] border px-3.5 py-3.5 shadow-sm ${accentClass}`}>
                                   <Icon size={20} />
                                 </div>
-                                <ArrowRight className="text-slate-300 shrink-0" size={18} />
+                                <div className="glass-pill rounded-full p-2.5 text-slate-300 shrink-0 group-hover:text-slate-500 transition-colors">
+                                  <ArrowRight size={18} />
+                                </div>
                               </div>
-                              <div className="relative mt-4">
+                              <div className="relative mt-5">
                                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">练习模块</p>
                                 <p className="mt-2 text-xl font-black text-slate-900">{item.title}</p>
                                 <p className="mt-1 text-sm font-black text-kitty-500">{item.subtitle}</p>
@@ -3438,8 +3466,9 @@ const App = () => {
                   </div>
 
                   <div className="space-y-5">
-                    <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6">
+                    <div className="glass-panel relative overflow-hidden rounded-[2.15rem] p-6 sm:p-7">
                       <div className="pointer-events-none absolute -right-8 -top-6 h-24 w-24 rounded-full bg-emerald-100/70 blur-2xl" />
+                      <div className="pointer-events-none absolute left-0 bottom-0 h-20 w-20 rounded-full bg-white/35 blur-2xl" />
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.todayLoopTitle}</p>
                       <div className="space-y-3">
                         {TODAY_LOOP_STEPS.map((step) => (
@@ -3449,8 +3478,9 @@ const App = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6">
+                    <div className="glass-panel relative overflow-hidden rounded-[2.15rem] p-6 sm:p-7">
                       <div className="pointer-events-none absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
+                      <div className="pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-full bg-white/35 blur-2xl" />
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{generalUiText.momentumTitle}</p>
                       <p className="font-display text-4xl font-bold aurora-text">{storyEntries.filter((item) => item.language === language).length}</p>
                       <p className="mt-2 text-sm font-semibold text-slate-500">{storyEntries.filter((item) => item.language === language).length}{generalUiText.momentumDesc}</p>
@@ -3467,8 +3497,14 @@ const App = () => {
           {mode === AppMode.SPEAKING && (
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
               <div className="mb-4">{renderSubpageBackButton(() => endSpeakingSession('user_exit'))}</div>
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+              <div className="glass-panel relative overflow-hidden rounded-[2rem] md:rounded-[2.75rem] px-5 py-6 md:px-8 md:py-8 mb-6">
+                <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-kitty-100/70 blur-3xl" />
+                <div className="pointer-events-none absolute left-10 bottom-0 h-24 w-24 rounded-full bg-cyan-100/60 blur-3xl" />
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div>
+                  <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                    <Mic size={16} /> 口语主线
+                  </div>
                   <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.dashboardTitle}</h2>
                   <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.dashboardDesc}
@@ -3478,6 +3514,7 @@ const App = () => {
                   <X size={16} /> {generalUiText.backHome}
                 </button>
               </div>
+              </div>
 
               {storyNotice && <div className="mb-4 rounded-[1.5rem] bg-emerald-50 px-5 py-4 text-sm font-black text-emerald-700">{storyNotice}</div>}
               {errorMsg && <div className="mb-4 rounded-[1.5rem] bg-red-50 px-5 py-4 text-sm font-black text-red-600">{errorMsg}</div>}
@@ -3485,7 +3522,9 @@ const App = () => {
               {speakingTrack === null && storyStage === 'choose_mode' && (
                 <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
-                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.step1}</p>
+                    <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-kitty-500 text-[11px] font-black uppercase tracking-widest mb-4">
+                      {storyUiText.step1}
+                    </div>
                     <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">{storyUiText.chooseTitle}</h3>
                     <p className="mt-3 text-slate-500 font-medium text-sm sm:text-base md:text-lg leading-relaxed">
                       {storyUiText.chooseDesc}
@@ -3523,7 +3562,9 @@ const App = () => {
                     </div>
                   </div>
                   <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
-                    <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.whatYouGet}</p>
+                    <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-kitty-500 text-[11px] font-black uppercase tracking-widest mb-4">
+                      {storyUiText.whatYouGet}
+                    </div>
                     <div className="space-y-3">
                       {storyUiText.whatYouGetList.map((item) => (
                         <div key={item} className="rounded-[1.25rem] sm:rounded-[1.5rem] bg-white/82 px-4 py-3 sm:px-5 sm:py-4 text-sm font-bold text-slate-700 leading-relaxed shadow-sm">
@@ -3551,10 +3592,10 @@ const App = () => {
                 <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
                   <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-10">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
-                      <span className="rounded-full bg-kitty-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
-                        STEP 2 · {storyModeLabel(storyMode)}
+                      <span className="glass-pill rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest text-kitty-600">
+                        讲今天这件事 · {storyModeLabel(storyMode)}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                      <span className="glass-pill rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
                         {storyUiText.recordHint}
                       </span>
                     </div>
@@ -3627,9 +3668,9 @@ const App = () => {
                     </div>
                   </div>
                   <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">
+                    <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-slate-400 text-[11px] font-black uppercase tracking-widest mb-4">
                       {storyStage === 'review' ? storyUiText.reviewTitle : storyUiText.lightGuidance}
-                    </p>
+                    </div>
                     <div className="space-y-3">
                       {(storyStage === 'review'
                         ? [
@@ -3745,6 +3786,9 @@ const App = () => {
 
                   <div className="space-y-5 sm:space-y-6">
                     <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
+                      <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-indigo-500 text-[11px] font-black uppercase tracking-widest mb-4">
+                        起手更轻松
+                      </div>
                       <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.startHere}</h4>
                       <div className="flex flex-wrap gap-3">
                         {freeTalkQuickReplies.map((item) => (
@@ -3759,6 +3803,9 @@ const App = () => {
                       </div>
                     </div>
                     <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
+                      <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-kitty-500 text-[11px] font-black uppercase tracking-widest mb-4">
+                        你下一次能直接复用
+                      </div>
                       <h4 className="text-xl sm:text-2xl font-black text-slate-900 mb-4">{freeTalkUiText.betterWays}</h4>
                       <div className="space-y-4">
                         {freeTalkImprovements.length ? (
@@ -3782,6 +3829,9 @@ const App = () => {
                       </div>
                     </div>
                     <div className="glass-panel rounded-[2rem] md:rounded-[2.5rem] p-5 sm:p-6 md:p-8">
+                      <div className="glass-pill inline-flex items-center gap-3 rounded-full px-4 py-2 text-slate-400 text-[11px] font-black uppercase tracking-widest mb-4">
+                        轻松聊下去
+                      </div>
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{freeTalkUiText.rulesTitle}</p>
                       <div className="space-y-3">
                         {freeTalkUiText.rules.map((item) => (
@@ -3989,9 +4039,12 @@ const App = () => {
             <div className="h-full overflow-y-auto no-scrollbar p-3 sm:p-4 md:p-8 lg:p-10 max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="mb-4">{renderSubpageBackButton()}</div>
               <div className={`glass-panel relative rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-10 lg:p-16 min-h-full ${mode === AppMode.LISTENING ? 'border-indigo-100/70' : 'border-orange-100/70'}`}>
+                <div className={`pointer-events-none absolute right-10 top-10 h-40 w-40 rounded-full blur-3xl ${mode === AppMode.LISTENING ? 'bg-indigo-100/65' : 'bg-orange-100/65'}`} />
+                <div className="pointer-events-none absolute left-10 bottom-10 h-32 w-32 rounded-full bg-cyan-100/55 blur-3xl" />
                 <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)] xl:items-start">
                   <div className="min-w-0">
-                    <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
+                    <div className="relative rounded-[1.8rem] md:rounded-[2.6rem] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,255,255,0.44))] border border-white/70 px-5 py-6 md:px-7 md:py-8 shadow-[0_18px_40px_rgba(165,180,252,0.12)] mb-8 md:mb-12">
+                    <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6">
                       <div>
                         <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-5">
                           {mode === AppMode.LISTENING ? <Headphones size={16} /> : <BookOpen size={16} />}
@@ -4036,6 +4089,7 @@ const App = () => {
                           <RefreshCw />
                         </button>
                       </div>
+                    </div>
                     </div>
                     {dailyContent ? (
                       <div className="overflow-y-auto no-scrollbar text-base sm:text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection}>
@@ -4163,11 +4217,14 @@ const App = () => {
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto flex flex-col xl:flex-row gap-5 md:gap-8 lg:gap-10 animate-in fade-in duration-700 overflow-y-auto no-scrollbar">
               <div className="w-full xl:hidden">{renderSubpageBackButton()}</div>
               <div className="glass-panel flex-1 flex flex-col rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-8 lg:p-12 relative overflow-hidden min-h-[520px]">
+                <div className="pointer-events-none absolute right-10 top-10 h-40 w-40 rounded-full bg-emerald-100/55 blur-3xl" />
+                <div className="pointer-events-none absolute left-6 bottom-12 h-28 w-28 rounded-full bg-pink-100/55 blur-3xl" />
                 <div className="hidden xl:block mb-4">{renderSubpageBackButton()}</div>
-                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
+                <div className="relative rounded-[1.8rem] md:rounded-[2.6rem] bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,255,255,0.44))] border border-white/70 px-5 py-6 md:px-7 md:py-8 shadow-[0_18px_40px_rgba(244,114,182,0.12)] mb-8 md:mb-10">
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                   <div>
                     <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
-                      <PenTool size={16} /> Writing
+                      <PenTool size={16} /> 写作工作台
                     </div>
                     <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-[-0.03em]">{generalUiText.writingTitle}</h2>
                     <p className="mt-3 text-sm sm:text-base text-slate-500 font-semibold leading-relaxed max-w-2xl">
@@ -4182,6 +4239,7 @@ const App = () => {
                       <Bookmark size={18} /> {writingResult ? generalUiText.saveDiary : generalUiText.saveDraft}
                     </button>
                   </div>
+                </div>
                 </div>
                 {writingSavedNotice && <div className="mb-6 rounded-[1.75rem] bg-emerald-50 px-6 py-4 text-sm font-black text-emerald-700">{writingSavedNotice}</div>}
                 {writingTopic && <div className="glass-panel mb-8 md:mb-10 p-5 md:p-8 rounded-[1.75rem] md:rounded-[2.5rem] text-base sm:text-lg md:text-xl font-bold italic text-pink-800">"{writingTopic}"</div>}
@@ -4236,9 +4294,11 @@ const App = () => {
           {mode === AppMode.EXAM_PORTAL && (
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-16 max-w-6xl mx-auto overflow-y-auto no-scrollbar animate-in fade-in duration-1000">
               <div className="mb-4">{renderSubpageBackButton()}</div>
-              <div className="text-center mb-10 md:mb-16">
+              <div className="glass-panel relative overflow-hidden rounded-[2rem] md:rounded-[3rem] px-5 py-8 md:px-8 md:py-10 text-center mb-10 md:mb-16">
+                <div className="pointer-events-none absolute right-10 top-8 h-32 w-32 rounded-full bg-sky-100/60 blur-3xl" />
+                <div className="pointer-events-none absolute left-10 bottom-0 h-28 w-28 rounded-full bg-orange-100/55 blur-3xl" />
                 <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-5">
-                  <GraduationCap size={16} /> Exam hub
+                  <GraduationCap size={16} /> 考试入口
                 </div>
                 <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 tracking-[-0.04em] mb-4">{generalUiText.examTitle}</h2>
                 <p className="text-slate-400 text-base sm:text-lg md:text-xl font-medium">{generalUiText.examDesc}</p>
