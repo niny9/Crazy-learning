@@ -122,7 +122,7 @@ const sendSelection = async (type) => {
         return;
       }
       if (response?.ok) {
-        setStatus("已打开 LinguaFlow，继续完成保存。");
+        setStatus("已打开云湖，继续完成保存。");
         return;
       }
       setStatus(`保存失败：${response?.error || "未知错误"}`);
@@ -140,7 +140,7 @@ clipTypeInput.addEventListener("change", () => {
 });
 targetUrlInput.addEventListener("change", () => {
   void saveTargetUrl();
-  setStatus("LinguaFlow 地址已更新。");
+  setStatus("云湖地址已更新。");
 });
 clipperTokenInput.addEventListener("change", () => {
   void saveDirectImportConfig();

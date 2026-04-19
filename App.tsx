@@ -5,6 +5,7 @@ import {
   Bookmark,
   CheckCircle,
   ChevronLeft,
+  Cloud,
   FileText,
   Globe,
   GraduationCap,
@@ -18,10 +19,10 @@ import {
   ShoppingBag,
   Sparkles,
   Square,
-  Star,
   Trash2,
   Volume2,
   Wand2,
+  Waves,
   X,
   Zap,
 } from 'lucide-react';
@@ -83,6 +84,9 @@ type NotebookLikeItem = {
 const SUPPORTED_LANGUAGES = [
   { code: 'English', flag: '🇺🇸', label: 'English' },
 ];
+
+const BRAND_NAME = '云湖';
+const BRAND_TAGLINE = 'Cloud Lake Language Studio';
 
 const SECONDARY_MODULES = [
   {
@@ -300,7 +304,7 @@ const normalizeDailyContent = (value: Partial<DailyContent> | null | undefined):
     summary: stripMarkdownArtifacts(value.summary) || 'No summary yet.',
     url: safeTrim(value.url) || '#',
     content: stripMarkdownArtifacts(value.content) || 'No content available yet.',
-    source: stripMarkdownArtifacts(value.source) || 'LinguaFlow',
+    source: stripMarkdownArtifacts(value.source) || BRAND_NAME,
   };
 };
 
@@ -444,7 +448,7 @@ const buildLocalFallbackContent = (
   language: string,
   sourceNames: string[]
 ): DailyContent => {
-  const source = sourceNames[Math.floor(Math.random() * sourceNames.length)] || 'LinguaFlow';
+  const source = sourceNames[Math.floor(Math.random() * sourceNames.length)] || BRAND_NAME;
 
   const fallbackCopy = {
     English: {
@@ -691,7 +695,7 @@ const getGeneralUiText = (language: string) => {
       dashboardBadge: 'Today Story',
       dashboardTitle: 'Raconte une chose de ta journée dans la langue que tu apprends',
       dashboardDesc:
-        'Pas besoin de préparer un sujet parfait. Raconte simplement ce qui t’est arrivé aujourd’hui, et LinguaFlow t’aide à le reformuler plus naturellement.',
+        `Pas besoin de préparer un sujet parfait. Raconte simplement ce qui t’est arrivé aujourd’hui, et ${BRAND_NAME} t’aide à le reformuler plus naturellement.`,
       storyButton: 'Commencer Today Story',
       freeTalkButton: 'Parler librement',
       libraryButton: 'Ma bibliothèque',
@@ -744,7 +748,7 @@ const getGeneralUiText = (language: string) => {
       dashboardBadge: 'Today Story',
       dashboardTitle: 'その日にあったことを、学習中の言語で少しずつ話してみよう',
       dashboardDesc:
-        '完璧なテーマはなくて大丈夫です。今日あったことを話すだけで、LinguaFlow があとで自然な形に整えます。',
+        `完璧なテーマはなくて大丈夫です。今日あったことを話すだけで、${BRAND_NAME} があとで自然な形に整えます。`,
       storyButton: 'Today Story を始める',
       freeTalkButton: 'そのまま会話する',
       libraryButton: 'ストーリー集',
@@ -1549,7 +1553,7 @@ const App = () => {
     const items = getCurrentNotebookItems();
     const groups = groupNotebookItemsByDate(items);
     const tabTitle = activeTab === 'vocab' ? labels.words : activeTab === 'sentences' ? labels.sentences : notebookUiText.diaryTab;
-    const lines: string[] = [`# LinguaFlow ${tabTitle}`, '', `Language: ${language}`, `${notebookUiText.exportedAt}: ${new Date().toLocaleString()}`, ''];
+    const lines: string[] = [`# ${BRAND_NAME} ${tabTitle}`, '', `Language: ${language}`, `${notebookUiText.exportedAt}: ${new Date().toLocaleString()}`, ''];
 
     groups.forEach((group) => {
       lines.push(`## ${group.title || notebookUiText.unknownDate}`, '');
@@ -3060,28 +3064,36 @@ const App = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        <div className="min-h-20 px-4 py-4 md:px-6 lg:px-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40">
-          <div className="flex items-center gap-3 md:gap-4 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
-            <div className="bg-kitty-500 text-white p-2.5 rounded-2xl shadow-lg group-hover:rotate-12 transition-all"><Star size={24} /></div>
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
+        <div className="aurora-orb h-44 w-44 bg-pink-200/70 left-6 top-6" />
+        <div className="aurora-orb h-52 w-52 bg-cyan-200/60 right-10 top-16" />
+        <div className="aurora-orb h-56 w-56 bg-violet-200/55 left-[32%] top-32" />
+        <div className="sticky top-0 min-h-20 px-4 py-4 md:px-6 lg:px-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40 border-b border-white/40">
+          <div className="flex items-center gap-4 md:gap-5 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
+            <div className="cloud-logo-shell relative flex h-16 w-16 items-center justify-center rounded-[1.75rem] text-white transition-all duration-300 group-hover:-translate-y-0.5 group-hover:rotate-3">
+              <Cloud size={28} strokeWidth={2.5} />
+              <div className="absolute bottom-2 flex items-center gap-0.5 text-white/95">
+                <Waves size={12} strokeWidth={2.4} />
+              </div>
+            </div>
             <div>
-              <h1 className="font-black text-xl md:text-2xl text-slate-900 tracking-tighter">LinguaFlow</h1>
-              <p className="text-[10px] font-black text-kitty-400 uppercase tracking-widest">AI English Coach</p>
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.04em]">{BRAND_NAME}</h1>
+              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.35em]">{BRAND_TAGLINE}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 md:gap-4 lg:justify-end">
             {SUPPORTED_LANGUAGES.length > 1 && (
-              <div className="flex w-full sm:w-auto bg-white p-1 rounded-2xl border border-kitty-100 shadow-sm overflow-x-auto">
+              <div className="glass-pill flex w-full sm:w-auto p-1 rounded-2xl overflow-x-auto">
               {SUPPORTED_LANGUAGES.map((item) => (
-                <button key={item.code} onClick={() => { setLanguage(item.code); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-kitty-500 text-white shadow-md' : 'text-slate-400 hover:bg-kitty-50'}`}>
+                <button key={item.code} onClick={() => { setLanguage(item.code); }} className={`px-3 py-2 md:px-5 md:py-2.5 rounded-xl text-xs md:text-sm font-black transition-all flex items-center gap-2 whitespace-nowrap ${language === item.code ? 'bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 text-white shadow-md' : 'text-slate-500 hover:bg-white/70'}`}>
                   <span>{item.flag}</span>
                   <span>{item.label}</span>
                 </button>
               ))}
               </div>
             )}
-            <div className={`flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
+            <div className={`glass-pill flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
               cloudSyncStatus === 'synced'
                 ? 'bg-emerald-50 text-emerald-600'
                 : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
@@ -3104,12 +3116,12 @@ const App = () => {
             {isSupabaseConfigured() && (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 border border-kitty-100 shadow-sm hover:border-kitty-200 max-w-full"
+                className="glass-pill flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:border-kitty-200 max-w-full"
               >
                 <span className="truncate">{isEmailUser ? `Signed in · ${currentUserEmail}` : generalUiText.emailLogin}</span>
               </button>
             )}
-            <button onClick={() => setSidebarOpen(true)} className="relative p-3.5 bg-white rounded-2xl shadow-sm text-kitty-500 hover:scale-105 border border-kitty-100 transition-all">
+            <button onClick={() => setSidebarOpen(true)} className="glass-pill relative p-3.5 rounded-2xl text-kitty-500 hover:scale-105 transition-all">
               <ShoppingBag size={24} />
               {(vocabList.length + sentenceList.length + diaryEntries.length) > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1.35rem] h-5 px-1 bg-slate-900 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
@@ -3277,26 +3289,32 @@ const App = () => {
           )}
           {mode === AppMode.DASHBOARD && (
             <div className="h-full p-4 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
-              <div className="rounded-[2.5rem] md:rounded-[4rem] bg-gradient-to-br from-white via-white to-kitty-50/40 p-6 sm:p-8 md:p-12 lg:p-16 shadow-2xl border border-kitty-100">
-                <div className="inline-flex items-center gap-3 rounded-full bg-kitty-50 px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
+              <div className="glass-panel hero-mesh overflow-hidden rounded-[2.5rem] md:rounded-[4rem] p-6 sm:p-8 md:p-12 lg:p-16">
+                <div className="aurora-orb h-48 w-48 bg-pink-200/75 right-10 top-8" />
+                <div className="aurora-orb h-56 w-56 bg-cyan-200/65 right-28 bottom-10" />
+                <div className="aurora-orb h-40 w-40 bg-violet-200/70 left-24 bottom-16" />
+                <div className="relative inline-flex items-center gap-3 rounded-full glass-pill px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
                   <Mic size={16} /> {generalUiText.dashboardBadge}
                 </div>
-                <div className="grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
+                <div className="relative grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight leading-[0.95]">
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/65 px-4 py-2 text-[11px] font-black tracking-[0.28em] text-slate-500 uppercase shadow-sm">
+                      <Sparkles size={14} className="text-kitty-500" /> 云雾口语工作台
+                    </div>
+                    <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-[-0.05em] leading-[0.95]">
                       {generalUiText.dashboardTitle}
                     </h2>
-                    <p className="mt-5 md:mt-6 text-base sm:text-lg md:text-xl text-slate-500 font-medium leading-relaxed max-w-2xl">
+                    <p className="mt-5 md:mt-6 text-base sm:text-lg md:text-xl text-slate-600 font-semibold leading-relaxed max-w-2xl">
                       {generalUiText.dashboardDesc}
                     </p>
                     <div className="mt-8 flex flex-wrap gap-3">
                       {DASHBOARD_PROMISES.map((item, index) => (
-                        <span key={item} className={`rounded-full px-4 py-2 text-sm font-black ${
+                        <span key={item} className={`glass-pill rounded-full px-4 py-2 text-sm font-black ${
                           index === 0
-                            ? 'bg-kitty-50 text-kitty-600'
+                            ? 'text-kitty-600'
                             : index === 1
-                              ? 'bg-indigo-50 text-indigo-600'
-                              : 'bg-emerald-50 text-emerald-600'
+                              ? 'text-indigo-600'
+                              : 'text-emerald-600'
                         }`}>
                           {item}
                         </span>
@@ -3305,19 +3323,19 @@ const App = () => {
                     <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                       <button
                         onClick={() => void enterSpeakingMode()}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-kitty-500 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black shadow-xl hover:bg-kitty-600 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-gradient-to-r from-kitty-500 via-fuchsia-400 to-violet-400 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black text-white shadow-[0_20px_44px_rgba(255,77,156,0.28)] hover:translate-y-[-1px] transition-all"
                       >
                         <Mic size={22} /> {generalUiText.storyButton}
                       </button>
                       <button
                         onClick={() => void enterFreeTalkMode()}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-indigo-50 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black hover:bg-indigo-100 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] glass-pill px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black text-slate-700 hover:bg-white/80 transition-all"
                       >
                         <Headphones size={22} /> {generalUiText.freeTalkButton}
                       </button>
                       <button
                         onClick={openStoryLibrary}
-                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] bg-slate-100 px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black hover:bg-slate-200 transition-all"
+                        className="inline-flex items-center justify-center gap-3 rounded-[1.5rem] sm:rounded-[1.75rem] glass-pill px-6 sm:px-8 py-4 sm:py-5 text-base sm:text-lg font-black text-slate-700 hover:bg-white/80 transition-all"
                       >
                         <BookOpen size={22} /> {generalUiText.libraryButton}
                       </button>
@@ -3325,7 +3343,7 @@ const App = () => {
                     <div className="mt-10">
                       <div className="flex items-center justify-between gap-4 mb-4">
                         <p className="text-xs font-black uppercase tracking-widest text-slate-400">{generalUiText.otherModules}</p>
-                        <p className="text-sm font-semibold text-slate-400">口语先跑通，听读写考试都还在。</p>
+                        <p className="text-sm font-semibold text-slate-500">今天先选一个入口，把学习流程跑顺。</p>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         {SECONDARY_MODULES.map((item) => {
@@ -3343,10 +3361,10 @@ const App = () => {
                             <button
                               key={item.key}
                               onClick={() => openSecondaryModule(item.onEnter)}
-                              className="rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 bg-gradient-to-br from-white via-white to-slate-50/80 px-5 py-5 text-left shadow-sm hover:shadow-md hover:border-kitty-200 transition-all"
+                              className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] px-5 py-5 text-left hover:-translate-y-0.5 transition-all"
                             >
                               <div className="flex items-start justify-between gap-4">
-                                <div className={`rounded-2xl border px-3 py-3 ${accentClass}`}>
+                                <div className={`rounded-2xl border px-3 py-3 shadow-sm ${accentClass}`}>
                                   <Icon size={20} />
                                 </div>
                                 <ArrowRight className="text-slate-300 shrink-0" size={18} />
@@ -3362,21 +3380,21 @@ const App = () => {
                   </div>
 
                   <div className="space-y-5">
-                    <div className="rounded-[2rem] bg-emerald-50 p-6 border border-emerald-100">
+                    <div className="glass-panel rounded-[2rem] p-6">
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.todayLoopTitle}</p>
                       <div className="space-y-3">
                         {TODAY_LOOP_STEPS.map((step) => (
-                          <div key={step} className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-slate-700">
+                          <div key={step} className="rounded-2xl bg-white/80 px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
                             {step}
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-[2rem] bg-slate-50 p-6 border border-slate-100">
+                    <div className="glass-panel rounded-[2rem] p-6">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{generalUiText.momentumTitle}</p>
-                      <p className="text-3xl font-black text-slate-900">{storyEntries.filter((item) => item.language === language).length}</p>
+                      <p className="font-display text-4xl font-bold aurora-text">{storyEntries.filter((item) => item.language === language).length}</p>
                       <p className="mt-2 text-sm font-semibold text-slate-500">{storyEntries.filter((item) => item.language === language).length}{generalUiText.momentumDesc}</p>
-                      <div className="mt-4 text-sm font-semibold text-slate-500">
+                      <div className="mt-4 rounded-[1.5rem] bg-white/75 px-4 py-4 text-sm font-semibold text-slate-500 shadow-sm">
                         提醒时间：{storyReminder || '22:00'} · 今天{storyEntries.find((item) => new Date(item.date).toDateString() === new Date().toDateString() && item.language === language) ? '已经完成' : '还没讲故事'}
                       </div>
                     </div>

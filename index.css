@@ -1,8 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Quicksand', ui-sans-serif, system-ui, sans-serif;
 
   --color-kitty-50: #fff9fb;
   --color-kitty-100: #ffeef4;
@@ -25,8 +26,27 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    background:
+      radial-gradient(circle at top left, rgba(255, 206, 229, 0.52), transparent 32%),
+      radial-gradient(circle at 82% 14%, rgba(169, 228, 255, 0.48), transparent 26%),
+      radial-gradient(circle at 75% 75%, rgba(195, 255, 230, 0.38), transparent 28%),
+      linear-gradient(180deg, #fffdfd 0%, #fff7fb 48%, #f7fbff 100%);
+  }
+
   body {
     -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(255, 206, 229, 0.52), transparent 32%),
+      radial-gradient(circle at 82% 14%, rgba(169, 228, 255, 0.48), transparent 26%),
+      radial-gradient(circle at 75% 75%, rgba(195, 255, 230, 0.38), transparent 28%),
+      linear-gradient(180deg, #fffdfd 0%, #fff7fb 48%, #f7fbff 100%);
+    color: #17203a;
   }
 }
 
@@ -40,9 +60,86 @@
   }
   
   .glass {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.48));
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    box-shadow:
+      0 16px 50px rgba(157, 169, 207, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .glass-panel {
+    position: relative;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.56));
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(24px) saturate(155%);
+    -webkit-backdrop-filter: blur(24px) saturate(155%);
+    box-shadow:
+      0 24px 70px rgba(150, 164, 205, 0.16),
+      0 8px 26px rgba(255, 119, 187, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .glass-panel::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.08));
+  }
+
+  .glass-pill {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.58));
+    border: 1px solid rgba(255, 255, 255, 0.78);
+    box-shadow:
+      0 10px 30px rgba(158, 172, 214, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+  }
+
+  .aurora-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(26px);
+    opacity: 0.72;
+    pointer-events: none;
+  }
+
+  .aurora-text {
+    background-image: linear-gradient(135deg, #15203d 0%, #3f52df 28%, #ff4d9c 72%, #2dbfc6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .cloud-logo-shell {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 24% 22%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 42%, transparent 58%),
+      linear-gradient(145deg, rgba(255, 120, 182, 0.98), rgba(153, 120, 255, 0.9) 52%, rgba(108, 225, 225, 0.92));
+    box-shadow:
+      0 18px 40px rgba(255, 114, 181, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .cloud-logo-shell::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border-radius: inherit;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    pointer-events: none;
+  }
+
+  .hero-mesh {
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 213, 231, 0.95), transparent 24%),
+      radial-gradient(circle at 74% 22%, rgba(192, 243, 255, 0.9), transparent 22%),
+      radial-gradient(circle at 84% 82%, rgba(204, 255, 237, 0.75), transparent 20%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(251, 248, 255, 0.56));
   }
 }
