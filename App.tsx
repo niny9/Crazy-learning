@@ -86,41 +86,41 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 const BRAND_NAME = '云湖';
-const BRAND_TAGLINE = 'Cloud Lake Language Studio';
+const BRAND_TAGLINE = 'AI Language Studio';
 
 const SECONDARY_MODULES = [
   {
     key: 'listening',
-    title: 'Listening',
-    subtitle: '真实播客与音频素材',
-    description: '打开就能听，适合通勤和碎片时间做输入。',
+    title: '听力磨耳朵',
+    subtitle: '真实播客与可暂停音频',
+    description: '打开就能听，适合通勤、走路和碎片时间慢慢磨语感。',
     icon: Headphones,
     accent: 'indigo',
     onEnter: 'listening' as const,
   },
   {
     key: 'reading',
-    title: 'Reading',
-    subtitle: '产品 / 科技 / 职场阅读',
-    description: '直接读真实内容，保留原文链接，看到喜欢的还能跳出去深读。',
+    title: '阅读真内容',
+    subtitle: '产品 / 科技 / 职场深读',
+    description: '直接读真实英文内容，保留原文链接，遇到喜欢的就继续跳出去深读。',
     icon: BookOpen,
     accent: 'orange',
     onEnter: 'reading' as const,
   },
   {
     key: 'writing',
-    title: 'Writing',
-    subtitle: '写作工作台',
-    description: '把你的原文改顺、升级，并沉淀进 Diary。',
+    title: '写作打磨',
+    subtitle: '从草稿到更自然的表达',
+    description: '把你的原文改顺、升级，再沉淀进 Diary，留下一篇像样的表达。',
     icon: PenTool,
     accent: 'emerald',
     onEnter: 'writing' as const,
   },
   {
     key: 'exams',
-    title: 'Exams',
-    subtitle: '考试资源入口',
-    description: '把外部高频备考资源重新放回首页，随时能进。',
+    title: '考试备考',
+    subtitle: '把常用资源放在手边',
+    description: '把外部高频备考资源重新放回首页，临时想练的时候随时能进。',
     icon: GraduationCap,
     accent: 'sky',
     onEnter: 'exams' as const,
@@ -516,7 +516,7 @@ const getLanguageSourceHints = (language: string) => LANGUAGE_SOURCE_HINTS[langu
 const getFreeTalkUiText = (language: string) => {
   if (language === 'French') {
     return {
-      badge: 'Free Talk',
+      badge: '直接聊',
       microMode: 'Une phrase, une réponse',
       title: 'On parle librement, sans pression',
       description: 'Tu peux parler aussi longtemps que tu veux. Quand tu as fini, clique sur arrêter et je te répondrai.',
@@ -547,7 +547,7 @@ const getFreeTalkUiText = (language: string) => {
 
   if (language === 'Japanese') {
     return {
-      badge: 'Free Talk',
+      badge: '直接聊',
       microMode: '一言話したら、一言返す',
       title: '気軽に話そう。うまくまとまっていなくても大丈夫',
       description: '長めに話しても大丈夫です。話し終わったら停止を押してください。そのあと私が返します。',
@@ -577,7 +577,7 @@ const getFreeTalkUiText = (language: string) => {
   }
 
   return {
-    badge: 'Free Talk',
+    badge: '直接聊',
     microMode: '你说一句，我接一句',
     title: '直接聊，不知道说什么也没关系',
     description: '你可以多说一会儿。等你说完再点停止，我会马上接着回你。',
@@ -590,11 +590,11 @@ const getFreeTalkUiText = (language: string) => {
     betterWaysEmpty: '你发出一句后，我会给你 1 到 2 个更顺、更能复用的版本。',
     coachNote: '一句提醒',
     rules: [
-      'Start with short sentences.',
-      'If you get stuck, say the simplest version first.',
-      'The goal is to keep the back-and-forth going.',
+      '先从短句开始，不用一上来就说很长。',
+      '如果卡住了，就先讲最简单的版本。',
+      '重点不是完美，而是把这一轮自然聊下去。',
     ],
-    rulesTitle: '先把这一轮聊下去',
+    rulesTitle: '轻松聊下去就够了',
     replying: '我正在接你的话...',
     recording: '正在录音，你继续说，等你自己按停止就行。',
     transcribing: '正在把你的语音转成文字...',
@@ -666,19 +666,19 @@ const getContentUiText = (language: string, mode: AppMode.LISTENING | AppMode.RE
   return {
     badgeFallback: '今日推荐内容',
     loadingTitle: '正在帮你找一篇更值得读的内容...',
-    loadingBody: '正在从你的默认信息源和收藏源里，帮你重新找一篇更适合现在练的内容。',
+    loadingBody: '我正在重新挑一篇更适合你现在状态的材料，马上就会出来。',
     loadingBadge: '正在刷新今日材料',
-    loadingHint: '清晰素材正在加载中，马上给你一篇新的。',
+    loadingHint: '再等几秒，一篇新的内容马上就好。',
     openSource: '打开原文链接',
     sourcePanelLabel: '我的信息源',
     sourcePanelTitle: isListening ? '自定义你的听力信息源' : '自定义你的阅读信息源',
-    sourcePanelDesc: '这里主要是设置区。你一旦加了自己的源，后面系统会优先从这里抽内容。',
+    sourcePanelDesc: '把你平时真正会看的播客、网站或栏目加进来，后面系统会优先从这些地方给你抽素材。',
     sourceTypeBoth: '读 + 听',
     sourceTypeReading: '只读',
     sourceTypeListening: '只听',
     sourceDescPlaceholder: '补一句主题，比如 AI / 商业 / 文化',
     addSource: '添加源',
-    noCustomSource: '你还没加自定义源，当前会直接从默认源池里抓内容。',
+    noCustomSource: '你还没加自己的源，现在会先从默认推荐池里帮你选。',
     pauseTitle: '暂停',
     resumeTitle: '继续播放',
     playTitle: '开始播放',
@@ -804,15 +804,15 @@ const getGeneralUiText = (language: string) => {
     storyButton: '开始今天的故事',
     freeTalkButton: '直接聊几句英语',
     libraryButton: '我的故事库',
-    otherModules: '听 / 读 / 写 / 考试都还在',
+    otherModules: '其他练习也都在这里',
     storyLibraryTitle: '我的故事库',
     storyLibraryDesc: '这里会慢慢长出你自己的英语故事素材。以后面试、考试、聊天，都可以从这里复述和调用。',
     backHome: '返回首页',
     writingTitle: '写作练习',
-    saveDiary: '保存到 Diary',
-    saveDraft: '保存草稿',
+    saveDiary: '收进 Diary',
+    saveDraft: '先存草稿',
     savedDiaries: '已保存的 Diary',
-    feedbackPlaceholder: '你提交后，AI 的反馈会出现在这里。',
+    feedbackPlaceholder: '写完点一下检查，这里就会出现更顺的版本和可直接复用的表达。',
     examTitle: '考试专区',
     examDesc: '这里放你后续备考会用到的外部资料和入口。',
     accountTitle: '账号',
@@ -843,8 +843,8 @@ const getGeneralUiText = (language: string) => {
     speakingLaunchTitle: '正在打开口语练习区...',
     speakingLaunchDesc: '我们先把麦克风和对话状态准备好，你马上就能开始讲。',
     todayLoopTitle: '今天怎么练最轻松',
-    momentumTitle: '已经攒下来的表达',
-    momentumDesc: '篇属于你的英语故事已经留下来了',
+    momentumTitle: '你已经留下来的表达',
+    momentumDesc: '篇属于你的英语故事，已经开始积累起来了',
   };
 };
 
@@ -1081,15 +1081,15 @@ const getStoryUiText = (language: string) => {
   return {
     step1: 'STEP 1',
     chooseTitle: '先选你今天更需要哪种口语练习',
-    chooseDesc: '如果你已经知道今天想讲什么，就走 Today Story；如果你只是想找个人直接聊几句英语，就走 Free Talk。',
-    freeTalkDesc: '不知道说什么也没关系，先和 AI 直接聊几句英语。',
+    chooseDesc: '如果你已经知道今天想讲什么，就走 Today Story；如果你现在只想开口、不想先组织故事，就直接聊几句。',
+    freeTalkDesc: '不知道说什么也没关系，先和 AI 自然聊几句，把口语状态找回来。',
     whatYouGet: '你会拿到什么',
     whatYouGetList: [
       '一版整理后的原话，让你知道自己刚刚到底讲了什么',
       '一篇更清晰、以后可以直接复述的英文故事',
       '3 个重点表达，方便以后面试、口语考试和聊天复用',
     ],
-    reminder: 'Daily reminder',
+    reminder: '每日提醒',
     reminderDesc: '打开页面时会提醒你：今天还没讲故事哦。',
     recordHint: '建议录 3–5 分钟',
     recordTitle: '讲讲今天发生在你身上的一件事',
@@ -1098,14 +1098,14 @@ const getStoryUiText = (language: string) => {
     startRecording: '开始录音',
     pauseAndTranscribe: '暂停并转写',
     finishStep: '结束并进入下一步',
-    lightGuidance: 'Light guidance',
+    lightGuidance: '轻提示',
     guidanceList: [
       '先讲发生了什么，再讲你当时怎么想。',
       '如果卡壳，就先用中文补一句。',
       '不需要太完整，AI 会帮你理顺结构。',
     ],
     generateStory: '生成我的故事',
-    storyResultLabel: 'Today’s Story',
+    storyResultLabel: '今日故事',
     copyEnglish: '复制英文故事',
     goLibrary: '去我的故事库',
     originalVersion: '原话整理版',
@@ -1246,7 +1246,7 @@ const App = () => {
   const renderSubpageBackButton = (onClick?: () => void) => (
     <button
       onClick={onClick || (() => setMode(AppMode.DASHBOARD))}
-      className="glass-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-slate-700 hover:border-kitty-200"
+      className="glass-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black text-slate-700 hover:border-kitty-200 shadow-sm"
     >
       <ChevronLeft size={16} /> {generalUiText.backHome}
     </button>
@@ -1371,7 +1371,7 @@ const App = () => {
 
     try {
       await verifyEmailOtp(email, token);
-      setAuthMessage(`Signed in as ${email}`);
+      setAuthMessage(`已登录：${email}`);
       setAuthOtp('');
     } catch (error) {
       console.error(error);
@@ -2627,7 +2627,7 @@ const App = () => {
           setCloudSyncStatus('synced');
           setCloudSyncMessage('账号已连接，内容已同步');
           setIsAuthChecked(true);
-          setAuthMessage(`Signed in as ${user.email}`);
+          setAuthMessage(`已登录：${user.email}`);
         }
       } catch (error) {
         console.error('Supabase bootstrap failed', error);
@@ -2656,7 +2656,7 @@ const App = () => {
             hasBootstrappedCloudRef.current = true;
             setCloudSyncStatus('synced');
             setCloudSyncMessage('账号已连接，内容已同步');
-            setAuthMessage(`Signed in as ${user.email}`);
+            setAuthMessage(`已登录：${user.email}`);
             setIsAuthModalOpen(false);
             setIsAuthChecked(true);
           })
@@ -3068,21 +3068,21 @@ const App = () => {
         <div className="aurora-orb h-44 w-44 bg-pink-200/70 left-6 top-6" />
         <div className="aurora-orb h-52 w-52 bg-cyan-200/60 right-10 top-16" />
         <div className="aurora-orb h-56 w-56 bg-violet-200/55 left-[32%] top-32" />
-        <div className="sticky top-0 min-h-20 px-4 py-4 md:px-6 lg:px-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40 border-b border-white/40">
-          <div className="flex items-center gap-4 md:gap-5 cursor-pointer group" onClick={() => setMode(AppMode.DASHBOARD)}>
-            <div className="cloud-logo-shell relative flex h-16 w-16 items-center justify-center rounded-[1.75rem] text-white transition-all duration-300 group-hover:-translate-y-0.5 group-hover:rotate-3">
+        <div className="sticky top-0 min-h-20 px-3 py-3 md:px-6 md:py-4 lg:px-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between glass shrink-0 z-40 border-b border-white/40">
+          <div className="flex items-center gap-3 md:gap-5 cursor-pointer group min-w-0" onClick={() => setMode(AppMode.DASHBOARD)}>
+            <div className="cloud-logo-shell relative flex h-14 w-14 md:h-16 md:w-16 items-center justify-center rounded-[1.5rem] md:rounded-[1.75rem] text-white transition-all duration-300 group-hover:-translate-y-0.5 group-hover:rotate-3 shrink-0">
               <Cloud size={28} strokeWidth={2.5} />
               <div className="absolute bottom-2 flex items-center gap-0.5 text-white/95">
                 <Waves size={12} strokeWidth={2.4} />
               </div>
             </div>
-            <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.04em]">{BRAND_NAME}</h1>
-              <p className="text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.35em]">{BRAND_TAGLINE}</p>
+            <div className="min-w-0">
+              <h1 className="font-display text-xl md:text-3xl font-bold text-slate-900 tracking-[-0.04em] truncate">{BRAND_NAME}</h1>
+              <p className="text-[9px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.28em] md:tracking-[0.35em] truncate">{BRAND_TAGLINE}</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 md:gap-4 lg:justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 md:gap-4 lg:justify-end">
             {SUPPORTED_LANGUAGES.length > 1 && (
               <div className="glass-pill flex w-full sm:w-auto p-1 rounded-2xl overflow-x-auto">
               {SUPPORTED_LANGUAGES.map((item) => (
@@ -3093,7 +3093,7 @@ const App = () => {
               ))}
               </div>
             )}
-            <div className={`glass-pill flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest ${
+            <div className={`glass-pill flex items-center gap-2 rounded-full px-3 md:px-4 py-2 text-[10px] md:text-[11px] font-black uppercase tracking-[0.18em] md:tracking-widest max-w-full ${
               cloudSyncStatus === 'synced'
                 ? 'bg-emerald-50 text-emerald-600'
                 : cloudSyncStatus === 'syncing' || cloudSyncStatus === 'connecting'
@@ -3111,18 +3111,25 @@ const App = () => {
                       ? 'bg-amber-500'
                       : 'bg-slate-400'
               }`} />
-              {cloudSyncMessage}
+              <span className="truncate">{cloudSyncMessage}</span>
             </div>
             {isSupabaseConfigured() && (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="glass-pill flex items-center gap-2 rounded-full px-4 py-2 text-[11px] font-black uppercase tracking-widest text-slate-600 hover:border-kitty-200 max-w-full"
+                className="glass-pill flex items-center gap-2 rounded-full px-3 md:px-4 py-2 text-[10px] md:text-[11px] font-black uppercase tracking-[0.16em] md:tracking-widest text-slate-600 hover:border-kitty-200 max-w-full"
               >
-                <span className="truncate">{isEmailUser ? `Signed in · ${currentUserEmail}` : generalUiText.emailLogin}</span>
+                {isEmailUser ? (
+                  <>
+                    <span className="truncate sm:hidden">已登录 · 我的账号</span>
+                    <span className="hidden sm:inline truncate">{`已登录 · ${currentUserEmail}`}</span>
+                  </>
+                ) : (
+                  <span className="truncate">{generalUiText.emailLogin}</span>
+                )}
               </button>
             )}
-            <button onClick={() => setSidebarOpen(true)} className="glass-pill relative p-3.5 rounded-2xl text-kitty-500 hover:scale-105 transition-all">
-              <ShoppingBag size={24} />
+            <button onClick={() => setSidebarOpen(true)} className="glass-pill relative p-3 md:p-3.5 rounded-2xl text-kitty-500 hover:scale-105 transition-all shrink-0">
+              <ShoppingBag size={22} />
               {(vocabList.length + sentenceList.length + diaryEntries.length) > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1.35rem] h-5 px-1 bg-slate-900 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
                   {Math.min(vocabList.length + sentenceList.length + diaryEntries.length, 99)}
@@ -3134,13 +3141,13 @@ const App = () => {
 
         <main className="flex-1 min-h-0 overflow-hidden relative">
           {isSupabaseConfigured() && isAuthChecked && !isEmailUser && (
-            <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
-              <div className="glass-panel mx-auto my-4 w-full max-w-lg rounded-[2.5rem] p-6 md:p-8 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+            <div className="fixed inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-4 md:px-6 md:py-6">
+              <div className="glass-panel mx-auto my-2 w-full max-w-lg rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-8 max-h-[min(760px,calc(100dvh-1rem))] md:max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="font-display text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.signInTitle}</h3>
-                    <p className="mt-2 text-sm text-slate-600 font-semibold">
+                    <h3 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.signInTitle}</h3>
+                    <p className="mt-2 text-sm md:text-[15px] text-slate-600 font-semibold leading-relaxed">
                       {generalUiText.accountDesc}
                     </p>
                   </div>
@@ -3176,7 +3183,7 @@ const App = () => {
                       {isAuthLoading ? generalUiText.sendingCode : generalUiText.sendVerificationCode}
                     </button>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => {
                           setIsOtpStage(false);
@@ -3200,7 +3207,7 @@ const App = () => {
                 </div>
 
                 {authMessage && (
-                  <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700">
+                  <div className="mt-4 rounded-[1.5rem] bg-kitty-50 px-5 py-4 text-sm font-semibold text-kitty-700 leading-relaxed">
                     {authMessage}
                   </div>
                 )}
@@ -3208,13 +3215,13 @@ const App = () => {
             </div>
           )}
           {isSupabaseConfigured() && isEmailUser && isAuthModalOpen && (
-            <div className="absolute inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-6 md:px-6">
-              <div className="glass-panel mx-auto my-4 w-full max-w-lg rounded-[2.5rem] p-6 md:p-8 max-h-[calc(100dvh-2rem)] overflow-y-auto">
+            <div className="fixed inset-0 z-[65] overflow-y-auto bg-slate-950/45 backdrop-blur-sm px-4 py-4 md:px-6 md:py-6">
+              <div className="glass-panel mx-auto my-2 w-full max-w-lg rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-8 max-h-[min(760px,calc(100dvh-1rem))] md:max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-kitty-500 mb-2">{generalUiText.cloudAccount}</p>
-                    <h3 className="font-display text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.accountTitle}</h3>
-                    <p className="mt-2 text-sm text-slate-600 font-semibold">
+                    <h3 className="font-display text-2xl md:text-3xl font-bold text-slate-900 tracking-[-0.03em]">{generalUiText.accountTitle}</h3>
+                    <p className="mt-2 text-sm md:text-[15px] text-slate-600 font-semibold leading-relaxed">
                       {generalUiText.accountSynced}
                     </p>
                   </div>
@@ -3288,14 +3295,11 @@ const App = () => {
             </div>
           )}
           {mode === AppMode.DASHBOARD && (
-            <div className="h-full p-4 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
-              <div className="glass-panel hero-mesh overflow-hidden rounded-[2.5rem] md:rounded-[4rem] p-6 sm:p-8 md:p-12 lg:p-16">
+            <div className="h-full p-3 sm:p-4 md:p-8 lg:p-12 max-w-6xl mx-auto overflow-y-auto no-scrollbar pb-24 md:pb-32">
+              <div className="glass-panel hero-mesh overflow-hidden rounded-[2rem] sm:rounded-[2.5rem] md:rounded-[4rem] p-5 sm:p-8 md:p-12 lg:p-16">
                 <div className="aurora-orb h-48 w-48 bg-pink-200/75 right-10 top-8" />
                 <div className="aurora-orb h-56 w-56 bg-cyan-200/65 right-28 bottom-10" />
                 <div className="aurora-orb h-40 w-40 bg-violet-200/70 left-24 bottom-16" />
-                <div className="relative inline-flex items-center gap-3 rounded-full glass-pill px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-8">
-                  <Mic size={16} /> {generalUiText.dashboardBadge}
-                </div>
                 <div className="relative grid gap-10 xl:grid-cols-[1.2fr_0.8fr] items-start">
                   <div>
                     <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-slate-900 tracking-[-0.05em] leading-[0.95]">
@@ -3304,9 +3308,9 @@ const App = () => {
                     <p className="mt-5 md:mt-6 text-base sm:text-lg md:text-xl text-slate-600 font-semibold leading-relaxed max-w-2xl">
                       {generalUiText.dashboardDesc}
                     </p>
-                    <div className="mt-8 flex flex-wrap gap-3">
+                    <div className="mt-7 sm:mt-8 flex flex-wrap gap-2.5 sm:gap-3">
                       {DASHBOARD_PROMISES.map((item, index) => (
-                        <span key={item} className={`glass-pill rounded-full px-4 py-2 text-sm font-black ${
+                        <span key={item} className={`glass-pill rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-black ${
                           index === 0
                             ? 'text-kitty-600'
                             : index === 1
@@ -3337,38 +3341,52 @@ const App = () => {
                         <BookOpen size={22} /> {generalUiText.libraryButton}
                       </button>
                     </div>
-                    <div className="mt-10">
+                    <div className="mt-10 sm:mt-12">
                       <div className="flex items-center justify-between gap-4 mb-4">
                         <p className="text-xs font-black uppercase tracking-widest text-slate-400">{generalUiText.otherModules}</p>
-                        <p className="text-sm font-semibold text-slate-500">今天先选一个入口，把学习流程跑顺。</p>
+                        <p className="text-sm font-semibold text-slate-500">先从你现在最想练的那一块开始，不用一次做很多。</p>
                       </div>
                       <div className="grid gap-4 md:grid-cols-2">
                         {SECONDARY_MODULES.map((item) => {
                           const Icon = item.icon;
                           const accentClass =
                             item.accent === 'indigo'
-                              ? 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                              ? 'bg-indigo-50/90 text-indigo-500 border-indigo-100'
                               : item.accent === 'orange'
-                                ? 'bg-orange-50 text-orange-500 border-orange-100'
+                                ? 'bg-orange-50/90 text-orange-500 border-orange-100'
                                 : item.accent === 'emerald'
-                                  ? 'bg-emerald-50 text-emerald-500 border-emerald-100'
-                                  : 'bg-sky-50 text-sky-500 border-sky-100';
+                                  ? 'bg-emerald-50/90 text-emerald-500 border-emerald-100'
+                                  : 'bg-sky-50/90 text-sky-500 border-sky-100';
+
+                          const accentGlow =
+                            item.accent === 'indigo'
+                              ? 'from-indigo-100/80 via-white/20 to-transparent'
+                              : item.accent === 'orange'
+                                ? 'from-orange-100/80 via-white/20 to-transparent'
+                                : item.accent === 'emerald'
+                                  ? 'from-emerald-100/80 via-white/20 to-transparent'
+                                  : 'from-sky-100/80 via-white/20 to-transparent';
 
                           return (
                             <button
                               key={item.key}
                               onClick={() => openSecondaryModule(item.onEnter)}
-                              className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] px-5 py-5 text-left hover:-translate-y-0.5 transition-all"
+                              className="glass-panel relative overflow-hidden rounded-[1.5rem] sm:rounded-[2rem] px-5 py-5 text-left hover:-translate-y-0.5 hover:shadow-[0_24px_60px_rgba(141,156,201,0.18)] transition-all"
                             >
+                              <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${accentGlow} opacity-80`} />
+                              <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/40 blur-2xl" />
                               <div className="flex items-start justify-between gap-4">
-                                <div className={`rounded-2xl border px-3 py-3 shadow-sm ${accentClass}`}>
+                                <div className={`relative rounded-2xl border px-3 py-3 shadow-sm ${accentClass}`}>
                                   <Icon size={20} />
                                 </div>
                                 <ArrowRight className="text-slate-300 shrink-0" size={18} />
                               </div>
-                              <p className="mt-4 text-xl font-black text-slate-900">{item.title}</p>
-                              <p className="mt-1 text-sm font-black text-kitty-500">{item.subtitle}</p>
-                              <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">{item.description}</p>
+                              <div className="relative mt-4">
+                                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">练习模块</p>
+                                <p className="mt-2 text-xl font-black text-slate-900">{item.title}</p>
+                                <p className="mt-1 text-sm font-black text-kitty-500">{item.subtitle}</p>
+                                <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">{item.description}</p>
+                              </div>
                             </button>
                           );
                         })}
@@ -3377,7 +3395,8 @@ const App = () => {
                   </div>
 
                   <div className="space-y-5">
-                    <div className="glass-panel rounded-[2rem] p-6">
+                    <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6">
+                      <div className="pointer-events-none absolute -right-8 -top-6 h-24 w-24 rounded-full bg-emerald-100/70 blur-2xl" />
                       <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-2">{generalUiText.todayLoopTitle}</p>
                       <div className="space-y-3">
                         {TODAY_LOOP_STEPS.map((step) => (
@@ -3387,7 +3406,8 @@ const App = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="glass-panel rounded-[2rem] p-6">
+                    <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6">
+                      <div className="pointer-events-none absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{generalUiText.momentumTitle}</p>
                       <p className="font-display text-4xl font-bold aurora-text">{storyEntries.filter((item) => item.language === language).length}</p>
                       <p className="mt-2 text-sm font-semibold text-slate-500">{storyEntries.filter((item) => item.language === language).length}{generalUiText.momentumDesc}</p>
@@ -3406,9 +3426,6 @@ const App = () => {
               <div className="mb-4">{renderSubpageBackButton(() => endSpeakingSession('user_exit'))}</div>
               <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
                 <div>
-                  <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
-                    <Mic size={16} /> {generalUiText.dashboardBadge}
-                  </div>
                   <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-[-0.04em] leading-tight">{generalUiText.dashboardTitle}</h2>
                   <p className="mt-3 text-sm sm:text-base md:text-lg text-slate-600 font-semibold max-w-2xl leading-relaxed">
                     {generalUiText.dashboardDesc}
@@ -3437,7 +3454,7 @@ const App = () => {
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div>
-                            <p className="text-base sm:text-lg font-black text-slate-900">Free Talk</p>
+                            <p className="text-base sm:text-lg font-black text-slate-900">直接聊几句</p>
                             <p className="mt-1 text-sm font-semibold text-slate-500">{storyUiText.freeTalkDesc}</p>
                           </div>
                           <ArrowRight className="text-indigo-500 shrink-0" />
@@ -3737,7 +3754,8 @@ const App = () => {
 
               {speakingTrack === 'story' && storyStage === 'result' && storyResult && (
                 <div className="grid gap-6 xl:grid-cols-[1.12fr_0.88fr]">
-                  <div className="rounded-[2.5rem] bg-white p-7 md:p-10 shadow-xl border border-slate-100">
+                  <div className="glass-panel relative overflow-hidden rounded-[2.5rem] p-7 md:p-10">
+                    <div className="pointer-events-none absolute -right-10 top-0 h-28 w-28 rounded-full bg-kitty-100/70 blur-3xl" />
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-widest text-kitty-500 mb-3">{storyUiText.storyResultLabel} · {new Date().toLocaleDateString()}</p>
@@ -3754,22 +3772,22 @@ const App = () => {
                       </div>
                     </div>
                     <div className="mt-8 grid gap-5">
-                      <div className="rounded-[2rem] bg-slate-50 px-5 py-5">
+                      <div className="rounded-[2rem] bg-white/72 px-5 py-5 shadow-sm">
                         <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.originalVersion}</p>
                         <p className="text-base md:text-lg leading-relaxed text-slate-600 whitespace-pre-wrap">{storyResult.original}</p>
                       </div>
-                      <div className="rounded-[2rem] bg-emerald-50 px-5 py-5 border border-emerald-100">
+                      <div className="rounded-[2rem] bg-emerald-50/86 px-5 py-5 border border-emerald-100 shadow-sm">
                         <p className="text-xs font-black uppercase tracking-widest text-emerald-500 mb-3">{storyUiText.rewrittenVersion}</p>
                         <p className="text-base md:text-lg leading-relaxed text-slate-800 whitespace-pre-wrap font-medium">{storyResult.rewritten}</p>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-6">
-                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                    <div className="glass-panel rounded-[2.5rem] p-7 md:p-8">
                       <h4 className="text-2xl font-black text-slate-900 mb-4">{storyUiText.keyPhrases}</h4>
                       <div className="space-y-4">
                         {storyResult.keyPhrases.map((phrase, index) => (
-                          <div key={`${phrase.original}-${index}`} className="rounded-[1.75rem] bg-kitty-50 px-5 py-4">
+                          <div key={`${phrase.original}-${index}`} className="rounded-[1.75rem] bg-kitty-50/82 px-5 py-4 shadow-sm">
                             <p className="text-base font-black text-slate-900">{phrase.original}</p>
                             <p className="mt-2 text-sm font-semibold text-slate-600">{phrase.explanation}</p>
                             <p className="mt-2 text-sm text-kitty-700 font-bold">{storyUiText.alternativeLabel}：{phrase.alternative}</p>
@@ -3777,7 +3795,7 @@ const App = () => {
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-[2.5rem] bg-white p-7 md:p-8 shadow-xl border border-slate-100">
+                    <div className="glass-panel rounded-[2.5rem] p-7 md:p-8">
                       <h4 className="text-2xl font-black text-slate-900 mb-4">{storyUiText.summary}</h4>
                       <p className="text-base font-semibold text-slate-600 leading-relaxed">
                         {storyResult.comment || '今天这段故事已经有内容了。下一次继续练习“发生了什么 + 你怎么想”。'}
@@ -3792,13 +3810,13 @@ const App = () => {
                         </div>
                       ) : null}
                     </div>
-                    <div className="rounded-[2.5rem] bg-slate-50 p-7 md:p-8 border border-slate-100">
+                    <div className="glass-panel rounded-[2.5rem] p-7 md:p-8">
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{storyUiText.next}</p>
                       <div className="grid gap-3">
-                        <button onClick={() => { setStoryStage('record'); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
+                        <button onClick={() => { setStoryStage('record'); setStoryResult(null); }} className="rounded-[1.5rem] bg-white/82 px-5 py-4 text-left text-sm font-black text-slate-700 border border-white/75 shadow-sm">
                           {storyUiText.retry}
                         </button>
-                        <button onClick={() => { setStoryStage('choose_mode'); setStoryTranscript(''); setStoryResult(null); }} className="rounded-[1.5rem] bg-white px-5 py-4 text-left text-sm font-black text-slate-700 border border-slate-100">
+                        <button onClick={() => { setStoryStage('choose_mode'); setStoryTranscript(''); setStoryResult(null); }} className="rounded-[1.5rem] bg-white/82 px-5 py-4 text-left text-sm font-black text-slate-700 border border-white/75 shadow-sm">
                           {storyUiText.restart}
                         </button>
                       </div>
@@ -3812,7 +3830,10 @@ const App = () => {
           {mode === AppMode.STORY_LIBRARY && (
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto no-scrollbar">
               <div className="mb-4">{renderSubpageBackButton()}</div>
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+              <div className="glass-panel relative overflow-hidden rounded-[2rem] md:rounded-[2.75rem] px-5 py-6 md:px-8 md:py-8 mb-6">
+                <div className="pointer-events-none absolute -right-10 -top-8 h-28 w-28 rounded-full bg-kitty-100/70 blur-3xl" />
+                <div className="pointer-events-none absolute left-10 bottom-0 h-20 w-20 rounded-full bg-cyan-100/60 blur-3xl" />
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                 <div>
                   <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
                     <BookOpen size={16} /> {generalUiText.myStoriesBadge}
@@ -3830,6 +3851,7 @@ const App = () => {
                     {generalUiText.backHome}
                   </button>
                 </div>
+              </div>
               </div>
 
               <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -3908,8 +3930,11 @@ const App = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="h-full flex items-center justify-center rounded-[2rem] bg-slate-50 text-slate-500 font-semibold">
-                      {storyUiText.noStoryYet}
+                    <div className="h-full flex items-center justify-center rounded-[2rem] bg-slate-50/82 text-slate-500 font-semibold p-8 text-center leading-relaxed">
+                      <div>
+                        <p className="text-base sm:text-lg font-black text-slate-700">{storyUiText.noStoryYet}</p>
+                        <p className="mt-3 text-sm font-semibold text-slate-500">先去讲第一篇，后面这里会慢慢长成你自己的表达资料库。</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3925,10 +3950,19 @@ const App = () => {
                   <div className="min-w-0">
                     <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-6 mb-8 md:mb-12">
                       <div>
+                        <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-5">
+                          {mode === AppMode.LISTENING ? <Headphones size={16} /> : <BookOpen size={16} />}
+                          {mode === AppMode.LISTENING ? '听力练习' : '阅读练习'}
+                        </div>
                         <div className={`glass-pill inline-block px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 ${dailyContent ? mode === AppMode.LISTENING ? 'text-indigo-500' : 'text-orange-500' : 'text-kitty-600'}`}>
                           {dailyContent?.source || contentUiText.loadingBadge}
                         </div>
                         <h2 className={`font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold leading-tight tracking-[-0.04em] ${dailyContent ? 'text-slate-900' : 'text-kitty-500'}`}>{dailyContent?.title || contentUiText.loadingTitle}</h2>
+                        {dailyContent ? (
+                          <p className="mt-4 max-w-3xl text-sm sm:text-base md:text-lg text-slate-500 font-semibold leading-relaxed">
+                            {mode === AppMode.LISTENING ? '先听一遍，再暂停看看表达；遇到想记的单词和句子，随手就能存进你的本子。' : '先顺着读完，再挑你真正想留下来的表达。看到喜欢的原文，也可以直接跳出去继续深读。'}
+                          </p>
+                        ) : null}
                         {!dailyContent && (
                           <p className="mt-4 text-base sm:text-lg md:text-2xl font-black text-slate-500">{contentUiText.loadingHint}</p>
                         )}
@@ -4088,7 +4122,15 @@ const App = () => {
               <div className="glass-panel flex-1 flex flex-col rounded-[2rem] md:rounded-[4rem] p-4 sm:p-6 md:p-8 lg:p-12 relative overflow-hidden min-h-[520px]">
                 <div className="hidden xl:block mb-4">{renderSubpageBackButton()}</div>
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 md:mb-10">
-                  <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-[-0.03em]">{generalUiText.writingTitle}</h2>
+                  <div>
+                    <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-4">
+                      <PenTool size={16} /> Writing
+                    </div>
+                    <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-[-0.03em]">{generalUiText.writingTitle}</h2>
+                    <p className="mt-3 text-sm sm:text-base text-slate-500 font-semibold leading-relaxed max-w-2xl">
+                      先把意思写出来，再让 AI 帮你润顺、升级、保存。这里更像你的英文表达工作台，而不是冷冰冰的批改器。
+                    </p>
+                  </div>
                   <div className="flex w-full lg:w-auto flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
                     <button onClick={async () => { setIsWritingLoading(true); setWritingTopic(await AIService.generateWritingTopic(language)); setIsWritingLoading(false); }} className="glass-pill flex items-center justify-center gap-3 text-pink-600 px-5 py-3 md:px-8 md:py-4 rounded-full font-black text-sm hover:bg-white/80 transition-all">
                       <Wand2 size={20} /> {labels.inspire}
@@ -4125,9 +4167,10 @@ const App = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-16 glass-panel rounded-[4rem] border-2 border-dashed border-white/70">
+                  <div className="h-full flex flex-col items-center justify-center text-center p-10 sm:p-16 glass-panel rounded-[3rem] md:rounded-[4rem] border-2 border-dashed border-white/70">
                     <PenTool size={64} className="text-slate-200 mb-6" />
-                    <p className="text-lg text-slate-400 font-black">{generalUiText.feedbackPlaceholder}</p>
+                    <p className="text-lg text-slate-500 font-black leading-relaxed max-w-md">{generalUiText.feedbackPlaceholder}</p>
+                    <p className="mt-3 text-sm font-semibold text-slate-400">先写出你现在能写出来的版本，剩下的我帮你慢慢润顺。</p>
                   </div>
                 )}
                 {writingEntries.length > 0 && (
@@ -4151,13 +4194,20 @@ const App = () => {
             <div className="h-full p-3 sm:p-4 md:p-8 lg:p-16 max-w-6xl mx-auto overflow-y-auto no-scrollbar animate-in fade-in duration-1000">
               <div className="mb-4">{renderSubpageBackButton()}</div>
               <div className="text-center mb-10 md:mb-16">
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 mb-4">{generalUiText.examTitle}</h2>
+                <div className="glass-pill inline-flex items-center gap-3 rounded-full px-5 py-3 text-kitty-600 text-xs font-black uppercase tracking-widest mb-5">
+                  <GraduationCap size={16} /> Exam hub
+                </div>
+                <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900 tracking-[-0.04em] mb-4">{generalUiText.examTitle}</h2>
                 <p className="text-slate-400 text-base sm:text-lg md:text-xl font-medium">{generalUiText.examDesc}</p>
+                <p className="mt-4 text-sm sm:text-base text-slate-500 font-semibold leading-relaxed max-w-3xl mx-auto">
+                  把你平时会反复打开的备考入口放在一起。临时想练时不用再到处翻链接，直接从这里进就够了。
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 {(EXAM_RESOURCES[language] || []).map((resource, index) => (
-                  <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="bg-white p-5 sm:p-7 md:p-12 rounded-[2rem] md:rounded-[4rem] shadow-sm hover:shadow-2xl transition-all border border-slate-100 flex items-center gap-4 sm:gap-6 md:gap-10 group">
-                    <div className={`p-4 sm:p-6 md:p-8 bg-${resource.color}-50 text-${resource.color}-500 rounded-[1.5rem] md:rounded-[2.5rem] group-hover:scale-110 transition-transform`}>
+                  <a key={index} href={resource.url} target="_blank" rel="noreferrer" className="glass-panel relative overflow-hidden p-5 sm:p-7 md:p-12 rounded-[2rem] md:rounded-[4rem] hover:shadow-2xl transition-all flex items-center gap-4 sm:gap-6 md:gap-10 group">
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-white/45 blur-3xl" />
+                    <div className={`p-4 sm:p-6 md:p-8 bg-${resource.color}-50/90 text-${resource.color}-500 rounded-[1.5rem] md:rounded-[2.5rem] group-hover:scale-110 transition-transform shadow-sm border border-${resource.color}-100/80`}>
                       <resource.icon size={36} />
                     </div>
                     <div>

@@ -126,6 +126,18 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.7);
   }
 
+  .cloud-logo-shell::before {
+    content: "";
+    position: absolute;
+    inset: 8px 10px auto 10px;
+    height: 46%;
+    border-radius: 9999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.08));
+    filter: blur(2px);
+    opacity: 0.9;
+    pointer-events: none;
+  }
+
   .cloud-logo-shell::after {
     content: "";
     position: absolute;
