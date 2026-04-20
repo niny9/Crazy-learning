@@ -11,11 +11,11 @@ const root = ReactDOM.createRoot(rootElement);
 
 const showRootFailure = (detail: string) => {
   rootElement.innerHTML = `
-    <div style="min-height:100vh;display:grid;place-items:center;background:#fdf7fb;padding:24px;font-family:sans-serif;">
+    <div style="min-height:100vh;display:grid;place-items:center;background:#fdf7fb;padding:24px;font-family:'Source Han Sans CN VF','PingFang SC','Hiragino Sans GB','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif;">
       <div style="max-width:640px;background:rgba(255,255,255,0.92);border:1px solid #f2d4e5;border-radius:28px;padding:32px;box-shadow:0 16px 50px rgba(15,23,42,0.08);">
-        <h1 style="margin:0 0 12px;color:#111827;font-size:28px;font-weight:800;">LinguaFlow hit a loading problem.</h1>
+        <h1 style="margin:0 0 12px;color:#111827;font-size:28px;font-weight:800;">云湖加载时遇到了一点问题。</h1>
         <p style="margin:0 0 16px;color:#475569;line-height:1.6;">
-          The app stayed online, but the interface failed to finish loading.
+          页面还在线，但前端界面没有顺利加载完成。
         </p>
         <pre style="margin:0;white-space:pre-wrap;word-break:break-word;background:#fff6fb;color:#be185d;border-radius:18px;padding:16px;font-size:14px;">${detail}</pre>
       </div>

@@ -3175,13 +3175,13 @@ const App = () => {
           <div className="aurora-orb h-24 w-24 bg-cyan-200/60 right-16 top-8" />
           <div className="relative flex justify-between items-start gap-4 mb-5">
             <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-kitty-400 shadow-sm border border-white/70">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-kitty-400 shadow-sm border border-white/70">
                 <Sparkles size={12} className="text-kitty-400" /> {labels.notebook}
               </div>
-              <h2 className="mt-3 font-black text-kitty-800 text-2xl sm:text-[1.85rem] tracking-tight">
+              <h2 className="mt-3 font-semibold text-kitty-800 text-2xl sm:text-[1.8rem] tracking-[-0.02em]">
                 你的词句与表达
               </h2>
-              <p className="mt-2 max-w-[18rem] text-xs sm:text-sm leading-6 text-slate-500">
+              <p className="mt-2 max-w-[18rem] text-xs sm:text-sm leading-[1.8] font-medium text-slate-500">
                 先收着，后面复习、写作、口语都能直接复用。
               </p>
             </div>
@@ -3189,12 +3189,12 @@ const App = () => {
           </div>
           <div className="relative glass-pill flex p-1.5 rounded-2xl">
             {['vocab', 'sentences', 'diary'].map((tab) => (
-              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab ? 'bg-white/90 text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-500'}`}>
+              <button key={tab} onClick={() => setActiveTab(tab as 'vocab' | 'sentences' | 'diary')} className={`flex-1 py-3 rounded-xl text-sm font-semibold tracking-[-0.01em] transition-all ${activeTab === tab ? 'bg-white/90 text-kitty-600 shadow-sm' : 'text-kitty-300 hover:text-kitty-500'}`}>
                 {tab === 'vocab' ? labels.words : tab === 'sentences' ? labels.sentences : notebookUiText.diaryTab}
               </button>
             ))}
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-bold text-slate-400">
+          <div className="mt-3 flex items-center justify-between gap-3 text-[11px] font-medium text-slate-400">
             <span>{activeTab === 'vocab' ? `${vocabList.filter((item) => item.language === language).length} 个单词` : activeTab === 'sentences' ? `${sentenceList.filter((item) => item.language === language).length} 条句子` : `${diaryEntries.filter((item) => item.language === language).length} 篇 Diary`}</span>
             <span>随时导出到你的知识库</span>
           </div>
@@ -3301,7 +3301,7 @@ const App = () => {
                   <div key={item.id || `${group.title}-item`} className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 shadow-sm hover:shadow-[0_18px_40px_rgba(156,163,175,0.16)] transition-all group animate-in slide-in-from-right-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(255,255,255,0.62))]">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-black text-slate-800 text-base sm:text-xl tracking-tight line-clamp-2">
+                      <span className="font-semibold text-slate-800 text-base sm:text-[1.1rem] tracking-[-0.015em] line-clamp-2">
                         {activeTab === 'vocab'
                           ? (item as VocabItem).word || notebookUiText.untitledWord
                           : activeTab === 'sentences'
@@ -3337,7 +3337,7 @@ const App = () => {
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  <p className="text-sm text-kitty-500 mb-3 font-bold">
+                  <p className="text-sm text-kitty-500/95 mb-3 font-semibold leading-relaxed">
                     {activeTab === 'vocab'
                       ? (item as VocabItem).chineseDefinition || notebookUiText.languageClip
                       : activeTab === 'sentences'
@@ -3354,22 +3354,22 @@ const App = () => {
                       {notebookUiText.openSource} <ArrowRight size={14} />
                   </a>
                   )}
-                  <div className="text-xs text-slate-500 italic leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
+                  <div className="text-xs text-slate-500 leading-relaxed bg-kitty-50/50 p-4 rounded-2xl">
                     {activeTab === 'vocab' ? (
                       <div className="space-y-2 not-italic">
-                        <p className="text-sm font-semibold text-slate-700 leading-relaxed">“{(item as VocabItem).contextSentence}”</p>
+                        <p className="text-sm font-medium text-slate-700 leading-[1.8]">“{(item as VocabItem).contextSentence}”</p>
                         {(item as VocabItem).contextSentenceZh ? (
-                          <p className="text-xs font-semibold text-slate-500 leading-relaxed">{(item as VocabItem).contextSentenceZh}</p>
+                          <p className="text-xs font-medium text-slate-500/95 leading-[1.8]">{(item as VocabItem).contextSentenceZh}</p>
                         ) : null}
                       </div>
                     ) : (
-                      <>
+                      <p className="font-medium leading-[1.85] text-slate-600">
                         "
                         {activeTab === 'sentences'
                           ? (item as SavedSentence).text
                           : (item as DiaryEntry).content}
                         "
-                      </>
+                      </p>
                     )}
                   </div>
                   </div>
@@ -3641,7 +3641,7 @@ const App = () => {
                     </p>
                     <div className="mt-7 sm:mt-8 flex flex-wrap gap-2.5 sm:gap-3">
                       {DASHBOARD_PROMISES.map((item, index) => (
-                        <span key={item} className={`glass-pill rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-black ${
+                        <span key={item} className={`glass-pill rounded-full px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold tracking-[-0.01em] ${
                           index === 0
                             ? 'text-kitty-600'
                             : index === 1
@@ -3718,8 +3718,8 @@ const App = () => {
                               <div className="relative mt-5">
                                 <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">练习模块</p>
                                 <p className="mt-2 text-xl font-black text-slate-900">{item.title}</p>
-                                <p className="mt-1 text-sm font-black text-kitty-500">{item.subtitle}</p>
-                                <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-500">{item.description}</p>
+                                <p className="mt-1 text-sm font-semibold tracking-[-0.01em] text-kitty-500">{item.subtitle}</p>
+                                <p className="mt-3 text-sm leading-[1.75] font-medium text-slate-500">{item.description}</p>
                               </div>
                             </button>
                           );
@@ -3745,7 +3745,7 @@ const App = () => {
                       <div className="pointer-events-none absolute -left-6 bottom-0 h-24 w-24 rounded-full bg-violet-100/70 blur-2xl" />
                       <div className="pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-full bg-white/35 blur-2xl" />
                       <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">{generalUiText.momentumTitle}</p>
-                      <p className="font-display text-4xl font-bold aurora-text">{storyEntries.filter((item) => item.language === language).length}</p>
+                      <p className="font-display text-4xl font-semibold tracking-[-0.025em] aurora-text">{storyEntries.filter((item) => item.language === language).length}</p>
                       <p className="mt-2 text-sm font-semibold text-slate-500">{storyEntries.filter((item) => item.language === language).length}{generalUiText.momentumDesc}</p>
                       <div className="mt-4 rounded-[1.5rem] bg-white/75 px-4 py-4 text-sm font-semibold text-slate-500 shadow-sm">
                         提醒时间：{storyReminder || '22:00'} · 今天{storyEntries.find((item) => new Date(item.date).toDateString() === new Date().toDateString() && item.language === language) ? '已经完成' : '还没讲故事'}
@@ -4355,7 +4355,7 @@ const App = () => {
                     </div>
                     </div>
                     {dailyContent ? (
-                      <div className="overflow-y-auto no-scrollbar text-base sm:text-lg md:text-xl lg:text-2xl text-slate-700 leading-loose font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
+                      <div className="overflow-y-auto no-scrollbar text-[1rem] sm:text-[1.08rem] md:text-[1.18rem] lg:text-[1.28rem] text-slate-700 leading-[1.95] font-medium whitespace-pre-wrap selection:bg-kitty-200 xl:max-h-[calc(100vh-22rem)]" onMouseUp={handleTextSelection} onTouchEnd={handleTextSelection}>
                         {dailyContent.content}
                       </div>
                     ) : (
