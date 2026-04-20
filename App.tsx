@@ -2795,19 +2795,15 @@ const App = () => {
     if (typeof document === 'undefined') return;
 
     const previousOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
 
     if (sidebarOpen) {
       document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = previousOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
     }
 
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [sidebarOpen]);
 
@@ -3162,15 +3158,15 @@ const App = () => {
         <button
           aria-label="Close notebook"
           onClick={() => setSidebarOpen(false)}
-          className={`absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),rgba(15,23,42,0.16)_32%,rgba(15,23,42,0.28))] backdrop-blur-[4px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),rgba(15,23,42,0.16)_32%,rgba(15,23,42,0.28))] backdrop-blur-[4px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0'}`}
         />
         <div
           role="dialog"
           aria-modal="true"
           aria-label={labels.notebook}
-          className={`absolute inset-y-0 right-0 w-[min(92vw,420px)] glass-panel rounded-l-[2rem] sm:rounded-l-[2.5rem] border-l border-white/60 flex flex-col origin-top-right transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 scale-100 opacity-100' : 'translate-x-full scale-[0.985] opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)] overflow-hidden`}
+          className={`absolute inset-0 sm:inset-y-0 sm:left-auto sm:right-0 z-10 h-[100svh] sm:h-[100dvh] min-h-0 w-full sm:w-[min(92vw,420px)] glass-panel rounded-none sm:rounded-l-[2.5rem] border-0 sm:border-l border-white/60 flex flex-col origin-top-right transform-gpu transition-all duration-500 ${sidebarOpen ? 'translate-x-0 scale-100 opacity-100' : 'translate-x-full scale-[0.985] opacity-0'} shadow-[0_28px_80px_rgba(24,39,75,0.18)] overflow-hidden`}
         >
-        <div className="relative overflow-hidden p-4 sm:p-8 border-b border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.54),rgba(255,255,255,0.22))]">
+        <div className="relative shrink-0 overflow-hidden px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:p-8 border-b border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.54),rgba(255,255,255,0.22))]">
           <div className="aurora-orb h-28 w-28 bg-pink-200/70 -right-4 -top-6" />
           <div className="aurora-orb h-24 w-24 bg-cyan-200/60 right-16 top-8" />
           <div className="relative flex justify-between items-start gap-4 mb-5">
@@ -3219,7 +3215,7 @@ const App = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 sm:p-6 space-y-5 sm:space-y-6 no-scrollbar">
+        <div className="momentum-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain touch-auto p-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] sm:p-6 sm:pb-[calc(env(safe-area-inset-bottom)+8rem)] space-y-5 sm:space-y-6 no-scrollbar">
           <div className="glass-panel rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-5 bg-[linear-gradient(180deg,rgba(255,255,255,0.74),rgba(255,255,255,0.5))]">
             {activeTab === 'vocab' && (
               <div className="flex flex-col sm:flex-row gap-3">
@@ -3382,6 +3378,7 @@ const App = () => {
               <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-500">{notebookUiText.emptyDesc}</p>
             </div>
           )}
+          <div aria-hidden="true" className="h-4 shrink-0" />
         </div>
       </div>
       </div>

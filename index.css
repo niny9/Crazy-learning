@@ -80,6 +80,10 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .momentum-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
   
   .glass {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.48));
